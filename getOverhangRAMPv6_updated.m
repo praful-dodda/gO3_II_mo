@@ -228,37 +228,6 @@ end
         usedCount = station_count; % Return the actual count used
     end
 
-%{
-    function [l1, l2] = localInterpolation(decileBounds, curve1, curve2, currentMod)
-        % Performs linear interpolation based on local decile curves.
-        % Assumes curve1 is already monotonic.
-        valid_interp = ~isnan(decileBounds) & ~isnan(curve1);
-        if sum(valid_interp) >= 2
-            l1 = interp1(decileBounds(valid_interp), curve1(valid_interp), currentMod, 'linear', 'extrap');
-        else % Handle case with fewer than 2 points
-            l1 = mean(curve1,'omitnan');
-            if isnan(l1) && any(valid_interp)
-                l1 = curve1(valid_interp);
-            elseif isempty(valid_interp) || ~any(valid_interp)
-                 l1 = NaN; % No valid points
-            end
-        end
-        valid_interp2 = ~isnan(decileBounds) & ~isnan(curve2);
-         if sum(valid_interp2) >= 2
-             l2 = interp1(decileBounds(valid_interp2), curve2(valid_interp2), currentMod, 'linear', 'extrap');
-         else
-             l2 = mean(curve2,'omitnan');
-              if isnan(l2) && any(valid_interp2)
-                 l2 = curve2(valid_interp2);
-              elseif isempty(valid_interp2) || ~any(valid_interp2)
-                 l2 = NaN; % No valid points
-             end
-         end
-         if ~isnan(l2) && l2 < 0
-            l2 = 0;
-         end
-    end
-%}
     function [l1, l2] = localInterpolation(decileBounds, curve1, curve2, currentMod)
         % Performs linear interpolation (or extrapolation) for lambda1 and lambda2.
         % Applies fallback for lambda2: mean of curve2 if extrapolating or invalid.
@@ -358,34 +327,6 @@ end
          end
     end
 
-    %{
-    function [l1, l2] = globalExtrapolation(currentMod, globalBounds, globalCurve1, globalCurve2, avgSlope1, avgSlope2)
-        % Extrapolates lambda values based on the global CAMP ramp curve.
-         valid_bounds = ~isnan(globalBounds);
-         if ~any(valid_bounds)
-             l1 = NaN; l2 = NaN; return;
-         end
-         minB = min(globalBounds(valid_bounds)); % Min non-NaN bound
-         maxB = max(globalBounds(valid_bounds)); % Max non-NaN bound
-
-        if currentMod < minB
-            firstValidIdx = find(globalBounds == minB, 1, 'first'); % Index of min bound
-            pivot_bound = globalBounds(firstValidIdx);
-            pivot_value1 = globalCurve1(firstValidIdx);
-            pivot_value2 = globalCurve2(firstValidIdx);
-        else % currentMod >= maxB
-            lastValidIdx = find(globalBounds == maxB, 1, 'last'); % Index of max bound
-            pivot_bound = globalBounds(lastValidIdx);
-            pivot_value1 = globalCurve1(lastValidIdx);
-            pivot_value2 = globalCurve2(lastValidIdx);
-        end
-        l1 = pivot_value1 + avgSlope1 * (currentMod - pivot_bound);
-        l2 = pivot_value2 + avgSlope2 * (currentMod - pivot_bound);
-        if ~isnan(l2) && l2 < 0
-            l2 = 0;
-        end
-    end
-    %}
     function [l1, l2] = globalExtrapolation(currentMod, globalBounds, globalCurve1, globalCurve2, avgSlope1, avgSlope2)
         % Extrapolates lambda1 and lambda2 based on global CAMP curve.
         % Falls back to safe mean-based variance if extrapolation fails.
@@ -640,4 +581,64 @@ end
                   end
             end
         end
+    end
+
+    function modelobsPairs = getModelatObs(model, obs)
+    % GETMODELATOBS          - Extracts matching model values at observation locations.
+    %
+    % Retrieves model values corresponding to observation locations where the 
+    % observation data is valid (i.e. obs.Z is not NaN) by linearly interpolating
+    % the model values onto the observation locations. It returns a structure with:
+    %
+    %   .sMS         n by 2    locations of the observation points.
+    %   .modelval    n by tME  model values interpolated onto observation locations.
+    %   .obsval      n by tME  original observation values.
+    %   .nonNaNPairs n by tME  mask with 1 where both modelval and obsval are not NaN.
+    %
+    % SYNTAX:
+    %
+    % modelobsPairs = getModelatObs(model, obs)
+    %
+    % INPUT:
+    %
+    % model        structure with fields:
+    %               .sMS    m by 2      model coordinates [lon lat]
+    %               .Z      m by tME    model values
+    %               .tME    1 by tME    model times
+    %
+    % obs          structure with fields:
+    %               .sMS    n by 2      observation coordinates [lon lat]
+    %               .Z      n by tME    observation values (NaN indicates missing data)
+    %               .tME    1 by tME    observation times
+    %
+    % OUTPUT:
+    %
+    % modelobsPairs  structure with fields:
+    %               .sMS         n by 2    locations of paired model-observation values.
+    %               .modelval    n by tME  model values interpolated onto obs locations.
+    %               .obsval      n by tME  observation values.
+    %               .nonNaNPairs n by tME  mask: 1 where both modelval and obsval are not NaN.
+    %
+    % NOTE:
+    %
+    % Performs linear interpolation of model values onto observation locations.
+    %
+        tME = size(obs.tME, 2);
+        nObs = size(obs.sMS, 1);
+        
+        % Initialize interpolated model values matrix
+        modelInterp = zeros(nObs, tME);
+        
+        for t = 1:tME
+            % Create interpolant for current time step; return NaN for points outside
+            % the convex hull of model.sMS.
+            F = scatteredInterpolant(model.sMS(:,1), model.sMS(:,2), model.Z(:,t), 'linear', 'none');
+            modelInterp(:,t) = F(obs.sMS(:,1), obs.sMS(:,2));
+        end
+        
+        % Create mask: 1 where both interpolated model values and obs values are not NaN.
+        nonNaNPairs = ~isnan(modelInterp) & ~isnan(obs.Z);
+        
+        % Build output structure.
+        modelobsPairs = struct('sMS', obs.sMS, 'modelval', modelInterp, 'obsval', obs.Z, 'nonNaNPairs', nonNaNPairs);
     end
