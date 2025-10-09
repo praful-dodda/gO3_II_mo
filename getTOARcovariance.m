@@ -50,7 +50,7 @@ end
 covFile = sprintf('%s_cov_go%d.mat', obs.Zname, go.scenario);
 
 % Force re-estimation (set to 0 to use saved results)
-forceCOVestimation = 1;
+forceCOVestimation = 0;
 
 if exist(fullfile(covDir, covFile), 'file') && ~forceCOVestimation
     load(fullfile(covDir, covFile), 'cov');
@@ -118,7 +118,7 @@ end
 
 % Generate plots if requested
 if covPlot >= 1
-    plotTOARcovariance(cov, covPlot);
+    plotTOARcov(cov, covPlot);
 end
 
 end

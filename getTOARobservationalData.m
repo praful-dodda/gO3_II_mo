@@ -1,4 +1,4 @@
-function obs = getTOARobservationalData(stationTypes, timeRange, dataDir)
+function obs = getTOARobservationalData(stationTypes, timeRange, logTransf, dataDir)
 % getTOARobservationalData - Reads TOAR-II observational data
 %
 % Reads observational data from TOAR-II database for ozone measurements
@@ -16,6 +16,9 @@ function obs = getTOARobservationalData(stationTypes, timeRange, dataDir)
 %               default: 'all'
 % timeRange     1x2 vector [startYear endYear] for data extraction
 %               default: [2010 2020]
+% logTransf     scalar indicating if log transform is applied to Z
+%               0 - no log transform (default for ozone)
+%               1 - log transform (not typical for ozone)
 % dataDir       string path to directory containing TOAR-II data files
 %               default: './1data/TOAR'
 %
@@ -25,7 +28,7 @@ function obs = getTOARobservationalData(stationTypes, timeRange, dataDir)
 %       obs.stationID      nMS x 1    unique station identifiers
 %       obs.stationName    nMS x 1    cell array of station names
 %       obs.stationType    nMS x 1    cell array of station types
-%       obs.sMS           nMS x 2    Longitude-Latitude coordinates
+%       obs.sMS           nMS x 2    lon-lat coordinates
 %       obs.elevation     nMS x 1    station elevations (m)
 %       obs.tME           1 x nME    time vector (decimal years)
 %       obs.Z             nMS x nME  ozone concentrations (ppb)
@@ -39,198 +42,144 @@ function obs = getTOARobservationalData(stationTypes, timeRange, dataDir)
 %       obs.measurementCount nMS x nME number of measurements per time period
 
 if nargin < 1, stationTypes = 'all'; end
-if nargin < 2, timeRange = [2010 2020]; end
-if nargin < 3, dataDir = fullfile('.', '1data', 'TOAR'); end
+if nargin < 2, timeRange = [2015 2020]; end
+if nargin < 3, logTransf = 0; end
+if nargin < 4, dataDir = fullfile('.', '1data', 'TOAR-II'); end
 
-% Check if data directory exists
+% Check directory exists
 if ~exist(dataDir, 'dir')
-    error('TOAR data directory %s does not exist. Please create and populate with TOAR-II data files.', dataDir);
+    error('TOAR data directory does not exist: %s', dataDir);
 end
 
-% Set output structure parameters
-obs.Zname = 'OZONE_TOAR';
+% Initialize output structure metadata
+obs.Zname = 'OZONE-TOAR';
 obs.Zunit = 'ppb';
-obs.Zlabel = [obs.Zname ' (' obs.Zunit ')'];
+obs.Zlabel = 'OZONE TOAR-II (ppb)';
 obs.spaceUnit = 'deg';
 obs.timeUnit = 'year';
-obs.logTransf = 0; % No log transform for ozone following AP convention
+obs.logTransf = 0;
 
-% Create time vector (monthly resolution for TOAR data)
+% Create monthly time vector
 startYear = timeRange(1);
 endYear = timeRange(2);
-tME = startYear:1/12:endYear; % Monthly time steps
-obs.tME = tME;
-nME = length(tME);
 
-% Read TOAR-II data files
-% This assumes TOAR data is provided in CSV format with specific structure
-toarFiles = dir(fullfile(dataDir, '*.csv'));
-if isempty(toarFiles)
-    error('No TOAR CSV files found in %s', dataDir);
-end
+% if length(timeRange) == 1
+%     endYear = startYear;
+% elseif length(timeRange) == 2
+%     endYear = timeRange(2);
+% end
 
-% Initialize data containers
-allStationData = {};
-stationCounter = 0;
+nYears = endYear - startYear + 1;
+nMonths = nYears * 12;
+obs.tME = linspace(startYear, endYear + 11/12, nMonths);
 
+% Find and read CSV files for requested years
 fprintf('Reading TOAR-II data files...\n');
-for iFile = 1:length(toarFiles)
-    filename = fullfile(dataDir, toarFiles(iFile).name);
-    fprintf('  Processing file: %s\n', toarFiles(iFile).name);
+allData = [];
+
+for year = startYear:endYear
+    filename = fullfile(dataDir, sprintf('TOAR-II-monthly-mda8-%d.csv', year));
     
-    try
-        % Read the CSV file
-        data = readtable(filename);
-        
-        % Extract station information (adjust column names as needed)
-        if ismember('station_id', data.Properties.VariableNames)
-            stationIDs = data.station_id;
-        else
-            warning('station_id column not found in %s', toarFiles(iFile).name);
-            continue;
-        end
-        
-        % Get unique stations from this file
-        uniqueStations = unique(stationIDs);
-        
-        for iStation = 1:length(uniqueStations)
-            stationCounter = stationCounter + 1;
-            stationID = uniqueStations(iStation);
-            
-            % Extract data for this station
-            stationIdx = stationIDs == stationID;
-            stationData = data(stationIdx, :);
-            
-            % Store station metadata
-            allStationData{stationCounter}.stationID = stationID;
-            
-            % Extract coordinates (adjust column names as needed)
-            if ismember('longitude', stationData.Properties.VariableNames)
-                allStationData{stationCounter}.longitude = stationData.longitude(1);
-            else
-                allStationData{stationCounter}.longitude = NaN;
-            end
-            
-            if ismember('latitude', stationData.Properties.VariableNames)
-                allStationData{stationCounter}.latitude = stationData.latitude(1);
-            else
-                allStationData{stationCounter}.latitude = NaN;
-            end
-            
-            % Extract other metadata
-            if ismember('station_name', stationData.Properties.VariableNames)
-                allStationData{stationCounter}.stationName = stationData.station_name{1};
-            else
-                allStationData{stationCounter}.stationName = sprintf('Station_%d', stationID);
-            end
-            
-            if ismember('station_type', stationData.Properties.VariableNames)
-                allStationData{stationCounter}.stationType = stationData.station_type{1};
-            else
-                allStationData{stationCounter}.stationType = 'unknown';
-            end
-            
-            if ismember('elevation', stationData.Properties.VariableNames)
-                allStationData{stationCounter}.elevation = stationData.elevation(1);
-            else
-                allStationData{stationCounter}.elevation = NaN;
-            end
-            
-            % Extract time series data
-            % Initialize data arrays
-            ozoneData = NaN(1, nME);
-            qualityData = NaN(1, nME);
-            countData = zeros(1, nME);
-            
-            % Process ozone measurements (adjust column names as needed)
-            if ismember('datetime', stationData.Properties.VariableNames) && ...
-               ismember('ozone', stationData.Properties.VariableNames)
-                
-                % Convert datetime to decimal years
-                if iscell(stationData.datetime)
-                    stationDates = datenum(stationData.datetime);
-                else
-                    stationDates = stationData.datetime;
-                end
-                stationTimes = datenum2decyear(stationDates);
-                
-                % Map data to time grid
-                for iTime = 1:length(stationTimes)
-                    [~, timeIdx] = min(abs(tME - stationTimes(iTime)));
-                    if abs(tME(timeIdx) - stationTimes(iTime)) < 1/24 % Within 1 month
-                        if ~isnan(stationData.ozone(iTime))
-                            ozoneData(timeIdx) = stationData.ozone(iTime);
-                            countData(timeIdx) = countData(timeIdx) + 1;
-                            
-                            % Extract quality flag if available
-                            if ismember('quality_flag', stationData.Properties.VariableNames)
-                                qualityData(timeIdx) = stationData.quality_flag(iTime);
-                            end
-                        end
-                    end
-                end
-            end
-            
-            allStationData{stationCounter}.ozoneData = ozoneData;
-            allStationData{stationCounter}.qualityData = qualityData;
-            allStationData{stationCounter}.countData = countData;
-        end
-        
-    catch ME
-        warning('Error processing file %s: %s', toarFiles(iFile).name, ME.message);
+    if ~exist(filename, 'file')
+        warning('File not found: %s', filename);
+        continue;
+    end
+    
+    fprintf('  Reading: %s\n', filename);
+    yearData = readtable(filename);
+    
+    % Add year column to track which year this data is from
+    yearData.year = repmat(year, height(yearData), 1);
+    
+    % Append to combined data
+    if isempty(allData)
+        allData = yearData;
+    else
+        allData = [allData; yearData]; %#ok<AGROW>
     end
 end
 
-if stationCounter == 0
-    error('No valid station data found in TOAR files');
+if isempty(allData)
+    error('No data files found for years %d-%d', startYear, endYear);
 end
 
-% Filter stations by type if specified
+% Get unique stations
+[uniqueIDs, ~, ic] = unique(allData.id, 'stable');
+nStations = length(uniqueIDs);
+
+fprintf('Found %d unique stations\n', nStations);
+
+% Initialize output arrays
+obs.stationID = cell(nStations, 1);
+% obs.stationName = cell(nStations, 1);
+obs.stationType = cell(nStations, 1);
+% obs.country = cell(nStations, 1);
+obs.sMS = NaN(nStations, 2);
+obs.Z = NaN(nStations, nMonths);
+
+% Process each station
+for iStation = 1:nStations
+    stationRows = find(ic == iStation);
+    
+    % Extract metadata from first occurrence
+    firstRow = stationRows(1);
+    obs.stationID{iStation} = allData.id(firstRow);
+    % obs.stationName{iStation} = char(allData.id(firstRow));
+    obs.stationType{iStation} = char(allData.type(firstRow));
+    % obs.country{iStation} = char(allData.country(firstRow));
+    obs.sMS(iStation, :) = [allData.lon(firstRow), allData.lat(firstRow)];
+    
+    % Extract ozone data for all years this station appears
+    for iRow = stationRows'
+        year = allData.year(iRow);
+        yearOffset = (year - startYear) * 12;
+        
+        % Extract 12 monthly values (DMA8_1 through DMA8_12)
+        for month = 1:12
+            colName = sprintf('DMA8_%d', month);
+            if ismember(colName, allData.Properties.VariableNames)
+                timeIdx = yearOffset + month;
+                obs.Z(iStation, timeIdx) = allData.(colName)(iRow);
+            end
+        end
+    end
+end
+
+% Filter by station type if requested
 if ~strcmp(stationTypes, 'all')
-    if ischar(stationTypes)
-        stationTypes = {stationTypes};
+    if ischar(stationTypes), stationTypes = {stationTypes}; end
+    
+    keepStation = false(nStations, 1);
+    for i = 1:nStations
+        keepStation(i) = any(strcmpi(obs.stationType{i}, stationTypes));
     end
     
-    validStations = false(stationCounter, 1);
-    for iStation = 1:stationCounter
-        if any(strcmpi(allStationData{iStation}.stationType, stationTypes))
-            validStations(iStation) = true;
-        end
-    end
+    obs.stationID = obs.stationID(keepStation);
+    % obs.stationName = obs.stationName(keepStation);
+    obs.stationType = obs.stationType(keepStation);
+    % obs.country = obs.country(keepStation);
+    obs.sMS = obs.sMS(keepStation, :);
+    obs.Z = obs.Z(keepStation, :);
     
-    allStationData = allStationData(validStations);
-    stationCounter = sum(validStations);
+    fprintf('Filtered to %d stations matching types: %s\n', ...
+        sum(keepStation), strjoin(stationTypes, ', '));
 end
 
-% Compile final data structure
-nMS = stationCounter;
-obs.stationID = zeros(nMS, 1);
-obs.stationName = cell(nMS, 1);
-obs.stationType = cell(nMS, 1);
-obs.sMS = NaN(nMS, 2);
-obs.elevation = NaN(nMS, 1);
-obs.Z = NaN(nMS, nME);
-obs.dataQuality = NaN(nMS, nME);
-obs.measurementCount = zeros(nMS, nME);
-
-for iStation = 1:nMS
-    obs.stationID(iStation) = allStationData{iStation}.stationID;
-    obs.stationName{iStation} = allStationData{iStation}.stationName;
-    obs.stationType{iStation} = allStationData{iStation}.stationType;
-    obs.sMS(iStation, :) = [allStationData{iStation}.longitude, allStationData{iStation}.latitude];
-    obs.elevation(iStation) = allStationData{iStation}.elevation;
-    obs.Z(iStation, :) = allStationData{iStation}.ozoneData;
-    obs.dataQuality(iStation, :) = allStationData{iStation}.qualityData;
-    obs.measurementCount(iStation, :) = allStationData{iStation}.countData;
-end
-
-% Set Y variable (no log transform for ozone)
+% Set Y variable (same as Z, no log transform)
 obs.Y = obs.Z;
 obs.Yname = obs.Zname;
 obs.Yunit = obs.Zunit;
 obs.Ylabel = obs.Zlabel;
 
-fprintf('Successfully loaded data for %d stations over %d time periods\n', nMS, nME);
-fprintf('Time range: %.2f to %.2f %s\n', min(obs.tME), max(obs.tME), obs.timeUnit);
+% Summary
+nMS = size(obs.Z, 1);
+validData = sum(~isnan(obs.Z(:)));
+totalData = numel(obs.Z);
+fprintf('\nSummary:\n');
+fprintf('  Stations: %d\n', nMS);
+fprintf('  Time periods: %d months (%.1f - %.1f)\n', ...
+    nMonths, min(obs.tME), max(obs.tME));
+fprintf('  Valid data points: %d / %d (%.1f%%)\n', ...
+    validData, totalData, 100*validData/totalData);
 
 end
