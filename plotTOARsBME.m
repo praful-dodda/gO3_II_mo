@@ -78,8 +78,8 @@ if exist(fullfile(dataDir, 'borderdata.mat'), 'file')
 end
 
 %% Create Figure
-figure('Position', [100 100 1200 800]);
-hold on;
+% figure('Position', [100 100 1200 800]);
+% hold on;
 
 %% Plot Based on Type
 switch plotType
@@ -134,13 +134,13 @@ end
 colormap(cmap);
 
 % Add country borders
-if bordersAvailable
-    for k = 1:length(places)
-        if ~isempty(lon{k})
-            plot(lon{k}, lat{k}, 'k', 'LineWidth', 0.5);
-        end
-    end
-end
+% if bordersAvailable
+%     for k = 1:length(places)
+%         if ~isempty(lon{k})
+%             plot(lon{k}, lat{k}, 'k', 'LineWidth', 0.5);
+%         end
+%     end
+% end
 
 % Add colorbar
 cb = colorbar;
@@ -197,8 +197,8 @@ figFilename = sprintf('BME%s_go%d_lt%d_area%d_res%.2f_time%.2f_%s.png', ...
     BMEmethod8digits, go.scenario, obs.logTransf, areaCode, mapResolution, tk, figSuffix);
 figPath = fullfile(figDir, figFilename);
 
-% Save
-print(figPath, '-dpng', '-r300');
+% Save figure
+saveas(gcf, figPath);
 fprintf('  Figure saved: %s\n', figFilename);
 
 hold off;

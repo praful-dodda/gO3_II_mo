@@ -165,9 +165,36 @@ for iTime = 1:length(tkVec)
             
         case 2  % KrigingME
             fprintf('    Using krigingME_stg...\n');
-            [XkBMEm, XkBMEv] = krigingME_stg(pk, KS.harddata, KS.softdata, ...
-                KG.covmodel, KG.covparam, BMEparam.nhmax, BMEparam.nsmax, ...
-                BMEparam.dmax, KG.order);
+        
+            % SAVE INPUTS FOR DEBUGGING
+            debugFile = sprintf('debug_krigingME_go%d_time%.2f.mat', go.scenario, tk);
+            debugPath = fullfile('5BMEspatialPlots', 'debug', debugFile);
+            if ~exist(fullfile('5BMEspatialPlots', 'debug'), 'dir')
+                mkdir(fullfile('5BMEspatialPlots', 'debug'));
+            end
+            
+            debug_inputs.pk = pk;
+            debug_inputs.harddata = KS.harddata;
+            debug_inputs.softdata = KS.softdata;
+            debug_inputs.covmodel = KG.covmodel;
+            debug_inputs.covparam = KG.covparam;
+            debug_inputs.nhmax = BMEparam.nhmax;
+            debug_inputs.nsmax = BMEparam.nsmax;
+            debug_inputs.dmax = BMEparam.dmax;
+            debug_inputs.order = KG.order;
+            
+            save(debugPath, 'debug_inputs', '-v7.3');
+            fprintf('    DEBUG: Inputs saved to %s\n', debugPath);
+            
+            fprintf('    Using krigingME_stg...\n');
+
+            % [XkBMEm, XkBMEv] = krigingME_stg(pk, KS.harddata, KS.softdata, ...
+            %     KG.covmodel, KG.covparam, BMEparam.nhmax, BMEparam.nsmax, ...
+            %     BMEparam.dmax, KG.order);
+            
+            [XkBMEm,XkBMEv]=krigingME(pk,KS.harddata.p,KS.softdata.p,KS.harddata.z, ...
+            KS.softdata.Xms,KS.softdata.Xvs,KG.covmodel,KG.covparam,BMEparam.nhmax, ...
+            BMEparam.nsmax,BMEparam.dmax,KG.order);
             
         otherwise
             error('Invalid BMEprobaType: %d', BMEprobaType);

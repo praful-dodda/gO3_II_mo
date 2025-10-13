@@ -1,4 +1,4 @@
-function plotField(sk,zk,ax,maskcontour)
+function plotField(sk,zk,ax,maskcontour, nxpix, nypix)
 % plotField       - Makes a color map of the field of values
 %
 % SYNTAX:
@@ -11,13 +11,16 @@ function plotField(sk,zk,ax,maskcontour)
 %                             default value is ax=[], which will use an area over all the field
 %   maskcontour   n x 2       matrix of points defining the outer contour of the mask
 %                             default value is maskcontour=[], which will not use any mask
-
+%   nxpix         scalar      number of pixels in the x-direction used to create the color map
+%                             default value is nxpix=150
+%   nypix         scalar      number of pixels in the y-direction used to create the color map
+%                             default value is nypix=100
 
 if nargin<3, ax=[]; end;            
 if nargin<4, maskcontour=[]; end;
+if nargin<5, nxpix=150; end;
+if nargin<6, nypix=100; end;
 
-nxpix=150;           % Number of pixels in the x-direction used to create the color map 
-nypix=100;           % Number of pixels in the y-direction used to create the color map 
 maskfillcolor='w';   % character defining the color to use to fill outside of the mask
                      % 'w' is for white, see help plot for other colors  
 masklinetype='k';    % character defining the color to use for the linetype of 

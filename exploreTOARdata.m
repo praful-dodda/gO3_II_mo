@@ -22,6 +22,7 @@ function exploreTOARdata(obs, explorePlot, mapArea)
 %              6 : plot 2,3,4,5 + time trend percentiles
 %              7 : plot 2,3,4,5,6 + time trend mean +/- stdev
 %              8 : plot 2,3,4,5,6,7 + histogram of Z if Y is log transformed
+%              9: all plots + seasonal plots
 %              default: explorePlot=8
 % mapArea      scalar determining the geographical mapping area:
 %              1-Global, 2-North America, 3-Europe, 4-Asia, 
@@ -61,6 +62,7 @@ if explorePlot >= 5, exploreOptions.plotTimeSeriesLeastMostObs = 1; end
 if explorePlot >= 6, exploreOptions.plotTimeTrendPercentiles = 1; end
 if explorePlot >= 7, exploreOptions.plotTimeTrendMeanStdev = 1; end
 if explorePlot >= 8, exploreOptions.plotHistogram = 2; end
+if explorePlot >= 9, exploreOptions.plotSeasonality = 1; end
 
 % Set parameters
 zHistogramLowerPercentile = 0;
@@ -304,6 +306,28 @@ if exploreOptions.plotColorPlots > 0
             fprintf('Warning: No data found close to year %d\n', tMEplot(ii));
         end
     end
+end
+
+%% Add to exploreTOARdata.m (around line 50, after basic statistics)
+
+%% Seasonal Phase Analysis
+if exploreOptions.plotSeasonality > 0
+    fprintf('\n--- Seasonal Phase Analysis ---\n');
+    
+    % Calculate seasonality
+    seasonality = calculateTOARseasonality(obs, 24);
+    
+    % Create plots
+    plotTOARseasonalPhase(obs, seasonality, 1);
+    
+    % Save seasonality results
+    saveDir = '3covariance';  % Or wherever appropriate
+    if ~exist(saveDir, 'dir'), mkdir(saveDir); end
+    
+    savePath = fullfile(saveDir, sprintf('TOAR_seasonality_%d_%d.mat', ...
+        obs.tME(1), obs.tME(end)));
+    save(savePath, 'seasonality');
+    fprintf('Seasonality results saved to: %s\n', savePath);
 end
 
 fprintf('\nExploratory analysis complete.\n');

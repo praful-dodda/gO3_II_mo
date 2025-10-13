@@ -99,8 +99,8 @@ initParams_spatial = [0.5*varSpatial, rLag(2), rLag(end)];
 
 lb_spatial = [0, 3, 3];
 
-% ub_spatial = [varSpatial, max(rLag)*2, max(rLag)*5];
-ub_spatial = [varSpatial, 50, 50];  % CAP spatial ranges at 50 degrees!
+ub_spatial = [varSpatial, max(rLag)*2, max(rLag)*5];
+% ub_spatial = [varSpatial, 50, 50];  % CAP spatial ranges at 50 degrees!
 
 rLag_col = rLag(:); Cr_col = Cr(:); valid_idx = ~isnan(Cr_col) & ~isnan(rLag_col);
 opts = optimoptions('lsqcurvefit', 'Display', 'none', 'MaxIterations', 2000);
