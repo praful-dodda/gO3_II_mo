@@ -131,6 +131,12 @@ for iTime = 1:length(tkVec)
         load(BMEsPath, 'BMEs');
         
         if plotResults > 0
+            % replace NaNs in BMEs.XkBMEm with 0s
+            BMEs.XkBMEm(isnan(BMEs.XkBMEm)) = 0;
+
+            % recalculate YkBMEm
+            BMEs.YkBMEm = BMEs.XkBMEm + BMEs.gok;
+
             plotTOARsBME(obs, go, BMEs, BMEparam, estParam);
         end
         continue;
@@ -167,27 +173,25 @@ for iTime = 1:length(tkVec)
             fprintf('    Using krigingME_stg...\n');
         
             % SAVE INPUTS FOR DEBUGGING
-            debugFile = sprintf('debug_krigingME_go%d_time%.2f.mat', go.scenario, tk);
-            debugPath = fullfile('5BMEspatialPlots', 'debug', debugFile);
-            if ~exist(fullfile('5BMEspatialPlots', 'debug'), 'dir')
-                mkdir(fullfile('5BMEspatialPlots', 'debug'));
-            end
+            % debugFile = sprintf('debug_krigingME_go%d_time%.2f.mat', go.scenario, tk);
+            % debugPath = fullfile('5BMEspatialPlots', 'debug', debugFile);
+            % if ~exist(fullfile('5BMEspatialPlots', 'debug'), 'dir')
+            %     mkdir(fullfile('5BMEspatialPlots', 'debug'));
+            % end
+            % 
+            % debug_inputs.pk = pk;
+            % debug_inputs.harddata = KS.harddata;
+            % debug_inputs.softdata = KS.softdata;
+            % debug_inputs.covmodel = KG.covmodel;
+            % debug_inputs.covparam = KG.covparam;
+            % debug_inputs.nhmax = BMEparam.nhmax;
+            % debug_inputs.nsmax = BMEparam.nsmax;
+            % debug_inputs.dmax = BMEparam.dmax;
+            % debug_inputs.order = KG.order;
+            % 
+            % save(debugPath, 'debug_inputs', '-v7.3');
+            % fprintf('    DEBUG: Inputs saved to %s\n', debugPath);
             
-            debug_inputs.pk = pk;
-            debug_inputs.harddata = KS.harddata;
-            debug_inputs.softdata = KS.softdata;
-            debug_inputs.covmodel = KG.covmodel;
-            debug_inputs.covparam = KG.covparam;
-            debug_inputs.nhmax = BMEparam.nhmax;
-            debug_inputs.nsmax = BMEparam.nsmax;
-            debug_inputs.dmax = BMEparam.dmax;
-            debug_inputs.order = KG.order;
-            
-            save(debugPath, 'debug_inputs', '-v7.3');
-            fprintf('    DEBUG: Inputs saved to %s\n', debugPath);
-            
-            fprintf('    Using krigingME_stg...\n');
-
             % [XkBMEm, XkBMEv] = krigingME_stg(pk, KS.harddata, KS.softdata, ...
             %     KG.covmodel, KG.covparam, BMEparam.nhmax, BMEparam.nsmax, ...
             %     BMEparam.dmax, KG.order);
@@ -195,6 +199,9 @@ for iTime = 1:length(tkVec)
             [XkBMEm,XkBMEv]=krigingME(pk,KS.harddata.p,KS.softdata.p,KS.harddata.z, ...
             KS.softdata.Xms,KS.softdata.Xvs,KG.covmodel,KG.covparam,BMEparam.nhmax, ...
             BMEparam.nsmax,BMEparam.dmax,KG.order);
+
+            % replace NaNs in BMEs.XkBMEm with 0s
+            XkBMEm(isnan(XkBMEm)) = 0;
             
         otherwise
             error('Invalid BMEprobaType: %d', BMEprobaType);
@@ -205,6 +212,7 @@ for iTime = 1:length(tkVec)
     
     % Add global offset back to get final predictions
     gok = stmeaninterp(go.sMS, go.tME, go.ms, go.mt, sk, tk);
+
     YkBMEm = XkBMEm + gok;
 
     % Debug:
@@ -255,9 +263,9 @@ for iTime = 1:length(tkVec)
     
     % Summary statistics
     fprintf('  Results summary:\n');
-    fprintf('    Mean prediction: %.2f %s\n', mean(YkBMEm), obs.Zunit);
-    fprintf('    Std prediction: %.2f %s\n', std(YkBMEm), obs.Zunit);
-    fprintf('    Mean uncertainty: %.2f %s\n', mean(sqrt(XkBMEv)), obs.Zunit);
+    fprintf('    Mean prediction: %.2f %s\n', mean(YkBMEm, "omitmissing"), obs.Zunit);
+    fprintf('    Std prediction: %.2f %s\n', std(YkBMEm, "omitmissing"), obs.Zunit);
+    fprintf('    Mean uncertainty: %.2f %s\n', mean(sqrt(XkBMEv), "omitmissing"), obs.Zunit);
     
     % Plot if requested
     if plotResults > 0

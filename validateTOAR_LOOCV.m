@@ -98,7 +98,7 @@ for iYear = 1:length(valParam.valYears)
             obs_subset.Y = obs.Y(:, inTimeWindow);
             
             % Convert to space-time format
-            [ch, zh] = stg2stv(obs_subset.Y, obs_subset.sMS, obs_subset.tME);
+            [ch, zh] = valstg2stv(obs_subset.Y, obs_subset.sMS, obs_subset.tME);
             
             % Remove NaN values
             validIdx = ~isnan(zh);
@@ -117,7 +117,7 @@ for iYear = 1:length(valParam.valYears)
             fprintf('  Performing LOOCV...\n');
             
             % Remove global offset from observations
-            goh = stmeaninterp(go.sMS, go.tME, go.ms, go.mt, ch(:,1:2), ch(:,3));
+            goh = stmeaninterp(go.sMS, go.tME, go.ms, go.mt, ch(:,1:2), ch(:,3)');
             xh = zh - goh;
             
             % Call LOOCV function

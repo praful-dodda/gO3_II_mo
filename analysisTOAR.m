@@ -6,7 +6,7 @@
 % Advanced: Uncomment different scenarios below or modify parameters
 
 clear; close all;
-analysisScenario = 1;
+analysisScenario = 4;
 
 %% ====================================================================
 %                    DATA CONFIGURATION
@@ -118,7 +118,7 @@ switch analysisScenario
         %   8  = California
         %   9  = Northeast US corridor
         %  10  = User defined (modify getTOARareaBoundaries.m)
-        analyzeParam.areaCode = 5;
+        analyzeParam.areaCode = 0;
 
         % Grid resolution in degrees
         %   0.25 = Very fine (slow, large files)
@@ -129,13 +129,14 @@ switch analysisScenario
 
         % Times to estimate (decimal years)
         % Examples:
-        analyzeParam.tkVec = 2016:1/12:2016.25;        % Monthly for 2016
+        % analyzeParam.tkVec = 2016:1/12:2017;        % Monthly for 2016
+        analyzeParam.tkVec = 2017:1/12:2018;        % Monthly for 2017
         % analyzeParam.tkVec = [2016 2017 2018];    % Annual 2016-2018
         % analyzeParam.tkVec = 2016.0:0.25:2017.0;  % Quarterly 2016
         % analyzeParam.tkVec = 2016 + [0 90 180 270]/365;  % Seasonal 2016
 
         % Force re-estimation
-        analyzeParam.forceEstimation = 0;  % 0=use cached, 1=force new estimation
+        analyzeParam.forceEstimation = 1;  % 0=use cached, 1=force new estimation
 
         % Plotting level for BME results
         %   0 = No plots
@@ -144,6 +145,12 @@ switch analysisScenario
         %   3 = Residuals (offset-removed)
         %   4 = Uncertainty maps
         analyzeParam.plotResults = 1;
+
+        % Include only land points in grid
+        analyzeParam.keepOnlyLand = true;  % true/false
+
+        % Include Antarctica in grid
+        analyzeParam.includeAntarctica = false;  % true/false
 
         %% ====================================================================
         %                    PRE-CONFIGURED SCENARIOS
@@ -318,5 +325,6 @@ switch analysisScenario
 
         % run validation
         run_TOARvalidation(valParam);
+end
 
 

@@ -7,7 +7,7 @@ function run_TOARvalidation(valParam)
 %   ... See setData_val.m for details
 % OUTPUTS:
 %   ...
-
+valParam.softData = [];
 [obs, go, cov, KG, KS, BMEparam] = setData_val(valParam);
 
 validationMethod = valParam.method;

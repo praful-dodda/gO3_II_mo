@@ -199,4 +199,31 @@ if goPlot >= 3
     end
 end
 
+% save figures
+if goPlot >= 1
+    % Create figure directory if it doesn't exist
+    figDir = './2globalOffset/figs';
+    if ~exist(figDir, 'dir')
+        mkdir(figDir);
+    end
+    % Create filename components
+    figFilename = sprintf('%s_go%d', obs.Zname, go.scenario);
+    if goPlot >= 3
+        figFilename = sprintf('%s_tME%.2f', figFilename, tk);
+    end
+    if ~isempty(yrange)
+        figFilename = sprintf('%s_yrange%.1f-%.1f', figFilename, yrange(1), yrange(2));
+    else
+        figFilename = sprintf('%s_yrangeauto', figFilename);
+    end
+    if ~isempty(displayArea)
+        figFilename = sprintf('%s_area%.0f-%.0f_%.0f-%.0f', figFilename, displayArea(1), displayArea(2), displayArea(3), displayArea(4));
+    end
+    if plotBorders
+        figFilename = sprintf('%s_borders', figFilename);
+    end
+    figFilename = sprintf('%s.png', figFilename);
+    figPath = fullfile(figDir, figFilename);
+    saveas(gcf, figPath);
+    fprintf('Figure saved: %s\n', figFilename);
 end
