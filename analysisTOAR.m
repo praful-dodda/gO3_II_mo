@@ -6,7 +6,7 @@
 % Advanced: Uncomment different scenarios below or modify parameters
 
 clear; close all;
-analysisScenario = 4;
+analysisScenario = 1;
 
 %% ====================================================================
 %                    DATA CONFIGURATION
@@ -129,16 +129,22 @@ switch analysisScenario
 
         % Times to estimate (decimal years)
         % Examples:
-        % analyzeParam.tkVec = 2016:1/12:2017;        % Monthly for 2016
-        analyzeParam.tkVec = 2017:1/12:2018;        % Monthly for 2017
+        analyzeParam.tkVec = 2016:1/12:2017;        % Monthly for 2016
+        % analyzeParam.tkVec = 2017:1/12:2018;        % Monthly for 2017
         % analyzeParam.tkVec = [2016 2017 2018];    % Annual 2016-2018
         % analyzeParam.tkVec = 2016.0:0.25:2017.0;  % Quarterly 2016
         % analyzeParam.tkVec = 2016 + [0 90 180 270]/365;  % Seasonal 2016
 
         % Force re-estimation
-        analyzeParam.forceEstimation = 1;  % 0=use cached, 1=force new estimation
+        analyzeParam.forceEstimation = 0;  % 0=use cached, 1=force new estimation
 
-        % Plotting level for BME results
+         % Include only land points in grid
+        analyzeParam.keepOnlyLand = true;  % true/false
+
+        % Include Antarctica in grid
+        analyzeParam.includeAntarctica = false;  % true/false
+
+        % Plotting level for BME Mean results
         %   0 = No plots
         %   1 = BME estimates only
         %   2 = BME estimates + observations (RECOMMENDED)
@@ -146,11 +152,15 @@ switch analysisScenario
         %   4 = Uncertainty maps
         analyzeParam.plotResults = 1;
 
-        % Include only land points in grid
-        analyzeParam.keepOnlyLand = true;  % true/false
+        % Plotting level for BME Variance results
+        %   0 = No plots
+        %   1 = standard deviation map
+        %   2 = variance map
+        %   3 = coefficient of variation map
+        %   4 = Multi-panel with all three - std, var, and CV
+        analyzeParam.plotVariance = 1;
 
-        % Include Antarctica in grid
-        analyzeParam.includeAntarctica = false;  % true/false
+       
 
         %% ====================================================================
         %                    PRE-CONFIGURED SCENARIOS

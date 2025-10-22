@@ -138,6 +138,7 @@ for iTime = 1:length(tkVec)
             BMEs.YkBMEm = BMEs.XkBMEm + BMEs.gok;
 
             plotTOARsBME(obs, go, BMEs, BMEparam, estParam);
+            plotTOARsBMEvar(obs, go, BMEs, BMEparam, estParam);
         end
         continue;
     end
@@ -270,6 +271,7 @@ for iTime = 1:length(tkVec)
     % Plot if requested
     if plotResults > 0
         plotTOARsBME(obs, go, BMEs, BMEparam, estParam);
+        plotTOARsBMEvar(obs, go, BMEs, BMEparam, estParam);
     end
 end
 

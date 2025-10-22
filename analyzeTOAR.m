@@ -223,11 +223,7 @@ if analyzeParam.runBME && ~isempty(KG)
     fprintf('====================================================\n');
     
     % Package estimation parameters
-    estParam.areaCode = analyzeParam.areaCode;
-    estParam.mapResolution = analyzeParam.mapResolution;
-    estParam.tkVec = analyzeParam.tkVec;
-    estParam.forceEstimation = analyzeParam.forceEstimation;
-    estParam.plotResults = analyzeParam.plotResults;
+    estParam = analyzeParam;
     
     % Add BMEmethod to BMEparam for plotting
     BMEparam.BMEmethod8digits = analyzeParam.BMEmethod;
