@@ -15,10 +15,11 @@ function [valOut, valPairOut] = validateTOAR_LOOCV(obs, go, cov, KG, KS, BMEpara
 %   KS        - Site-specific Knowledge from getTOARknowledgeBase
 %   BMEparam  - BME parameters from getTOARknowledgeBase
 %   valParam  - Validation parameters structure:
-%               .valYears        - Years to validate (e.g., [2016 2017])
-%               .valMonths       - Months to validate (e.g., 1:12 or [6 7 8])
-%               .forceEstimation - Force re-calculation (1) or use saved (0)
-%               .savePlots       - Save validation plots (0/1)
+%               .valYears          - Years to validate (e.g., [2016 2017])
+%               .valMonths         - Months to validate (e.g., 1:12 or [6 7 8])
+%               .forceEstimation   - Force re-calculation (1) or use saved (0)
+%               .savePlots         - Save validation plots (0/1)
+%               .maxTemporalWindow - Max years before/after to include (default: 1.0)
 %
 % OUTPUTS:
 %   valOut     - Table with validation statistics (R, RMSE, MAE, ME, etc.)
@@ -29,6 +30,7 @@ function [valOut, valPairOut] = validateTOAR_LOOCV(obs, go, cov, KG, KS, BMEpara
 %   valParam.valMonths = 1:12;
 %   valParam.forceEstimation = 0;
 %   valParam.savePlots = 1;
+%   valParam.maxTemporalWindow = 1.0;  % Use 1 year before/after (prevents large matrices)
 %   [valOut, valPairOut] = validateTOAR_LOOCV(obs, go, cov, KG, KS, BMEparam, valParam);
 
 %% Input Validation
@@ -41,11 +43,13 @@ if ~isfield(valParam, 'valYears'), valParam.valYears = [2016]; end
 if ~isfield(valParam, 'valMonths'), valParam.valMonths = 1:12; end
 if ~isfield(valParam, 'forceEstimation'), valParam.forceEstimation = 0; end
 if ~isfield(valParam, 'savePlots'), valParam.savePlots = 1; end
+if ~isfield(valParam, 'maxTemporalWindow'), valParam.maxTemporalWindow = 1.0; end  % Max years before/after (default: 1 year)
 
 %% Setup
 fprintf('\n=== TOAR BME LEAVE-ONE-OUT CROSS VALIDATION ===\n');
 fprintf('Validation years: %s\n', mat2str(valParam.valYears));
 fprintf('Validation months: %s\n', mat2str(valParam.valMonths));
+fprintf('Max temporal window: %.1f years before/after\n', valParam.maxTemporalWindow);
 
 % Create output directory
 valDir = fullfile('7validation');
@@ -84,13 +88,18 @@ for iYear = 1:length(valParam.valYears)
             tk_month = valResults.tk;
         else
             %% Select Data for This Month
-            % Define time window (month ± temporal search radius)
+            % Define time window (month ± limited temporal window)
             monthStart = valYear + (iMonth - 1)/12;
             monthEnd = valYear + iMonth/12;
-            
-            % Find observations in this time window
-            inTimeWindow = (obs.tME >= monthStart - BMEparam.dmax(2)) & ...
-                           (obs.tME < monthEnd + BMEparam.dmax(2));
+
+            % Find observations in this time window (limited to maxTemporalWindow)
+            % This prevents creating excessively large matrices during LOOCV
+            temporalRadius = min(BMEparam.dmax(2), valParam.maxTemporalWindow);
+            inTimeWindow = (obs.tME >= monthStart - temporalRadius) & ...
+                           (obs.tME < monthEnd + temporalRadius);
+
+            fprintf('  Using temporal window of %.1f years (original dmax: %.1f years)\n', ...
+                    temporalRadius, BMEparam.dmax(2));
             
             % Extract subset of data
             obs_subset.sMS = obs.sMS;

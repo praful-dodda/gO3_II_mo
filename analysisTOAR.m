@@ -319,7 +319,8 @@ switch analysisScenario
         valParam.tkVec = 2016:1/12:2017;  % Monthly 2016
         valParam.method = 'loocv'; % 'loocv' or 'rcv' or 'kfold'
         valParam.nFolds = 5;  % only used if method='kfold'
-        
+        valParam.maxTemporalWindow = 1.0;  % Max years before/after (prevents large matrices during LOOCV)
+
 
         % plot settings
         valParam.goPlot = 0;
