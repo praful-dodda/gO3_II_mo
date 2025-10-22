@@ -1,6 +1,9 @@
 function [valOut, valPairOut] = validateTOAR_LOOCV(obs, go, cov, KG, KS, BMEparam, valParam)
 % validateTOAR_LOOCV - Leave-One-Out Cross Validation for TOAR BME estimates
 %
+% ** DEPRECATED: Please use validateTOARsBME.m instead **
+% The new function uses a monthly approach to avoid memory issues.
+%
 % Performs LOOCV by iteratively removing each observation and estimating
 % it using all remaining observations
 %
