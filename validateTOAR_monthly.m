@@ -5,158 +5,150 @@ function valResults = validateTOAR_monthly(obs, go, cov, BMEparam, valYear, valM
 %   valResults = validateTOAR_monthly(obs, go, cov, BMEparam, valYear, valMonth)
 %
 % INPUTS:
-%   obs       - Observational data structure
-%   go        - Global offset structure
-%   cov       - Covariance structure
-%   BMEparam  - BME parameters
+%   obs       - Observational data structure from getTOARobservationalData
+%   go        - Global offset structure from getTOARglobalOffset
+%   cov       - Covariance structure from getTOARautoCov
+%   BMEparam  - BME parameters from getTOARknowledgeBase
 %   valYear   - Year to validate (e.g., 2016)
 %   valMonth  - Month to validate (1-12)
 %
 % OUTPUTS:
 %   valResults - Structure with validation results for this month
 
-%% Define Time Window
-% Target month boundaries
+%% Define Time Window for Target Month
+% Month boundaries in decimal years
 monthStart = valYear + (valMonth - 1) / 12;
 monthEnd = valYear + valMonth / 12;
 
-% Temporal window for training data (month ± search radius)
+fprintf('    Target month: %.4f - %.4f (Year %d, Month %d)\n', ...
+    monthStart, monthEnd, valYear, valMonth);
+
+%% Define Training Window (month ± temporal search radius)
+% dmax(2) is in years (same units as obs.tME)
 temporalWindow = BMEparam.dmax(2);  % in years
 windowStart = monthStart - temporalWindow;
 windowEnd = monthEnd + temporalWindow;
 
-fprintf('    Target month: %.4f - %.4f\n', monthStart, monthEnd);
 fprintf('    Training window: %.4f - %.4f (±%.2f years)\n', ...
     windowStart, windowEnd, temporalWindow);
 
-%% Filter Observations to Time Window
-% Find observations within the training window
+%% Filter Observations to Training Window
+% Find time indices within training window
 inWindow = (obs.tME >= windowStart) & (obs.tME < windowEnd);
 
 if sum(inWindow) == 0
-    warning('No observations in time window');
+    warning('No time periods in training window');
     valResults = [];
     return;
 end
 
-% Extract subset
-tME_window = obs.tME(inWindow);
-Y_window = obs.Y(:, inWindow);
+% Create subset of obs structure with only training window data
+dataStruct = obs;
+dataStruct.Y = obs.Y(:, inWindow);
+dataStruct.Z = obs.Z(:, inWindow);
+dataStruct.tME = obs.tME(inWindow);
 
 fprintf('    Time periods in window: %d\n', sum(inWindow));
 
-%% Convert to Space-Time Format
-% Convert from STG to STV format
-[ch, zh] = valstg2stv(Y_window, obs.sMS, tME_window);
+%% Get Knowledge Base for Training Data
+% This converts from STG to STV format and prepares hard/soft data
+[KG, KS, ~] = getTOARknowledgeBase(dataStruct, go, cov, [], BMEparam.BMEmethod8digits);
 
-% Remove NaN values
-validIdx = ~isnan(zh);
-ch = ch(validIdx, :);
-zh = zh(validIdx);
-
-nObs = length(zh);
-fprintf('    Valid observations: %d\n', nObs);
-
-if nObs < 10
-    warning('Too few observations (%d) for validation', nObs);
+% Check if we have sufficient data
+if isempty(KS.harddata.p) || length(KS.harddata.z) < 10
+    warning('Too few hard data points (%d) for validation', length(KS.harddata.z));
     valResults = [];
     return;
 end
 
-%% Remove Global Offset in Batches
-fprintf('    Removing global offset...\n');
-
-% Process in batches to avoid memory issues
-batchSize = 5000;
-goh = NaN(nObs, 1);
-
-for iBatch = 1:batchSize:nObs
-    idxBatch = iBatch:min(iBatch + batchSize - 1, nObs);
-    goh(idxBatch) = stmeaninterp(go.sMS, go.tME, go.ms, go.mt, ...
-        ch(idxBatch, 1:2), ch(idxBatch, 3));
-
-    if mod(iBatch, 10000) == 1 && iBatch > 1
-        fprintf('      Processed %d/%d observations\n', iBatch, nObs);
-    end
-end
-
-% Residuals (remove GO)
-xh = zh - goh;
+fprintf('    Hard data points in window: %d\n', length(KS.harddata.z));
 
 %% Perform Leave-One-Out Cross Validation
-fprintf('    Performing LOOCV...\n');
+% krigingME_Xvalidation performs LOOCV internally
+% Option 1 means validate at hard data locations only
+fprintf('    Performing LOOCV using krigingME_Xvalidation...\n');
 tic;
 
-XkBMEm = NaN(nObs, 1);
-XkBMEv = NaN(nObs, 1);
-
-% Progress tracking
-progressInterval = max(1, floor(nObs / 20));  % Update every 5%
-
-for i = 1:nObs
-    if mod(i, progressInterval) == 0
-        fprintf('      Progress: %d/%d (%.0f%%)\n', i, nObs, 100*i/nObs);
-    end
-
-    % Estimation point
-    pk = ch(i, :);
-
-    % Training data (all except i)
-    ch_train = ch([1:i-1, i+1:end], :);
-    xh_train = xh([1:i-1, i+1:end]);
-
-    % Skip if not in exact target month
-    if pk(3) < monthStart || pk(3) >= monthEnd
-        continue;
-    end
-
-    try
-        % Perform kriging (hard data only, no soft data for validation)
-        [moments, ~] = BMEprobaMoments(pk, ch_train, [], xh_train, ...
-            [], [], [], [], cov.covmodel, cov.covparam, ...
-            BMEparam.nhmax, 0, BMEparam.dmax, cov.order, []);
-
-        XkBMEm(i) = moments(1);
-        XkBMEv(i) = moments(2);
-    catch ME
-        warning('Kriging failed for observation %d: %s', i, ME.message);
-        XkBMEm(i) = NaN;
-        XkBMEv(i) = NaN;
-    end
-end
+[XkBMEm, XkBMEv, MSE, MAE, ME] = krigingME_Xvalidation(1, ...
+    KS.harddata.p, KS.softdata.p, KS.harddata.z, KS.softdata.z, KS.softdata.vs, ...
+    KG.covmodel, KG.covparam, BMEparam.nhmax, BMEparam.nsmax, ...
+    BMEparam.dmax, KG.order, BMEparam.options);
 
 elapsedTime = toc;
 fprintf('    LOOCV completed in %.1f seconds\n', elapsedTime);
 
-%% Process Results
-% Add global offset back
-gok = stmeaninterp(go.sMS, go.tME, go.ms, go.mt, ch(:, 1:2), ch(:, 3));
-YkBMEm = XkBMEm + gok;
+%% Filter Results to Target Month Only
+% krigingME_Xvalidation returns estimates for ALL points in training window
+% We only want results for points in the exact target month
 
-% Clean up variance
-XkBMEv(isnan(XkBMEv)) = max(XkBMEv(~isnan(XkBMEv)));
-XkBMEv = real(XkBMEv);
+% Transpose if needed (make column vectors)
+if size(XkBMEm, 2) > 1, XkBMEm = XkBMEm'; end
+if size(XkBMEv, 2) > 1, XkBMEv = XkBMEv'; end
 
-% Filter to exact month and valid predictions
-inTargetMonth = (ch(:, 3) >= monthStart) & (ch(:, 3) < monthEnd);
-validPredictions = ~isnan(YkBMEm);
-keepIdx = inTargetMonth & validPredictions;
+% Extract coordinates and times from KS.harddata.p
+pk_all = KS.harddata.p;  % [nPoints x 3] where columns are [lon, lat, time]
+z_all = KS.harddata.z;   % Observed residuals
+
+% Filter to exact target month
+inTargetMonth = (pk_all(:,3) >= monthStart) & (pk_all(:,3) < monthEnd);
+
+if sum(inTargetMonth) == 0
+    warning('No observations in exact target month after filtering');
+    valResults = [];
+    return;
+end
+
+% Extract target month data
+pk_month = pk_all(inTargetMonth, :);
+XkBMEm_month = XkBMEm(inTargetMonth);
+XkBMEv_month = XkBMEv(inTargetMonth);
+z_month = z_all(inTargetMonth);
+
+fprintf('    Points in target month: %d\n', sum(inTargetMonth));
+
+%% Add Global Offset Back to Get Final Estimates
+% XkBMEm is in residual space (with GO removed)
+% Need to add GO back to get estimates in original space
+
+% Interpolate global offset at validation points
+gok = stmeaninterp(go.sMS, go.tME, go.ms, go.mt, pk_month(:,1:2), pk_month(:,3));
+
+% Add global offset to residual estimates
+YkBMEm = XkBMEm_month + gok;
+
+% Also get observed values in original space
+% z_month is observed residuals, add GO back to get observed concentrations
+Y_obs = z_month + gok;
+
+%% Clean Up Variance Estimates
+% Replace NaN variances with maximum valid variance
+XkBMEv_month(isnan(XkBMEv_month)) = max(XkBMEv_month(~isnan(XkBMEv_month)));
+
+% Ensure variance is real (remove tiny imaginary components from numerical errors)
+if ~isreal(XkBMEv_month)
+    XkBMEv_month = real(XkBMEv_month);
+end
+
+%% Remove Any Remaining NaN Pairs
+validPairs = ~isnan(Y_obs) & ~isnan(YkBMEm);
 
 %% Package Results
-valResults.Y_obs = zh(keepIdx);
-valResults.Y_est = YkBMEm(keepIdx);
-valResults.Y_estNoGo = XkBMEm(keepIdx);
-valResults.sk = ch(keepIdx, 1:2);
-valResults.tk = ch(keepIdx, 3);
-valResults.XkBMEv = XkBMEv(keepIdx);
-valResults.gok = gok(keepIdx);
+valResults.Y_obs = Y_obs(validPairs);           % Observed values (original space)
+valResults.Y_est = YkBMEm(validPairs);         % Estimated values (original space)
+valResults.Y_estNoGo = XkBMEm_month(validPairs); % Estimates (residual space)
+valResults.sk = pk_month(validPairs, 1:2);     % Spatial coordinates
+valResults.tk = pk_month(validPairs, 3);       % Time coordinates
+valResults.XkBMEv = XkBMEv_month(validPairs);  % Estimation variances
+valResults.gok = gok(validPairs);              % Global offset values
 
-nValid = sum(keepIdx);
-fprintf('    Results for target month: %d valid pairs\n', nValid);
+nValid = sum(validPairs);
+fprintf('    Valid pairs returned: %d\n', nValid);
 
 if nValid > 0
-    fprintf('    Obs range: [%.1f, %.1f]\n', min(valResults.Y_obs), max(valResults.Y_obs));
-    fprintf('    Est range: [%.1f, %.1f]\n', min(valResults.Y_est), max(valResults.Y_est));
+    fprintf('    Obs range: [%.1f, %.1f] %s\n', ...
+        min(valResults.Y_obs), max(valResults.Y_obs), obs.Zunit);
+    fprintf('    Est range: [%.1f, %.1f] %s\n', ...
+        min(valResults.Y_est), max(valResults.Y_est), obs.Zunit);
 end
 
 end
