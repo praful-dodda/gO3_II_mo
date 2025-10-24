@@ -320,6 +320,8 @@ switch analysisScenario
         valParam.method = 'loocv'; % 'loocv' = monthly LOOCV (recommended), 'rcv' or 'kfold'
         valParam.nFolds = 5;  % only used if method='kfold'
         % Note: LOOCV now uses monthly approach to avoid memory issues
+        valParam.valYears = 2018;  % years to validate (only for LOOCV)
+        valParam.valMonths = 1:12;  % months to validate (only for LOOCV)
 
         % plot settings
         valParam.goPlot = 0;

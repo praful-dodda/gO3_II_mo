@@ -24,13 +24,13 @@ fprintf('    Target month: %.4f - %.4f (Year %d, Month %d)\n', ...
     monthStart, monthEnd, valYear, valMonth);
 
 %% Define Training Window (month ± temporal search radius)
-% dmax(2) is in years (same units as obs.tME)
-temporalWindow = BMEparam.dmax(2);  % in years
+% dmax(2) is in months, need to convert to years (same units as obs.tME)
+temporalWindow = BMEparam.dmax(2) / 12;  % convert months to years
 windowStart = monthStart - temporalWindow;
 windowEnd = monthEnd + temporalWindow;
 
-fprintf('    Training window: %.4f - %.4f (±%.2f years)\n', ...
-    windowStart, windowEnd, temporalWindow);
+fprintf('    Training window: %.4f - %.4f (±%.2f months = ±%.2f years)\n', ...
+    windowStart, windowEnd, BMEparam.dmax(2), temporalWindow);
 
 %% Filter Observations to Training Window
 % Find time indices within training window
