@@ -37,14 +37,17 @@ hpc_validation/
 
 ### Resource Allocation (per job)
 
+Configured for UNC Longleaf cluster:
+
 ```bash
-Time:      24 hours
+Partition: general
+Time:      2 days (2-00:00:00)
 Nodes:     1
-CPUs:      4
+Tasks:     1
 Memory:    32 GB
 ```
 
-Adjust in `scripts/job_template.slurm` if needed for your cluster.
+Adjust in `scripts/job_template.slurm` if needed.
 
 ## Quick Start
 
@@ -173,7 +176,7 @@ cat logs/val_go3_*.err
 ```
 
 Common issues:
-- MATLAB not loaded: Add `module load matlab` to job template
+- MATLAB not loaded: Already configured in template (`module load matlab`)
 - Path issues: Check working directory in job script
 - BMELIB not found: Update path in `run_validation_worker.m`
 
@@ -188,7 +191,7 @@ Increase memory in `scripts/job_template.slurm`:
 
 Increase time in `scripts/job_template.slurm`:
 ```bash
-#SBATCH --time=48:00:00  # Instead of 24:00:00
+#SBATCH --time=3-00:00:00  # 3 days instead of 2
 ```
 
 Or use cached results (set `forceEstimation = 0` in worker script).
@@ -239,9 +242,9 @@ VAL_YEARS="2017 2018"  # Only these years
 
 Edit `scripts/job_template.slurm`:
 ```bash
-#SBATCH --cpus-per-task=8   # More CPUs
 #SBATCH --mem=64G           # More memory
-#SBATCH --partition=bigmem  # Different partition
+#SBATCH -p bigmem           # Different partition (if available)
+#SBATCH --time=3-00:00:00   # More time (3 days)
 ```
 
 ### Add Email Notifications

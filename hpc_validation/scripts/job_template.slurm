@@ -1,13 +1,12 @@
 #!/bin/bash
+#SBATCH -p general
+#SBATCH -N 1
+#SBATCH -n 1
+#SBATCH --time=2-00:00:00
+#SBATCH --mem=32G
 #SBATCH --job-name=TOAR_val_go__GO_SCENARIO__
 #SBATCH --output=../logs/val_go__GO_SCENARIO___%j.out
 #SBATCH --error=../logs/val_go__GO_SCENARIO___%j.err
-#SBATCH --time=24:00:00
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=32G
-#SBATCH --partition=normal
 
 # TOAR LOOCV Validation Job
 # Global Offset Scenario: __GO_SCENARIO__
@@ -23,14 +22,10 @@ echo "GO Scenario: __GO_SCENARIO__"
 echo "Years: __VAL_YEARS__"
 echo ""
 
-# Load required modules (adjust for your cluster)
-# module purge
-# module load matlab/R2023a
-# module load gcc/11.2.0
-
-# Set number of computational threads
-export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-export MATLAB_NUM_THREADS=$SLURM_CPUS_PER_TASK
+# Load required modules for UNC Longleaf
+module purge
+module load matlab
+# Add other modules as needed (e.g., gcc if required)
 
 # Navigate to project directory
 cd $SLURM_SUBMIT_DIR/../..
