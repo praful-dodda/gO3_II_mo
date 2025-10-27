@@ -193,6 +193,6 @@ filename = sprintf('TOAR_LOOCV_temporal_BME%s_go%d_y%s.png', ...
 print(fullfile(figDir, filename), '-dpng', '-r300');
 
 fprintf('Validation plots saved to: %s\n', figDir);
-close all;
+% close all;
 
 end

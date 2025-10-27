@@ -9,6 +9,12 @@ function [valOut, valPairOut] = run_TOARvalidation(valParam)
 %   valOut     - Table with overall validation statistics
 %   valPairOut - Structure with all obs/predicted pairs
 %
+
+% validate inputs
+if nargin < 1
+    valParam = struct();
+end
+
 valParam.softData = [];
 [obs, go, cov, KG, KS, BMEparam] = setData_val(valParam);
 

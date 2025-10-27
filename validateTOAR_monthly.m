@@ -69,7 +69,7 @@ fprintf('    Hard data points in window: %d\n', length(KS.harddata.z));
 fprintf('    Performing LOOCV using krigingME_Xvalidation...\n');
 tic;
 
-[XkBMEm, XkBMEv, MSE, MAE, ME] = krigingME_Xvalidation(1, ...
+[XkBMEm, XkBMEv, ~, ~, ~] = krigingME_Xvalidation(1, ...
     KS.harddata.p, KS.softdata.p, KS.harddata.z, KS.softdata.z, KS.softdata.vs, ...
     KG.covmodel, KG.covparam, BMEparam.nhmax, BMEparam.nsmax, ...
     BMEparam.dmax, KG.order, BMEparam.options);
@@ -111,7 +111,7 @@ fprintf('    Points in target month: %d\n', sum(inTargetMonth));
 % Need to add GO back to get estimates in original space
 
 % Interpolate global offset at validation points
-gok = stmeaninterp(go.sMS, go.tME, go.ms, go.mt, pk_month(:,1:2), pk_month(:,3));
+gok = stmeaninterp(go.sMS, go.tME, go.ms, go.mt, pk_month(:,1:2), unique(pk_month(:,3)));
 
 % Add global offset to residual estimates
 YkBMEm = XkBMEm_month + gok;
