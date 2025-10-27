@@ -6,7 +6,7 @@
 % Advanced: Uncomment different scenarios below or modify parameters
 
 clear; close all;
-analysisScenario = 1;
+analysisScenario = 4;
 
 %% ====================================================================
 %                    DATA CONFIGURATION
