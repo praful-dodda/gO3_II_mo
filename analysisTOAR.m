@@ -311,14 +311,14 @@ switch analysisScenario
         valParam.stationTypes = 'all';  % 'all', 'urban', 'rural', or {'urban','rural'}
         valParam.timeRange = [2015 2020];  % [startYear endYear]
         valParam.logTransf = 0;  % 0=no, 1=yes
-        valParam.goScenario = 5;
+        valParam.goScenario = 3;
         valParam.temporalModel = 'holecos';
         valParam.BMEmethod = '10000132';
         valParam.areaCode = 5;
         valParam.mapResolution = 1.0;
         valParam.tkVec = 2016:1/12:2017;  % Monthly 2016
         
-        valParam.valYears = 2018;  % years to validate (only for LOOCV)
+        valParam.valYears = 2016:2019;  % years to validate (only for LOOCV)
         valParam.valMonths = 1:12;  % months to validate (only for LOOCV)
 
         valParam.method = 'loocv'; % 'loocv' = monthly LOOCV (recommended), 'rcv' or 'kfold'

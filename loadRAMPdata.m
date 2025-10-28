@@ -178,8 +178,8 @@ for iYear = 1:nYears
     end
 
     % Extract monthly data (columns 3-14)
-    lambda1_year = lambda1_table{:, 3:14};
-    lambda2_year = lambda2_table{:, 3:14};
+    lambda1_year = lambda1_table{:, 1:12};
+    lambda2_year = lambda2_table{:, 1:12};
 
     % Store in overall array
     monthIdx = (iYear-1)*12 + (1:12);

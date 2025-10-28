@@ -51,7 +51,7 @@ fprintf('STEP 2: Loading RAMP-corrected CTM data...\n');
 fprintf('==========================================\n');
 
 % Set path to parquet files
-PARQUET_DIR = fullfile('1data', 'CTM');
+PARQUET_DIR = fullfile('1data', 'CTM', 'ramp_data');
 
 if ~exist(PARQUET_DIR, 'dir')
     error('Parquet directory not found: %s\nPlease create and place parquet files there.', PARQUET_DIR);
