@@ -6,7 +6,7 @@
 % Advanced: Uncomment different scenarios below or modify parameters
 
 clear; close all;
-analysisScenario = 4;
+analysisScenario = 5;
 
 %% ====================================================================
 %                    DATA CONFIGURATION
@@ -340,6 +340,200 @@ switch analysisScenario
 
         % run validation
         run_TOARvalidation(valParam);
+
+    case 5
+        % BME Kriging Estimation with Soft Data (RAMP-corrected CTM)
+        % This case demonstrates data fusion using hard observations + CTM soft data
+
+        fprintf('\n');
+        fprintf('========================================================\n');
+        fprintf('  BME KRIGING WITH SOFT DATA (METHOD 11000132)\n');
+        fprintf('========================================================\n\n');
+
+        %% ====================================================================
+        %                    SOFT DATA LOADING
+        % ====================================================================
+
+        fprintf('STEP 1: Loading RAMP-corrected soft data...\n');
+        fprintf('--------------------------------------------\n');
+
+        % Soft data configuration
+        softDataConfig = struct();
+        softDataConfig.modelName = 'M3fusion';  % Model to use for soft data
+        softDataConfig.years = 2016:2017;      % Years to load
+        softDataConfig.dataDir = fullfile('1data', 'CTM', 'ramp_data');  % Parquet directory
+        softDataConfig.forceReload = 0;        % Use cache if available
+
+        % Load RAMP data
+        fprintf('  Model: %s\n', softDataConfig.modelName);
+        fprintf('  Years: %s\n', mat2str(softDataConfig.years));
+        fprintf('  Directory: %s\n', softDataConfig.dataDir);
+
+        if ~exist(softDataConfig.dataDir, 'dir')
+            error('Soft data directory not found: %s\nPlease ensure parquet files are in this directory.', softDataConfig.dataDir);
+        end
+
+        try
+            softData = loadRAMPdata(softDataConfig.modelName, ...
+                                   softDataConfig.years, ...
+                                   softDataConfig.dataDir, ...
+                                   softDataConfig.forceReload);
+
+            % Mark as CTM data for getTOARknowledgeBase
+            softData.ctm = 1;
+
+            fprintf('✓ Soft data loaded successfully\n');
+            fprintf('    Grid points: %d\n', size(softData.sMS, 1));
+            fprintf('    Time periods: %d months\n', length(softData.tME));
+            fprintf('    Coverage: %.4f - %.4f\n', min(softData.tME), max(softData.tME));
+        catch ME
+            warning('Could not load soft data: %s', ME.message);
+            fprintf('Proceeding without soft data (hard data only)\n');
+            softData = [];
+        end
+
+        %% ====================================================================
+        %                    BME ANALYSIS CONFIGURATION
+        % ====================================================================
+
+        fprintf('\n');
+        fprintf('STEP 2: Configuring BME analysis...\n');
+        fprintf('--------------------------------------------\n');
+
+        % Initialize analysis parameters (same structure as case 1)
+        analyzeParam = struct();
+
+        % Data configuration
+        analyzeParam.stationTypes = 'all';
+        analyzeParam.timeRange = [2015 2020];
+        analyzeParam.logTransf = 0;
+
+        % Workflow control
+        analyzeParam.runExplore = 0;
+        analyzeParam.runGO = 1;
+        analyzeParam.runCov = 1;
+        analyzeParam.runBME = 1;
+
+        % Global offset
+        analyzeParam.goScenario = 3;      % Regional S/T smoothing (recommended)
+        analyzeParam.forceGO = 0;
+        analyzeParam.goPlot = 0;
+
+        % Covariance
+        analyzeParam.temporalModel = 'holecos';
+        analyzeParam.forceCov = 0;
+
+        % BME method with soft data
+        analyzeParam.BMEmethod = '11000132';  % Digit 2 = 1 enables soft data
+        analyzeParam.softData = softData;     % Pass soft data structure
+
+        % Estimation configuration
+        analyzeParam.areaCode = 5;            % Continental US
+        analyzeParam.mapResolution = 1.0;     % 1 degree resolution
+        analyzeParam.tkVec = 2016:1/12:2017;  % Monthly 2016
+
+        % Force and plotting
+        analyzeParam.forceEstimation = 0;
+        analyzeParam.keepOnlyLand = true;
+        analyzeParam.includeAntarctica = false;
+        analyzeParam.plotResults = 2;         % Estimates + observations
+        analyzeParam.plotVariance = 1;        % Standard deviation map
+
+        %% ====================================================================
+        %                    DISPLAY CONFIGURATION SUMMARY
+        % ====================================================================
+
+        fprintf('\n');
+        fprintf('========================================================\n');
+        fprintf('         CONFIGURATION SUMMARY (WITH SOFT DATA)         \n');
+        fprintf('========================================================\n\n');
+
+        fprintf('DATA:\n');
+        fprintf('  Station types: %s\n', string(analyzeParam.stationTypes));
+        fprintf('  Time range: %d - %d\n', analyzeParam.timeRange(1), analyzeParam.timeRange(2));
+        fprintf('  Log transform: %d\n\n', analyzeParam.logTransf);
+
+        fprintf('SOFT DATA:\n');
+        if ~isempty(softData)
+            fprintf('  Model: %s\n', softData.modelName);
+            fprintf('  Grid points: %d\n', size(softData.sMS, 1));
+            fprintf('  Time coverage: %d months\n', length(softData.tME));
+            fprintf('  Years: %s\n\n', mat2str(softData.years));
+        else
+            fprintf('  None (hard data only)\n\n');
+        end
+
+        fprintf('WORKFLOW:\n');
+        fprintf('  Explore: %d, GO: %d, Cov: %d, BME: %d\n\n', ...
+            analyzeParam.runExplore, analyzeParam.runGO, analyzeParam.runCov, analyzeParam.runBME);
+
+        fprintf('GLOBAL OFFSET:\n');
+        fprintf('  Scenario: %d, Force: %d, Plot: %d\n\n', ...
+            analyzeParam.goScenario, analyzeParam.forceGO, analyzeParam.goPlot);
+
+        fprintf('COVARIANCE:\n');
+        fprintf('  Model: %s, Force: %d\n\n', analyzeParam.temporalModel, analyzeParam.forceCov);
+
+        fprintf('BME:\n');
+        fprintf('  Method: %s (WITH SOFT DATA)\n', analyzeParam.BMEmethod);
+        fprintf('  Area: %d, Resolution: %.2f°\n', analyzeParam.areaCode, analyzeParam.mapResolution);
+        fprintf('  Time periods: %d\n', length(analyzeParam.tkVec));
+        fprintf('  Force: %d, Plot: %d\n\n', analyzeParam.forceEstimation, analyzeParam.plotResults);
+
+        fprintf('========================================================\n\n');
+
+        %% ====================================================================
+        %                    RUN ANALYSIS
+        % ====================================================================
+
+        fprintf('STEP 3: Running BME analysis with soft data...\n');
+        fprintf('--------------------------------------------\n\n');
+
+        tic;
+
+        % Run the analysis
+        [obs, go, cov, KG, KS, BMEparam] = analyzeTOAR(analyzeParam);
+
+        elapsedTime = toc;
+
+        %% ====================================================================
+        %                    COMPLETION SUMMARY
+        % ====================================================================
+
+        fprintf('\n');
+        fprintf('========================================================\n');
+        fprintf('   SOFT DATA FUSION COMPLETED SUCCESSFULLY!             \n');
+        fprintf('========================================================\n\n');
+
+        fprintf('Total time: %.1f minutes\n', elapsedTime/60);
+
+        % Display soft data statistics
+        if ~isempty(softData) && isfield(KS, 'softdata')
+            fprintf('\nData Fusion Summary:\n');
+            fprintf('  Hard data points: %d\n', length(KS.harddata.z));
+            fprintf('  Soft data points: %d\n', length(KS.softdata.z));
+            fprintf('  Ratio (soft:hard): %.1f:1\n', length(KS.softdata.z)/length(KS.harddata.z));
+        end
+
+        fprintf('\nResults saved in:\n');
+        if analyzeParam.runGO
+            fprintf('  - Global Offset: ./2globalOffset/\n');
+        end
+        if analyzeParam.runCov
+            fprintf('  - Covariance: ./3covariance/\n');
+        end
+        if analyzeParam.runBME
+            fprintf('  - BME Maps: ./5BMEspatialPlots/\n');
+            fprintf('  - Figures: ./5BMEspatialPlots/figs/\n');
+        end
+
+        fprintf('\n');
+        fprintf('Next steps:\n');
+        fprintf('  1. Compare results with hard-only analysis (case 1)\n');
+        fprintf('  2. Run validation with soft data to quantify improvement\n');
+        fprintf('  3. Try different models or years for soft data\n');
+        fprintf('\n');
+
 end
 
 
