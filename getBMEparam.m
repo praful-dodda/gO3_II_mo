@@ -59,7 +59,7 @@ end
 
 % Set search parameters
 % BMEparam.dmax = [90, 2, stmetric];
-BMEparam.dmax = [20, 2, min(stmetric, 200)];  % Limit spatial search
+BMEparam.dmax = [200, 2, min(stmetric, 200)];  % Limit spatial search
 
 % dmax(1) = spatial search radius (degrees)
 % dmax(2) = temporal search radius (years)

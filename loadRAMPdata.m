@@ -84,7 +84,7 @@ if ~exist(cacheDir, 'dir')
 end
 
 % Determine RAMP version from first file
-sampleFile = dir(fullfile(dataDir, sprintf('lambda1_%s_%d_v*-parallel.parquet', modelName, years(1))));
+sampleFile = dir(fullfile(dataDir, sprintf('lambda1_%s_%d_v3-parallel.parquet', modelName, years(1))));
 if isempty(sampleFile)
     error('No parquet files found for %s year %d in %s', modelName, years(1), dataDir);
 end

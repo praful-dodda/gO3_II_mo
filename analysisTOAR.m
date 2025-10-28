@@ -359,7 +359,7 @@ switch analysisScenario
 
         % Soft data configuration
         softDataConfig = struct();
-        softDataConfig.modelName = 'M3fusion';  % Model to use for soft data
+        softDataConfig.modelName = 'MERRA2-GMI';  % Model to use for soft data
         softDataConfig.years = 2016:2017;      % Years to load
         softDataConfig.dataDir = fullfile('1data', 'CTM', 'ramp_data');  % Parquet directory
         softDataConfig.forceReload = 0;        % Use cache if available
@@ -424,19 +424,19 @@ switch analysisScenario
         analyzeParam.forceCov = 0;
 
         % BME method with soft data
-        analyzeParam.BMEmethod = '11000132';  % Digit 2 = 1 enables soft data
+        analyzeParam.BMEmethod = '11000112';  % Digit 2 = 1 enables soft data
         analyzeParam.softData = softData;     % Pass soft data structure
 
         % Estimation configuration
-        analyzeParam.areaCode = 5;            % Continental US
+        analyzeParam.areaCode = 5;            % 5 for Continental US & 0 for whole world
         analyzeParam.mapResolution = 1.0;     % 1 degree resolution
         analyzeParam.tkVec = 2016:1/12:2017;  % Monthly 2016
 
         % Force and plotting
-        analyzeParam.forceEstimation = 0;
+        analyzeParam.forceEstimation = 1;
         analyzeParam.keepOnlyLand = true;
         analyzeParam.includeAntarctica = false;
-        analyzeParam.plotResults = 2;         % Estimates + observations
+        analyzeParam.plotResults = 1;         % 2 for Estimates + observations
         analyzeParam.plotVariance = 1;        % Standard deviation map
 
         %% ====================================================================
@@ -526,14 +526,6 @@ switch analysisScenario
             fprintf('  - BME Maps: ./5BMEspatialPlots/\n');
             fprintf('  - Figures: ./5BMEspatialPlots/figs/\n');
         end
-
-        fprintf('\n');
-        fprintf('Next steps:\n');
-        fprintf('  1. Compare results with hard-only analysis (case 1)\n');
-        fprintf('  2. Run validation with soft data to quantify improvement\n');
-        fprintf('  3. Try different models or years for soft data\n');
-        fprintf('\n');
-
 end
 
 
