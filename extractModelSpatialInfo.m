@@ -121,7 +121,19 @@ models(16).folder = 'M3fusion 1990-2023/yearlyFiles';
 models(16).pattern = 'M3fusion-monthly-mda8-%d.csv';
 models(16).years = 1990:2023;
 
-models = models(16);
+% UKML 
+models(17).name = 'UKML';
+models(17).folder = 'UK Cambridge ML/yearlyFiles';
+models(17).pattern = 'reshaped_popwt_ozone_%d.csv';
+models(17).years = 2003;
+
+% NJML 
+models(18).name = 'NJML';
+models(18).folder = 'nanjing university ML/yearlyFiles';
+models(18).pattern = 'NJML-monthly-dma8-%d.csv';
+models(18).years = 2004;
+
+models = models(17:18);
 
 %% Process Each Model
 nModels = length(models);
