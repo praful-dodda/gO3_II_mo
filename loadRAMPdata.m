@@ -19,7 +19,7 @@ function ctmData = loadRAMPdata(modelName, years, dataDir, forceReload)
 %             .years      - Years included
 %             .lon        - Longitude vector [nGrid × 1]
 %             .lat        - Latitude vector [nGrid × 1]
-%             .sMS        - Mercator coordinates [nGrid × 2]
+%             .sMS        - Spatial coordinates [nGrid × 2] as [lon, lat]
 %             .tME        - Time vector in decimal years [1 × nMonths]
 %             .Z          - Mean field (lambda1) [nGrid × nMonths]
 %             .Zv         - Variance field (lambda2) [nGrid × nMonths]
@@ -263,21 +263,17 @@ if nInf_mean > 0 || nInf_var > 0
     lambda2_all(isinf(lambda2_all)) = NaN;
 end
 
-%% Convert to Mercator Coordinates
-fprintf('\n--- Converting to Mercator Coordinates ---\n');
-tic;
-sMS = coordconvert(lon_grid, lat_grid, 'degrees', 'mercator');
-tConv = toc;
-fprintf('  Converted %d points in %.2f seconds\n', nGrid, tConv);
-
 %% Package Output Structure
 fprintf('\n--- Creating CTM Data Structure ---\n');
+
+% Create spatial coordinates matrix [lon, lat]
+sMS = [lon_grid, lat_grid];
 
 ctmData.modelName = modelName;
 ctmData.years = years;
 ctmData.lon = lon_grid;
 ctmData.lat = lat_grid;
-ctmData.sMS = sMS;  % Mercator coordinates [nGrid × 2]
+ctmData.sMS = sMS;  % Spatial coordinates [nGrid × 2] as [lon, lat]
 ctmData.tME = tME_all;
 ctmData.Z = lambda1_all;      % Mean field (lambda1)
 ctmData.Zv = lambda2_all;     % Variance field (lambda2)

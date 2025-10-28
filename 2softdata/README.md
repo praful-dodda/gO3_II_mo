@@ -56,10 +56,10 @@ Where:
 ### Data Integration
 
 The workflow:
-1. Read lon, lat from spatial grid .mat file → convert to Mercator coordinates
+1. Read lon, lat from spatial grid .mat file
 2. Read lambda1, lambda2 from parquet files (12 monthly columns)
 3. Match rows assuming same grid order
-4. Create unified structure with sMS (Mercator), Z (mean), Zv (variance)
+4. Create unified structure with sMS ([lon, lat]), Z (mean), Zv (variance)
 
 **Important:** Run `extractModelSpatialInfo.m` first to generate spatial grid .mat files!
 
@@ -79,11 +79,11 @@ ctmData = loadRAMPdata('UKML', [2015:2020], '1data/CTM', 1);
 ```matlab
 ctmData.lon      % [nGrid × 1] Longitude (degrees)
 ctmData.lat      % [nGrid × 1] Latitude (degrees)
-ctmData.sMS      % [nGrid × 2] Mercator coordinates (km)
+ctmData.sMS      % [nGrid × 2] Spatial coordinates as [lon, lat]
 ctmData.tME      % [1 × nMonths] Time in decimal years
 ctmData.Z        % [nGrid × nMonths] Mean field (lambda1)
 ctmData.Zv       % [nGrid × nMonths] Variance field (lambda2)
-ctmData.gridInfo % Grid metadata from NetCDF
+ctmData.gridInfo % Grid metadata (nGridPoints, yearsChecked, isConsistent)
 ```
 
 **Caching:** Creates `1data/CTM/CTM_RAMP_UKML_2015-2020_v3.mat` (~50-500 MB)
@@ -105,7 +105,7 @@ softData = createSoftDataStructure(ctmData, obs, options);
 
 **Output structure:**
 ```matlab
-softData.sMS     % [nPoints × 2] Mercator coordinates (km)
+softData.sMS     % [nPoints × 2] Spatial coordinates as [lon, lat]
 softData.lon     % [nPoints × 1] Longitude (degrees, for reference)
 softData.lat     % [nPoints × 1] Latitude (degrees, for reference)
 softData.tME     % [1 × nMonths] Time vector (aligned with obs)
@@ -325,6 +325,13 @@ different grid structures. The reference grid (first available year) is used. Ch
 `yearsChecked` and `isConsistent` fields in the gridInfo for details.
 
 ## Version History
+
+- v1.3 (2025-01-28): Simplified coordinate system
+  - Removed Mercator coordinate conversion
+  - sMS field now simply [lon, lat] in degrees
+  - Updated distance calculations to use degree-based tolerance (0.01 deg ~1 km)
+  - Changed spaceUnit from 'mercator' to 'degrees'
+  - Simplified workflow - no coordinate transformations needed
 
 - v1.2 (2025-01-28): .mat file integration for spatial coordinates
   - Added extractModelSpatialInfo.m to extract spatial grids from CSV files

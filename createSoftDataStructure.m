@@ -18,7 +18,7 @@ function softData = createSoftDataStructure(ctmData, obs, options)
 %
 % OUTPUTS:
 %   softData - Structure compatible with getTOARknowledgeBase:
-%              .sMS   - Spatial coordinates [nPoints × 2] (Mercator)
+%              .sMS   - Spatial coordinates [nPoints × 2] as [lon, lat]
 %              .lon   - Longitude for reference [nPoints × 1] (degrees)
 %              .lat   - Latitude for reference [nPoints × 1] (degrees)
 %              .tME   - Temporal coordinates [1 × nTimes] (decimal years)
@@ -163,14 +163,14 @@ if options.removeHardData
             continue;
         end
 
-        obsMercX = obs.sMS(obsAtTime, 1);
-        obsMercY = obs.sMS(obsAtTime, 2);
+        obsLon = obs.sMS(obsAtTime, 1);
+        obsLat = obs.sMS(obsAtTime, 2);
 
         % Remove soft data at same locations (within tolerance)
-        % Compare in Mercator space for consistency
-        for iObs = 1:length(obsMercX)
-            dist = sqrt((sMS_subset(:,1) - obsMercX(iObs)).^2 + (sMS_subset(:,2) - obsMercY(iObs)).^2);
-            nearObs = dist < 1.0;  % Within ~1 km in Mercator units
+        % Compare using Euclidean distance in lon/lat space
+        for iObs = 1:length(obsLon)
+            dist = sqrt((sMS_subset(:,1) - obsLon(iObs)).^2 + (sMS_subset(:,2) - obsLat(iObs)).^2);
+            nearObs = dist < 0.01;  % Within ~1 km (0.01 degrees)
 
             if sum(nearObs) > 0
                 Z_aligned(nearObs, iTime) = NaN;
@@ -184,7 +184,7 @@ if options.removeHardData
 end
 
 %% Package Output Structure
-softData.sMS = sMS_subset;  % Mercator coordinates [nPoints × 2]
+softData.sMS = sMS_subset;  % Spatial coordinates [nPoints × 2] as [lon, lat]
 softData.lon = lon_subset;  % Also keep lon/lat for reference
 softData.lat = lat_subset;
 softData.tME = tME_aligned;
@@ -195,7 +195,7 @@ softData.Zv = Zv_aligned;
 softData.Zname = ctmData.Zname;
 softData.Zunit = ctmData.Zunit;
 softData.Zlabel = ctmData.Zlabel;
-softData.spaceUnit = 'mercator';
+softData.spaceUnit = 'degrees';
 softData.timeUnit = 'year';
 softData.modelName = ctmData.modelName;
 softData.version = ctmData.version;
@@ -219,8 +219,6 @@ fprintf('  Total elements: %d\n', numel(softData.Z));
 fprintf('\nSpatial extent:\n');
 fprintf('  Longitude: [%.2f, %.2f] deg\n', min(softData.lon), max(softData.lon));
 fprintf('  Latitude:  [%.2f, %.2f] deg\n', min(softData.lat), max(softData.lat));
-fprintf('  Mercator X: [%.1f, %.1f] km\n', min(softData.sMS(:,1)), max(softData.sMS(:,1)));
-fprintf('  Mercator Y: [%.1f, %.1f] km\n', min(softData.sMS(:,2)), max(softData.sMS(:,2)));
 fprintf('\nTemporal extent:\n');
 fprintf('  Time: [%.4f, %.4f]\n', min(softData.tME), max(softData.tME));
 fprintf('  Months: %d\n', length(softData.tME));
