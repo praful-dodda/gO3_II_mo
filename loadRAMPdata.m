@@ -121,7 +121,7 @@ fprintf('\nCache not found or force reload requested.\n');
 
 %% Read Spatial Grid from NetCDF
 fprintf('\nReading spatial grid from NetCDF...\n');
-gridInfo = getCTMspatialGrid(modelName, dataDir);
+gridInfo = getCTMspatialGrid(modelName);
 
 lon_grid = gridInfo.lon;
 lat_grid = gridInfo.lat;
@@ -235,7 +235,8 @@ end
 %% Convert to Mercator Coordinates
 fprintf('\n--- Converting to Mercator Coordinates ---\n');
 tic;
-sMS = coordconvert(lon_grid, lat_grid, 'degrees', 'mercator');
+% sMS = coordconvert(lon_grid, lat_grid, 'degrees', 'mercator');
+sMS = [lon_grid, lat_grid];
 tConv = toc;
 fprintf('  Converted %d points in %.2f seconds\n', nGrid, tConv);
 

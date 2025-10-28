@@ -35,7 +35,7 @@ if nargin < 1 || isempty(modelName)
     error('modelName is required');
 end
 if nargin < 2 || isempty(dataDir)
-    dataDir = fullfile('1data', 'CTM');
+    dataDir = fullfile('1data', 'CTM', 'model_output_data', 'netcdf_combined');
 end
 
 fprintf('\n========================================\n');
