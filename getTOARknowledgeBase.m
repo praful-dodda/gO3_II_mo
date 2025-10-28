@@ -139,13 +139,13 @@ if CTMtype >= 1 && ~isempty(softData)
     switch CTMtype
         case 1
             if isfield(softData, 'ctm')
-                ctmData = softData.ctm;
+                ctmData = softData;
             else
                 error('CTMtype=1 but softData.ctm not provided');
             end
         case 2
             if isfield(softData, 'ctm2')
-                ctmData = softData.ctm2;
+                ctmData = softData;
             else
                 error('CTMtype=2 but softData.ctm2 not provided');
             end

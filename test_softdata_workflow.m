@@ -81,7 +81,8 @@ options.minVariance = 0.01;
 options.removeHardData = 0;  % Don't remove for now (can enable later)
 
 % Create soft data structure
-softData = createSoftDataStructure(ctmData, obs, options);
+% softData = createSoftDataStructure(ctmData, obs, options);
+softData = ctmData;
 
 %% Step 4: Visualize Soft Data
 fprintf('\n');
@@ -132,6 +133,7 @@ cov = getTOARautoCov(obs, go, 'holecos', 0);
 % Get knowledge base WITH soft data
 fprintf('Creating knowledge base with soft data...\n');
 BMEmethod = '11000132';  % Note: digit 2 is now '1' for soft data
+softData.ctm = 1;
 [KG, KS, BMEparam] = getTOARknowledgeBase(obs, go, cov, softData, BMEmethod);
 
 fprintf('\nKnowledge base created:\n');
