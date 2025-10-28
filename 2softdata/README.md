@@ -14,9 +14,24 @@ This directory contains RAMP-corrected CTM model outputs formatted as soft data 
 └── archived/                      # Old versions (if any)
 ```
 
-## Data Source
+## Data Sources
 
-**RAMP-corrected model outputs** stored as parquet files in `1data/CTM/`:
+The system requires TWO types of files:
+
+### 1. NetCDF Files (Spatial Grid + Original CTM)
+
+Located in `1data/CTM/`:
+- **Most models:** `{model}_MDA8_combined.nc` (e.g., UKML_MDA8_combined.nc)
+- **M3fusion:** `M3fusion_MDA8_{year}.nc` (one file per year)
+
+**NetCDF Structure:**
+- **Dimensions:** time, lat, lon
+- **Variables:** mda8(time, lat, lon), lat, lon, time
+- **Purpose:** Provides spatial grid structure (lon, lat coordinates)
+
+### 2. Parquet Files (RAMP-Corrected Values)
+
+Located in `1data/CTM/`:
 - `lambda1_{model}_{year}_v{version}-parallel.parquet` - Mean field
 - `lambda2_{model}_{year}_v{version}-parallel.parquet` - Variance field
 
@@ -26,12 +41,18 @@ Where:
 - **model** = Model name (e.g., UKML)
 - **version** = RAMP calibration version (e.g., v3)
 
-### Parquet File Format
+**Parquet File Format:**
+- **Columns 1-12**: Monthly MDA8 values (Jan-Dec)
+- **NO spatial information** - spatial coordinates come from NetCDF files
+- **Row order must match NetCDF grid order** (critical assumption)
 
-Each parquet file contains:
-- **Column 1**: Longitude (decimal degrees)
-- **Column 2**: Latitude (decimal degrees)
-- **Columns 3-14**: Monthly MDA8 values (Jan-Dec)
+### Data Integration
+
+The workflow:
+1. Read lon, lat from NetCDF file → convert to Mercator coordinates
+2. Read lambda1, lambda2 from parquet files (12 monthly columns)
+3. Match rows assuming same grid order
+4. Create unified structure with sMS (Mercator), Z (mean), Zv (variance)
 
 ## Workflow
 
@@ -47,11 +68,13 @@ ctmData = loadRAMPdata('UKML', [2015:2020], '1data/CTM', 1);
 
 **Output structure:**
 ```matlab
-ctmData.lon      % [nGrid × 1] Longitude
-ctmData.lat      % [nGrid × 1] Latitude
+ctmData.lon      % [nGrid × 1] Longitude (degrees)
+ctmData.lat      % [nGrid × 1] Latitude (degrees)
+ctmData.sMS      % [nGrid × 2] Mercator coordinates (km)
 ctmData.tME      % [1 × nMonths] Time in decimal years
 ctmData.Z        % [nGrid × nMonths] Mean field (lambda1)
 ctmData.Zv       % [nGrid × nMonths] Variance field (lambda2)
+ctmData.gridInfo % Grid metadata from NetCDF
 ```
 
 **Caching:** Creates `1data/CTM/CTM_RAMP_UKML_2015-2020_v3.mat` (~50-500 MB)
@@ -73,7 +96,9 @@ softData = createSoftDataStructure(ctmData, obs, options);
 
 **Output structure:**
 ```matlab
-softData.sMS     % [nPoints × 2] Spatial coordinates (lon, lat)
+softData.sMS     % [nPoints × 2] Mercator coordinates (km)
+softData.lon     % [nPoints × 1] Longitude (degrees, for reference)
+softData.lat     % [nPoints × 1] Latitude (degrees, for reference)
 softData.tME     % [1 × nMonths] Time vector (aligned with obs)
 softData.Z       % [nPoints × nMonths] Mean values
 softData.Zv      % [nPoints × nMonths] Variance values
@@ -205,7 +230,37 @@ This demonstrates:
 4. BME integration
 5. Test estimation
 
+## Helper Functions
+
+### getCTMspatialGrid
+
+Reads spatial grid from NetCDF files (called internally by loadRAMPdata):
+
+```matlab
+% Read spatial grid for UKML model
+gridInfo = getCTMspatialGrid('UKML', '1data/CTM');
+
+% Output structure
+gridInfo.lon      % [nGrid × 1] Flattened longitude
+gridInfo.lat      % [nGrid × 1] Flattened latitude
+gridInfo.nLat     % Number of latitude points
+gridInfo.nLon     % Number of longitude points
+gridInfo.nGrid    % Total grid points (nLat × nLon)
+gridInfo.ncFile   % NetCDF file used
+```
+
+This function handles:
+- Different file naming (combined vs yearly for M3fusion)
+- Both 1D vectors and 2D meshgrid coordinates
+- Automatic flattening for point-wise representation
+
 ## Troubleshooting
+
+### NetCDF file not found
+```
+Error: NetCDF file not found: 1data/CTM/UKML_MDA8_combined.nc
+```
+**Solution:** Ensure NetCDF file exists with correct naming convention
 
 ### Parquet files not found
 ```
@@ -231,7 +286,23 @@ Warning: No temporal overlap between obs and CTM
 ```
 **Solution:** Check that obs.tME and ctmData.tME have overlapping time periods
 
+### Grid size mismatch
+```
+Error: Lambda1 file has 5000 rows, expected 6480 (grid size)
+```
+**Solution:** Parquet file rows must match NetCDF grid size. Check:
+1. NetCDF grid dimensions (nLat × nLon)
+2. Parquet file row count
+3. Grid processing may have changed between file generations
+
 ## Version History
+
+- v1.1 (2025-01-28): NetCDF integration for spatial coordinates
+  - Added getCTMspatialGrid.m to read lon/lat from NetCDF files
+  - Updated loadRAMPdata.m to use NetCDF spatial grid
+  - Added Mercator coordinate conversion
+  - Fixed createSoftDataStructure.m to use Mercator coordinates
+  - **Breaking change:** Parquet files now have 12 columns (no spatial info)
 
 - v1.0 (2025-01-15): Initial soft data loading system
   - Parquet file loading with caching

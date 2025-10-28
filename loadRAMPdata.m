@@ -19,12 +19,14 @@ function ctmData = loadRAMPdata(modelName, years, dataDir, forceReload)
 %             .years      - Years included
 %             .lon        - Longitude vector [nGrid × 1]
 %             .lat        - Latitude vector [nGrid × 1]
+%             .sMS        - Mercator coordinates [nGrid × 2]
 %             .tME        - Time vector in decimal years [1 × nMonths]
 %             .Z          - Mean field (lambda1) [nGrid × nMonths]
 %             .Zv         - Variance field (lambda2) [nGrid × nMonths]
 %             .Zunit      - Units string
 %             .version    - RAMP version
 %             .loadedAt   - Timestamp
+%             .gridInfo   - Grid metadata from NetCDF file
 %
 % EXAMPLE:
 %   % Load 2015-2020 UKML data
@@ -38,9 +40,19 @@ function ctmData = loadRAMPdata(modelName, years, dataDir, forceReload)
 %     lambda1_{modelName}_{year}_v{version}-parallel.parquet
 %     lambda2_{modelName}_{year}_v{version}-parallel.parquet
 %
-%   Example:
+%   NetCDF files should be named:
+%     {modelName}_MDA8_combined.nc (most models)
+%     M3fusion_MDA8_{year}.nc (for M3fusion)
+%
+%   Example parquet files:
 %     lambda1_UKML_2017_v3-parallel.parquet
 %     lambda2_UKML_2017_v3-parallel.parquet
+%
+% DATA STRUCTURE:
+%   - Parquet files contain RAMP-corrected mean (lambda1) and variance (lambda2)
+%   - Parquet files have 12 columns (one per month), NO spatial information
+%   - Spatial grid (lon, lat) is read from NetCDF files
+%   - Row order in parquet must match grid order from NetCDF
 
 %% Input Validation
 if nargin < 1 || isempty(modelName), modelName = 'UKML'; end
@@ -106,17 +118,26 @@ if exist(cachePath, 'file') && ~forceReload
 end
 
 fprintf('\nCache not found or force reload requested.\n');
-fprintf('Loading from parquet files...\n');
+
+%% Read Spatial Grid from NetCDF
+fprintf('\nReading spatial grid from NetCDF...\n');
+gridInfo = getCTMspatialGrid(modelName, dataDir);
+
+lon_grid = gridInfo.lon;
+lat_grid = gridInfo.lat;
+nGrid = gridInfo.nGrid;
+
+fprintf('  Grid loaded: %d points\n', nGrid);
 
 %% Load Parquet Files
+fprintf('\nLoading RAMP-corrected data from parquet files...\n');
+
 nYears = length(years);
 nMonths = nYears * 12;
 
 % Storage for all data
-lambda1_all = [];
-lambda2_all = [];
-lon_grid = [];
-lat_grid = [];
+lambda1_all = NaN(nGrid, nMonths, 'single');
+lambda2_all = NaN(nGrid, nMonths, 'single');
 tME_all = [];
 
 for iYear = 1:nYears
@@ -153,31 +174,17 @@ for iYear = 1:nYears
     tRead2 = toc;
     fprintf('    Loaded in %.2f seconds (%d rows)\n', tRead2, height(lambda2_table));
 
-    % Extract coordinates (first two columns)
-    if iYear == 1
-        % First year: get coordinates
-        lon_grid = lambda1_table{:, 1};
-        lat_grid = lambda1_table{:, 2};
-
-        nGrid = length(lon_grid);
-        fprintf('  Grid points: %d\n', nGrid);
-        fprintf('  Lon range: [%.2f, %.2f]\n', min(lon_grid), max(lon_grid));
-        fprintf('  Lat range: [%.2f, %.2f]\n', min(lat_grid), max(lat_grid));
-
-        % Preallocate
-        lambda1_all = NaN(nGrid, nMonths, 'single');
-        lambda2_all = NaN(nGrid, nMonths, 'single');
-    else
-        % Verify coordinates match
-        lon_year = lambda1_table{:, 1};
-        lat_year = lambda1_table{:, 2};
-
-        if ~isequal(lon_year, lon_grid) || ~isequal(lat_year, lat_grid)
-            error('Grid coordinates do not match between years!');
-        end
+    % Verify parquet file has correct number of rows (should match grid)
+    if height(lambda1_table) ~= nGrid
+        error('Lambda1 file has %d rows, expected %d (grid size)', ...
+            height(lambda1_table), nGrid);
+    end
+    if height(lambda2_table) ~= nGrid
+        error('Lambda2 file has %d rows, expected %d (grid size)', ...
+            height(lambda2_table), nGrid);
     end
 
-    % Extract monthly data (columns 3-14)
+    % Extract monthly data (columns 1-12, no spatial info in parquet)
     lambda1_year = lambda1_table{:, 1:12};
     lambda2_year = lambda2_table{:, 1:12};
 
@@ -225,6 +232,13 @@ if nInf_mean > 0 || nInf_var > 0
     lambda2_all(isinf(lambda2_all)) = NaN;
 end
 
+%% Convert to Mercator Coordinates
+fprintf('\n--- Converting to Mercator Coordinates ---\n');
+tic;
+sMS = coordconvert(lon_grid, lat_grid, 'degrees', 'mercator');
+tConv = toc;
+fprintf('  Converted %d points in %.2f seconds\n', nGrid, tConv);
+
 %% Package Output Structure
 fprintf('\n--- Creating CTM Data Structure ---\n');
 
@@ -232,6 +246,7 @@ ctmData.modelName = modelName;
 ctmData.years = years;
 ctmData.lon = lon_grid;
 ctmData.lat = lat_grid;
+ctmData.sMS = sMS;  % Mercator coordinates [nGrid × 2]
 ctmData.tME = tME_all;
 ctmData.Z = lambda1_all;      % Mean field (lambda1)
 ctmData.Zv = lambda2_all;     % Variance field (lambda2)
@@ -242,6 +257,7 @@ ctmData.version = rampVersion;
 ctmData.loadedAt = datestr(now);
 ctmData.nGrid = length(lon_grid);
 ctmData.nMonths = nMonths;
+ctmData.gridInfo = gridInfo;  % Include grid metadata from NetCDF
 
 fprintf('  Model: %s (RAMP v%d)\n', modelName, rampVersion);
 fprintf('  Grid points: %d\n', ctmData.nGrid);
