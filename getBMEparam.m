@@ -58,12 +58,12 @@ switch BMEprobaType
 end
 
 % Set search parameters
-% BMEparam.dmax = [90, 2, stmetric];
-BMEparam.dmax = [200, 2, min(stmetric, 200)];  % Limit spatial search
-
 % dmax(1) = spatial search radius (degrees)
 % dmax(2) = temporal search radius (years)
 % dmax(3) = space-time metric
+%
+% Optimized for regional analysis: 20° spatial (~2200 km), 0.5 yr temporal (~6 months)
+BMEparam.dmax = [20, 0.5, min(stmetric, 50)];  % Regional search radius
 
 % BME integration options
 maxpts = 500000;     % Number of function evaluations

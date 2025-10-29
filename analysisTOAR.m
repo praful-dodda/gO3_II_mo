@@ -393,11 +393,50 @@ switch analysisScenario
         end
 
         %% ====================================================================
+        %                    SOFT DATA OPTIMIZATION
+        % ====================================================================
+
+        % Define estimation area code and time vector (always define these)
+        estimationAreaCode = 5;              % Continental US
+        estimationTkVec = 2016:1/12:2017;    % Monthly 2016
+
+        if ~isempty(softData)
+            fprintf('\n');
+            fprintf('STEP 2: Optimizing soft data for estimation...\n');
+            fprintf('--------------------------------------------\n');
+
+            % Configure subsetting options
+            subsetOptions = struct();
+            subsetOptions.spatialBounds = estimationAreaCode;  % Use area code
+
+            % Temporal bounds: estimation period ± 6 months buffer
+            temporalBuffer = 0.5;  % 6 months
+            subsetOptions.temporalBounds = [min(estimationTkVec) - temporalBuffer, ...
+                                            max(estimationTkVec) + temporalBuffer];
+
+            % Spatial thinning: match or slightly finer than estimation resolution
+            % For 1° estimation grid, use thinning factor 2-4
+            subsetOptions.thinningFactor = 2;  % Keep every 2nd point
+            subsetOptions.minVariance = 0.01;
+            subsetOptions.verbose = 1;
+
+            % Apply subsetting
+            try
+                softData = subsetSoftData(softData, subsetOptions);
+
+                % Mark as CTM data again after subsetting
+                softData.ctm = 1;
+            catch ME
+                warning('Soft data subsetting failed: %s. Using full dataset.', ME.message);
+            end
+        end
+
+        %% ====================================================================
         %                    BME ANALYSIS CONFIGURATION
         % ====================================================================
 
         fprintf('\n');
-        fprintf('STEP 2: Configuring BME analysis...\n');
+        fprintf('STEP 3: Configuring BME analysis...\n');
         fprintf('--------------------------------------------\n');
 
         % Initialize analysis parameters (same structure as case 1)
@@ -427,10 +466,10 @@ switch analysisScenario
         analyzeParam.BMEmethod = '11000112';  % Digit 2 = 1 enables soft data
         analyzeParam.softData = softData;     % Pass soft data structure
 
-        % Estimation configuration
-        analyzeParam.areaCode = 5;            % 5 for Continental US & 0 for whole world
-        analyzeParam.mapResolution = 1.0;     % 1 degree resolution
-        analyzeParam.tkVec = 2016:1/12:2017;  % Monthly 2016
+        % Estimation configuration (use same as subsetting for consistency)
+        analyzeParam.areaCode = estimationAreaCode;     % Continental US
+        analyzeParam.mapResolution = 1.0;               % 1 degree resolution
+        analyzeParam.tkVec = estimationTkVec;           % Monthly 2016
 
         % Force and plotting
         analyzeParam.forceEstimation = 1;
@@ -478,7 +517,8 @@ switch analysisScenario
         fprintf('  Method: %s (WITH SOFT DATA)\n', analyzeParam.BMEmethod);
         fprintf('  Area: %d, Resolution: %.2f°\n', analyzeParam.areaCode, analyzeParam.mapResolution);
         fprintf('  Time periods: %d\n', length(analyzeParam.tkVec));
-        fprintf('  Force: %d, Plot: %d\n\n', analyzeParam.forceEstimation, analyzeParam.plotResults);
+        fprintf('  Force: %d, Plot: %d\n', analyzeParam.forceEstimation, analyzeParam.plotResults);
+        fprintf('  NOTE: Search radius optimized to 20° spatial, 0.5 yr temporal\n\n');
 
         fprintf('========================================================\n\n');
 
@@ -486,7 +526,7 @@ switch analysisScenario
         %                    RUN ANALYSIS
         % ====================================================================
 
-        fprintf('STEP 3: Running BME analysis with soft data...\n');
+        fprintf('STEP 4: Running BME analysis with soft data...\n');
         fprintf('--------------------------------------------\n\n');
 
         tic;
