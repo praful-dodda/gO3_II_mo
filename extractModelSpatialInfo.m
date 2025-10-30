@@ -157,21 +157,51 @@ for iModel = 1:nModels
         spatialInfo = extractSpatialGrid(modelFolder, models(iModel));
         
         if ~isempty(spatialInfo)
+            % Check grid uniformity
+            fprintf('  Checking grid uniformity...\n');
+            try
+                gridData = struct('lon', spatialInfo.lon, 'lat', spatialInfo.lat);
+                uniformityCheck = analyzeGridUniformity(gridData, 'struct');
+                spatialInfo.isUniform = uniformityCheck.isUniform;
+                spatialInfo.gridType = uniformityCheck.gridType;
+                spatialInfo.lonResolution = uniformityCheck.lonResolution;
+                spatialInfo.latResolution = uniformityCheck.latResolution;
+                fprintf('  Grid type: %s\n', upper(uniformityCheck.gridType));
+                if uniformityCheck.isUniform
+                    fprintf('  Resolution: %.4f° × %.4f°\n', ...
+                        uniformityCheck.lonResolution, uniformityCheck.latResolution);
+                    fprintf('  Thinning: VALID (can use simple thinning)\n');
+                else
+                    fprintf('  Thinning: CAUTION (%s)\n', uniformityCheck.recommendations);
+                end
+            catch
+                spatialInfo.isUniform = false;
+                spatialInfo.gridType = 'unknown';
+                spatialInfo.lonResolution = NaN;
+                spatialInfo.latResolution = NaN;
+                fprintf('  Uniformity check failed - assuming irregular\n');
+            end
+
             % Save results
             results.(modelName) = spatialInfo;
-            
-            % Save individual .mat file
+
+            % Save individual .mat file with uniformity info
             matFilename = sprintf('%s_spatial_grid.mat', modelName);
             matPath = fullfile(outputDir, matFilename);
-            
+
             lon = spatialInfo.lon;
             lat = spatialInfo.lat;
             nGridPoints = spatialInfo.nGridPoints;
             yearsChecked = spatialInfo.yearsChecked;
             isConsistent = spatialInfo.isConsistent;
-            
-            save(matPath, 'lon', 'lat', 'nGridPoints', 'yearsChecked', 'isConsistent');
-            
+            isUniform = spatialInfo.isUniform;
+            gridType = spatialInfo.gridType;
+            lonResolution = spatialInfo.lonResolution;
+            latResolution = spatialInfo.latResolution;
+
+            save(matPath, 'lon', 'lat', 'nGridPoints', 'yearsChecked', ...
+                'isConsistent', 'isUniform', 'gridType', 'lonResolution', 'latResolution');
+
             fprintf('  ✓ Saved: %s\n', matFilename);
             fprintf('  Grid size: %d points\n', nGridPoints);
             fprintf('  Lon range: [%.2f, %.2f]\n', min(lon), max(lon));
