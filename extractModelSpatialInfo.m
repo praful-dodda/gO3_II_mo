@@ -133,7 +133,8 @@ models(18).folder = 'nanjing university ML/yearlyFiles';
 models(18).pattern = 'NJML-monthly-dma8-%d.csv';
 models(18).years = 2004;
 
-models = models(17:18);
+% Process all models - comment out to process only specific models
+% models = models(17:18);  % UKML and NJML only
 
 %% Process Each Model
 nModels = length(models);
