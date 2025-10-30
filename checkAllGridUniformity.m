@@ -50,6 +50,9 @@ for i = 1:nModels
         % Analyze uniformity
         analysis = analyzeGridUniformity(matPath, 'mat');
 
+        % replace - with _ in the modelName for field naming
+        modelName = strrep(modelName, '-', '_');
+
         % Store results
         results.(modelName) = analysis;
 

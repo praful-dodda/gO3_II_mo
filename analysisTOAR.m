@@ -397,7 +397,7 @@ switch analysisScenario
         % ====================================================================
 
         % Define estimation area code and time vector (always define these)
-        estimationAreaCode = 5;              % Continental US
+        estimationAreaCode = 0;              % Continental US
         estimationTkVec = 2016:1/12:2017;    % Monthly 2016
 
         if ~isempty(softData)
@@ -407,7 +407,7 @@ switch analysisScenario
 
             % Configure subsetting options
             subsetOptions = struct();
-            subsetOptions.spatialBounds = estimationAreaCode;  % Use area code
+            subsetOptions.spatialBounds = getTOARareaBoundaries(estimationAreaCode, []) ;  % Use area code
 
             % Temporal bounds: estimation period ± 6 months buffer
             temporalBuffer = 0.5;  % 6 months
