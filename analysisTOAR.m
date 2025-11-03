@@ -92,6 +92,13 @@ switch analysisScenario
         %   '10000122' = Hard data only, nhmax=50, nsmax=4, krigingME (fewer neighbors)
         analyzeParam.BMEmethod = '10000132';
 
+        % Data format for kriging computation
+        % 'stv'  = Space-Time Vector (default, works with any grid, slower)
+        % 'stg'  = Space-Time Grid (faster for regular grids, RECOMMENDED)
+        % 'stug' = Space-Time Unstructured Grid (fastest for large uniform grids)
+        % Note: Use analyzeGridUniformity.m to check if your grid supports 'stug'
+        analyzeParam.dataFormat = 'stg';  % Default: space-time grid
+
         % Soft data structure (leave empty if not using CTM/satellite data)
         analyzeParam.softData = [];
 
@@ -237,6 +244,7 @@ switch analysisScenario
 
         fprintf('BME:\n');
         fprintf('  Method: %s\n', analyzeParam.BMEmethod);
+        fprintf('  Data format: %s\n', analyzeParam.dataFormat);
         fprintf('  Area: %d, Resolution: %.2f°\n', analyzeParam.areaCode, analyzeParam.mapResolution);
         fprintf('  Time periods: %d\n', length(analyzeParam.tkVec));
         fprintf('  Force: %d, Plot: %d\n\n', analyzeParam.forceEstimation, analyzeParam.plotResults);
@@ -464,6 +472,7 @@ switch analysisScenario
 
         % BME method with soft data
         analyzeParam.BMEmethod = '11000112';  % Digit 2 = 1 enables soft data
+        analyzeParam.dataFormat = 'stug';     % Use optimized STUG for uniform grids
         analyzeParam.softData = softData;     % Pass soft data structure
 
         % Estimation configuration (use same as subsetting for consistency)
@@ -515,6 +524,7 @@ switch analysisScenario
 
         fprintf('BME:\n');
         fprintf('  Method: %s (WITH SOFT DATA)\n', analyzeParam.BMEmethod);
+        fprintf('  Data format: %s\n', analyzeParam.dataFormat);
         fprintf('  Area: %d, Resolution: %.2f°\n', analyzeParam.areaCode, analyzeParam.mapResolution);
         fprintf('  Time periods: %d\n', length(analyzeParam.tkVec));
         fprintf('  Force: %d, Plot: %d\n', analyzeParam.forceEstimation, analyzeParam.plotResults);

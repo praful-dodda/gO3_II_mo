@@ -1,19 +1,24 @@
-function BMEparam = getBMEparam(BMEmethod8digits, stmetric)
+function BMEparam = getBMEparam(BMEmethod8digits, stmetric, dataFormat)
 % getBMEparam - Get BME estimation parameters from method code
 %
 % SYNTAX:
-%   BMEparam = getBMEparam(BMEmethod8digits, stmetric)
+%   BMEparam = getBMEparam(BMEmethod8digits, stmetric, dataFormat)
 %
 % INPUTS:
 %   BMEmethod8digits - 8-digit BME method code
 %   stmetric         - Space-time metric from covariance
+%   dataFormat       - Data format: 'stv', 'stg', or 'stug' (optional, default 'stg')
 %
 % OUTPUT:
 %   BMEparam - Structure with BME parameters:
-%              .nhmax, .nsmax, .order, .dmax, .options
+%              .nhmax, .nsmax, .order, .dmax, .options, .dataFormat
 
 if nargin < 2
     stmetric = 100;
+end
+
+if nargin < 3
+    dataFormat = 'stg';  % Default to space-time grid
 end
 
 % Parse method code
@@ -77,5 +82,6 @@ BMEparam.options(4) = rEps;
 BMEparam.options(8) = nMom;
 
 BMEparam.BMEmethod8digits = BMEmethod8digits;
+BMEparam.dataFormat = dataFormat;
 
 end
