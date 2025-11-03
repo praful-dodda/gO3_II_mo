@@ -472,8 +472,8 @@ switch analysisScenario
         analyzeParam.tkVec = estimationTkVec;           % Monthly 2016
 
         % Force and plotting
-        analyzeParam.forceEstimation = 1;
-        analyzeParam.keepOnlyLand = true;
+        analyzeParam.forceEstimation = 0;
+        analyzeParam.keepOnlyLand = false;
         analyzeParam.includeAntarctica = false;
         analyzeParam.plotResults = 1;         % 2 for Estimates + observations
         analyzeParam.plotVariance = 1;        % Standard deviation map

@@ -96,7 +96,7 @@ fprintf('\nCreating estimation grid...\n');
 [axMS_est, ~] = getTOARareaBoundaries(areaCode, [], [-180 180 -60 75]);
 
 % Create spatial grid
-sk = getTOARmapGrid(mapResolution, false);
+sk = getTOARmapGrid(mapResolution, estParam.keepOnlyLand, estParam.includeAntarctica);
 
 % Filter grid to estimation area
 inArea = (sk(:,1) >= axMS_est(1)) & (sk(:,1) <= axMS_est(2)) & ...
