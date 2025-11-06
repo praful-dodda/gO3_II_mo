@@ -13,10 +13,16 @@ function estBMEs_stg(KS, KG, obs, go, BMEparam, estParam)
     
     BMEprobaType = str2double(BMEmethod8digits(8));
 
-    % BME filename - method, go, areaEst, mapRes, nsmax, nhmax, dataFormat
-    BMEsFile = sprintf('BME%s_go%d_obsZeros%d_areaEst%d_mapResolution_%d_nsmax%d_%s', ...
+    % Get keepOnlyLand flag (default to 1 if not specified)
+    keepOnlyLand = 1;
+    if isfield(estParam, 'keepOnlyLand')
+        keepOnlyLand = estParam.keepOnlyLand;
+    end
+
+    % BME filename - method, go, areaEst, mapRes, nsmax, nhmax, dataFormat, land flag
+    BMEsFile = sprintf('BME%s_go%d_obsZeros%d_areaEst%d_mapResolution_%d_nsmax%d_%s_land%d', ...
         BMEmethod8digits, go.scenario, obs.obsZeroType, mapArea.areaEst, mapResolution, ...
-        cov.BMEparam.nsmax, BMEparam.dataFormat);
+        cov.BMEparam.nsmax, BMEparam.dataFormat, keepOnlyLand);
 
     % appropriately get the estimation points
     % Get boundaries for the area of interest
