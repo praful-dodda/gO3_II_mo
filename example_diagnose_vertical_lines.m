@@ -68,6 +68,28 @@ opts3.markerSize = 20;
 figure(3);
 visualizeBMEdiagnostic(BMEfile, opts3);
 
+%% Step 5b: Overlay Model Spatial Grid (CRITICAL for understanding artifacts)
+% This shows the model's actual grid structure to see if vertical lines
+% align with the model grid
+fprintf('\n>>> Creating diagnostic plot 3b: STD with Model Grid Overlay <<<\n');
+fprintf('IMPORTANT: Specify the model name that was used for soft data\n');
+fprintf('Common model names: MERRA2-GMI, M3fusion, UKML, NJML, etc.\n\n');
+
+% CHANGE THIS to the model you actually used
+modelName = 'MERRA2-GMI';  % Example - change to your model
+
+opts3b = struct();
+opts3b.metric = 'std';
+opts3b.display = 'grid';
+opts3b.colormap = 'jet';
+opts3b.markerSize = 20;
+opts3b.modelName = modelName;  % This overlays the model grid
+
+fprintf('If model grid file not found, run: extractModelSpatialInfo.m\n\n');
+
+figure(5);
+visualizeBMEdiagnostic(BMEfile, opts3b);
+
 %% Step 6: Variance Analysis
 % Raw variance before sqrt (most sensitive to artifacts)
 fprintf('\n>>> Creating diagnostic plot 4: Variance - Grid Only <<<\n');
@@ -107,9 +129,11 @@ fprintf('       * Uncertainty (only variance/std affected)\n\n');
 
 fprintf('NEXT STEPS:\n');
 fprintf('  A. If vertical lines are in grid structure:\n');
+fprintf('     - FIRST: Overlay model grid (Step 5b) to see if lines align\n');
 fprintf('     - Check dataFormat: try switching stg <-> stug\n');
 fprintf('     - Review grid generation in getTOARmapGrid.m\n');
-fprintf('     - Check soft data grid uniformity\n\n');
+fprintf('     - Check soft data grid uniformity\n');
+fprintf('     - If lines align with model grid: grid structure artifact\n\n');
 
 fprintf('  B. If vertical lines align with data boundaries:\n');
 fprintf('     - Check search radius (dmax parameter)\n');

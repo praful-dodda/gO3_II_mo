@@ -35,6 +35,8 @@ visualizeBMEdiagnostic(BMEresultFile, options)
 | `clim` | `[min max]` or `'auto'` | `'auto'` | Color limits |
 | `markerSize` | Numeric | `30` | Point size |
 | `saveFig` | `true`, `false` | `true` | Save to file |
+| `modelName` | String (e.g., `'MERRA2-GMI'`) | `''` | Model grid to overlay |
+| `showModelGrid` | `true`, `false` | `true` | Show model grid if modelName provided |
 
 ### Display Modes
 
@@ -99,6 +101,56 @@ visualizeBMEdiagnostic(yourFile, opts);
 - Available for: grid only
 - Default metric for diagnostic
 - Where vertical lines typically appear
+
+## Model Spatial Grid Overlay
+
+**NEW FEATURE**: Overlay the input model's spatial grid to see if artifacts align with grid structure.
+
+### Why This Matters
+Vertical lines in STD maps often align with the model grid structure used for soft data. Overlaying the model grid helps identify if:
+- Artifacts are grid-aligned (grid structure issue)
+- Artifacts are independent of grid (covariance or search radius issue)
+- Grid resolution matches/mismatches estimation grid
+
+### How to Use
+
+```matlab
+opts.metric = 'std';
+opts.display = 'grid';
+opts.modelName = 'MERRA2-GMI';  % Specify which model
+visualizeBMEdiagnostic(yourFile, opts);
+```
+
+### Available Models
+Model spatial grids must exist in:
+```
+1data/CTM/model_output_data/spatial_grids/{modelName}_spatial_grid.mat
+```
+
+Generate with: `extractModelSpatialInfo.m`
+
+Common model names:
+- `MERRA2-GMI`
+- `M3fusion`
+- `UKML`
+- `NJML`
+- (See `checkAllGridUniformity.m` for full list)
+
+### Visual Appearance
+- Model grid points: Small gray crosses (`+`)
+- BME estimation grid: Colored by metric value
+- Model grid is subtle to not dominate visualization
+- Title updated to show model name
+
+### What to Look For
+1. **Lines align with model grid** → Grid structure artifact
+   - Try different dataFormat (stg ↔ stug ↔ stv)
+   - Check grid generation
+
+2. **Lines don't align with model grid** → Not grid structure
+   - Check covariance parameters
+   - Review search radius (dmax)
+   - Investigate data boundaries
 
 ## Diagnosing Vertical Lines
 
@@ -237,6 +289,21 @@ figure(1); visualizeBMEdiagnostic(file, opts);
 % STD
 opts.metric = 'std';
 figure(2); visualizeBMEdiagnostic(file, opts);
+```
+
+### Example 5: Overlay Model Grid (CRITICAL for Vertical Lines)
+```matlab
+file = '5BMEspatialPlots/BME11000112_go3_lt0_area5_res1.00_stug_time2016.50.mat';
+
+% STD with model grid overlay
+opts.metric = 'std';
+opts.display = 'grid';
+opts.modelName = 'MERRA2-GMI';  % Change to your model
+opts.markerSize = 20;
+
+visualizeBMEdiagnostic(file, opts);
+
+% Now check if vertical lines align with model grid structure!
 ```
 
 ## Troubleshooting

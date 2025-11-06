@@ -18,6 +18,10 @@ function visualizeBMEdiagnostic(BMEresultFile, options)
 %                   .clim       - Color limits [min max] or 'auto' (default: 'auto')
 %                   .markerSize - Size for observation markers (default: 30)
 %                   .saveFig    - Save figure to file (default: true)
+%                   .modelName  - Model name to overlay spatial grid (e.g., 'MERRA2-GMI')
+%                                 If provided, loads and plots model grid from
+%                                 1data/CTM/model_output_data/spatial_grids/
+%                   .showModelGrid - Show model grid even if modelName not auto-detected (default: true)
 %
 % EXAMPLES:
 %   % Quick check of standard deviation with both grid and obs
@@ -32,6 +36,12 @@ function visualizeBMEdiagnostic(BMEresultFile, options)
 %   opts.metric = 'mean';
 %   opts.display = 'obs';
 %   visualizeBMEdiagnostic('5BMEspatialPlots/BME10000132_go3_lt0_area5_res1.00_stg_time2016.50.mat', opts);
+%
+%   % Overlay model spatial grid to see grid structure
+%   opts.metric = 'std';
+%   opts.display = 'grid';
+%   opts.modelName = 'MERRA2-GMI';
+%   visualizeBMEdiagnostic('5BMEspatialPlots/BME10000132_go3_lt0_area5_res1.00_stg_time2016.50.mat', opts);
 
 %% Parse Inputs
 if nargin < 1
@@ -43,12 +53,14 @@ if nargin < 2
 end
 
 % Set defaults
-if ~isfield(options, 'metric'),     options.metric = 'std'; end
-if ~isfield(options, 'display'),    options.display = 'both'; end
-if ~isfield(options, 'colormap'),   options.colormap = 'jet'; end
-if ~isfield(options, 'clim'),       options.clim = 'auto'; end
-if ~isfield(options, 'markerSize'), options.markerSize = 30; end
-if ~isfield(options, 'saveFig'),    options.saveFig = true; end
+if ~isfield(options, 'metric'),       options.metric = 'std'; end
+if ~isfield(options, 'display'),      options.display = 'both'; end
+if ~isfield(options, 'colormap'),     options.colormap = 'jet'; end
+if ~isfield(options, 'clim'),         options.clim = 'auto'; end
+if ~isfield(options, 'markerSize'),   options.markerSize = 30; end
+if ~isfield(options, 'saveFig'),      options.saveFig = true; end
+if ~isfield(options, 'modelName'),    options.modelName = ''; end
+if ~isfield(options, 'showModelGrid'), options.showModelGrid = true; end
 
 % Validate inputs
 validMetrics = {'mean', 'variance', 'std'};
@@ -147,6 +159,46 @@ if exist('1data/borderdata.mat', 'file')
     end
 end
 
+%% Load Model Spatial Grid (if requested)
+modelGridAvailable = false;
+modelGridLon = [];
+modelGridLat = [];
+
+if ~isempty(options.modelName) && options.showModelGrid
+    fprintf('Loading model spatial grid: %s\n', options.modelName);
+
+    spatialGridDir = fullfile('1data', 'CTM', 'model_output_data', 'spatial_grids');
+    spatialGridFile = sprintf('%s_spatial_grid.mat', options.modelName);
+    spatialGridPath = fullfile(spatialGridDir, spatialGridFile);
+
+    if exist(spatialGridPath, 'file')
+        try
+            gridData_model = load(spatialGridPath);
+            modelGridLon = gridData_model.lon(:);
+            modelGridLat = gridData_model.lat(:);
+            modelGridAvailable = true;
+
+            fprintf('  Model grid loaded: %d points\n', length(modelGridLon));
+
+            % Check if grid uniformity info is available
+            if isfield(gridData_model, 'isUniform')
+                if gridData_model.isUniform
+                    fprintf('  Grid type: %s (uniform)\n', gridData_model.gridType);
+                    fprintf('  Resolution: %.4f° × %.4f°\n', ...
+                        gridData_model.lonResolution, gridData_model.latResolution);
+                else
+                    fprintf('  Grid type: %s (non-uniform)\n', gridData_model.gridType);
+                end
+            end
+        catch ME
+            warning('Could not load model spatial grid: %s', ME.message);
+        end
+    else
+        warning('Model spatial grid file not found: %s', spatialGridPath);
+        fprintf('  Run extractModelSpatialInfo.m to generate spatial grids.\n');
+    end
+end
+
 %% Create Figure
 figure('Position', [100 100 1400 900], 'Color', 'w');
 hold on;
@@ -183,6 +235,20 @@ switch options.display
         else
             titleStr = sprintf('%s (Grid Only - No Obs Available)', metricLabel);
         end
+end
+
+%% Overlay Model Spatial Grid (if available)
+if modelGridAvailable
+    % Plot model grid points as small crosses or dots
+    % Use gray color and small size so they don't dominate
+    scatter(modelGridLon, modelGridLat, 3, [0.5 0.5 0.5], '+', 'LineWidth', 0.5);
+
+    % Update title to indicate model grid is shown
+    if contains(titleStr, 'Grid')
+        titleStr = sprintf('%s + Model Grid (%s)', titleStr, options.modelName);
+    end
+
+    fprintf('  Model spatial grid overlaid on plot\n');
 end
 
 %% Add Map Features
@@ -235,6 +301,11 @@ if ~isempty(obsData)
         sum(~isnan(obsData)), mean(obsData, 'omitnan'))];
 end
 
+if modelGridAvailable
+    stats = [stats sprintf('\n\nModel: %s\nN (model): %d', ...
+        options.modelName, length(modelGridLon))];
+end
+
 annotation('textbox', [0.02 0.02 0.2 0.2], 'String', stats, ...
     'FitBoxToText', 'on', 'BackgroundColor', 'white', ...
     'EdgeColor', 'black', 'FontSize', 11, 'FontWeight', 'bold');
@@ -255,7 +326,11 @@ if options.saveFig
     end
 
     [~, fname, ~] = fileparts(BMEresultFile);
-    figName = sprintf('%s_DIAGNOSTIC_%s_%s.png', fname, options.metric, options.display);
+    if modelGridAvailable
+        figName = sprintf('%s_DIAGNOSTIC_%s_%s_with_%s.png', fname, options.metric, options.display, options.modelName);
+    else
+        figName = sprintf('%s_DIAGNOSTIC_%s_%s.png', fname, options.metric, options.display);
+    end
     figPath = fullfile(figDir, figName);
 
     print(figPath, '-dpng', '-r300');
