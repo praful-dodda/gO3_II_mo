@@ -35,8 +35,8 @@ plot([minVal maxVal], yfit, 'r-', 'LineWidth', 2.5);
 xlabel(['Observed ' obs.Zlabel], 'FontSize', 16, 'FontWeight', 'bold');
 ylabel(['Predicted ' obs.Zlabel], 'FontSize', 16, 'FontWeight', 'bold');
 title({'TOAR BME Leave-One-Out Cross Validation', ...
-    sprintf('BME Method: %s, GO Scenario: %d', ...
-    BMEparam.BMEmethod8digits, go.scenario)}, ...
+    sprintf('BME Method: %s, GO Scenario: %d, Format: %s', ...
+    BMEparam.BMEmethod8digits, go.scenario, BMEparam.dataFormat)}, ...
     'FontSize', 18, 'FontWeight', 'bold');
 grid on;
 axis equal;
@@ -69,8 +69,8 @@ legend('Validation Pairs', '1:1 Line', ...
     'Location', 'southeast', 'FontSize', 13);
 
 % Save
-filename = sprintf('TOAR_LOOCV_scatter_BME%s_go%d_y%s.png', ...
-    BMEparam.BMEmethod8digits, go.scenario, mat2str(valParam.valYears));
+filename = sprintf('TOAR_LOOCV_scatter_BME%s_go%d_%s_y%s.png', ...
+    BMEparam.BMEmethod8digits, go.scenario, BMEparam.dataFormat, mat2str(valParam.valYears));
 print(fullfile(figDir, filename), '-dpng', '-r300');
 
 %% Figure 2: Residual Analysis
@@ -109,8 +109,8 @@ set(gca, 'FontSize', 12);
 sgtitle('Residual Analysis', 'FontSize', 18, 'FontWeight', 'bold');
 
 % Save
-filename = sprintf('TOAR_LOOCV_residuals_BME%s_go%d_y%s.png', ...
-    BMEparam.BMEmethod8digits, go.scenario, mat2str(valParam.valYears));
+filename = sprintf('TOAR_LOOCV_residuals_BME%s_go%d_%s_y%s.png', ...
+    BMEparam.BMEmethod8digits, go.scenario, BMEparam.dataFormat, mat2str(valParam.valYears));
 print(fullfile(figDir, filename), '-dpng', '-r300');
 
 %% Figure 3: Spatial Distribution of Errors
@@ -144,8 +144,8 @@ grid on;
 set(gca, 'FontSize', 14);
 
 % Save
-filename = sprintf('TOAR_LOOCV_spatial_error_BME%s_go%d_y%s.png', ...
-    BMEparam.BMEmethod8digits, go.scenario, mat2str(valParam.valYears));
+filename = sprintf('TOAR_LOOCV_spatial_error_BME%s_go%d_%s_y%s.png', ...
+    BMEparam.BMEmethod8digits, go.scenario, BMEparam.dataFormat, mat2str(valParam.valYears));
 print(fullfile(figDir, filename), '-dpng', '-r300');
 
 %% Figure 4: Temporal Analysis
@@ -188,8 +188,8 @@ set(gca, 'FontSize', 12);
 sgtitle('Temporal Validation Analysis', 'FontSize', 18, 'FontWeight', 'bold');
 
 % Save
-filename = sprintf('TOAR_LOOCV_temporal_BME%s_go%d_y%s.png', ...
-    BMEparam.BMEmethod8digits, go.scenario, mat2str(valParam.valYears));
+filename = sprintf('TOAR_LOOCV_temporal_BME%s_go%d_%s_y%s.png', ...
+    BMEparam.BMEmethod8digits, go.scenario, BMEparam.dataFormat, mat2str(valParam.valYears));
 print(fullfile(figDir, filename), '-dpng', '-r300');
 
 fprintf('Validation plots saved to: %s\n', figDir);

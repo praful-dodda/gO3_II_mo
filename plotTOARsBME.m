@@ -167,8 +167,8 @@ elseif abs(tk*12 - round(tk*12)) < 1e-6
 end
 
 title({plotTitle, timeStr, ...
-    sprintf('GO Scenario: %d, Area: %d, Resolution: %.2f°', ...
-    go.scenario, areaCode, mapResolution)}, 'FontSize', 14);
+    sprintf('BME Method: %s, GO Scenario: %d, Area: %d, Resolution: %.2f°, Format: %s', ...
+    BMEparam.BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat)}, 'FontSize', 14);
 
 % Add statistics text box
 if plotType <= 2
@@ -193,8 +193,9 @@ end
 %% Save Figure
 % Create filename
 BMEmethod8digits = BMEparam.BMEmethod8digits;
-figFilename = sprintf('BME%s_go%d_lt%d_area%d_res%.2f_time%.2f_%s.png', ...
-    BMEmethod8digits, go.scenario, obs.logTransf, areaCode, mapResolution, tk, figSuffix);
+dataFormat = BMEparam.dataFormat;
+figFilename = sprintf('BME%s_go%d_lt%d_area%d_res%.2f_%s_time%.2f_%s.png', ...
+    BMEmethod8digits, go.scenario, obs.logTransf, areaCode, mapResolution, dataFormat, tk, figSuffix);
 figPath = fullfile(figDir, figFilename);
 
 % Save figure
