@@ -8,8 +8,9 @@
 % List available BME result files
 fprintf('=== Available BME Result Files ===\n');
 BMEdir = '5BMEspatialPlots';
+BMEmethod = 11000312;
 if exist(BMEdir, 'dir')
-    files = dir(fullfile(BMEdir, 'BME*.mat'));
+    files = dir(fullfile(BMEdir, sprintf('BME%d*.mat', BMEmethod)));
     if ~isempty(files)
         for i = 1:min(10, length(files))  % Show first 10
             fprintf('%d. %s\n', i, files(i).name);
