@@ -395,7 +395,7 @@ switch analysisScenario
             fprintf('    Time periods: %d months\n', length(softData.tME));
             fprintf('    Coverage: %.4f - %.4f\n', min(softData.tME), max(softData.tME));
         catch ME
-            warning('Could not load soft data: %s', ME.message);
+            % warning('Could not load soft data: %s', ME.message);
             fprintf('Proceeding without soft data (hard data only)\n');
             softData = [];
         end
@@ -435,7 +435,7 @@ switch analysisScenario
                 % Mark as CTM data again after subsetting
                 softData.ctm = 1;
             catch ME
-                warning('Soft data subsetting failed: %s. Using full dataset.', ME.message);
+                warning('Soft data subsetting failed. Using full dataset.');
             end
         end
 
@@ -471,7 +471,7 @@ switch analysisScenario
         analyzeParam.forceCov = 0;
 
         % BME method with soft data
-        analyzeParam.BMEmethod = '11000112';  % Digit 2 = 1 enables soft data
+        analyzeParam.BMEmethod = '11000412';  % Digit 2 = 1 enables soft data
         analyzeParam.dataFormat = 'stug';     % Use optimized STUG for uniform grids
         analyzeParam.softData = softData;     % Pass soft data structure
 

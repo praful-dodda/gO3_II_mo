@@ -1,4 +1,4 @@
-function [zk,vk]=krigingME_stug(ck,ch,cs,zh,zs,vs,covmodel,covparam,nhmax,nsmax,dmax,order,options, grid_data)
+function [zk,vk]=krigingME_stug(ck,ch,cs,zh,zs,vs,covmodel,covparam,nhmax,nsmax,dmax,order,options, hard_data, soft_data)
 
 % krigingME_stug                 - prediction using kriging with measurement errors (Nov 3, 2025) version 2.0c, 
 %
@@ -81,7 +81,11 @@ if nargin<13
 end
 
 if nargin<14
-    grid_data = struct();
+  hard_data = struct();
+end
+
+if nargin<15
+    soft_data = struct();
 end
 
 noindex=~iscell(ck);       % test if there is an index for the variables
@@ -116,14 +120,22 @@ for i=1:nk
   end
 
   [chlocal,zhlocal,~,sumnhlocal,~]=neighbours(ck0,ch,zh,nhmax,dmax);
+  % if isempty(hard_data)
+  %   [chlocal,zhlocal,~,sumnhlocal,~]=neighbours(ck0,ch,zh,nhmax,dmax);
+  % else
+  %   [chlocal, zhlocal, ~, sumnhlocal, ~] = neighbours_stg(ck0, hard_data, nhmax, dmax);
+  % end
+  
 
-  if isempty(grid_data)
-    [cslocal,zslocal,~,sumnslocal,index]=neighbours(ck0,cs,zs,nsmax,dmax);
+  if isempty(soft_data)
+    [cslocal,zslocal,~,sumnslocal,index]=neighbours(ck0,cs,zs,nsmax,dmax);   
   else
-    [cslocal,zslocal,~,sumnslocal,index]=neighbours_stug_optimized(ck0,grid_data,nsmax,dmax);
+    [cslocal,zslocal,~,sumnslocal,index]=neighbours_stug_optimized(ck0,soft_data,nsmax,dmax);
   end
-  % [cslocal,zslocal,dh,sumnslocal,index]=neighbours(ck0,cs,zs,nsmax,dmax);
+  
   vslocal=vs(index);
+  % [cslocal,zslocal,dh,sumnslocal,index]=neighbours(ck0,cs,zs,nsmax,dmax);
+  
 
   Khh=coord2K(chlocal,chlocal,covmodel,covparam);      % built the left-hand side matrix for hard data
   Kss=coord2K(cslocal,cslocal,covmodel,covparam);      % built the left-hand side matrix for soft data

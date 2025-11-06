@@ -192,11 +192,11 @@ for iTime = 1:length(tkVec)
                 case 'stug'
                     fprintf('    Using krigingME_stug (STUG format - space-time unstructured grid)...\n');
                     % STUG format: fastest for large uniform grids
-                    grid_data = reformat_stg_to_stug(KS.softdata);
+                    soft_data = reformat_stg_to_stug(KS.softdata);
                     [XkBMEm, XkBMEv] = krigingME_stug(pk, KS.harddata.p, KS.softdata.p, ...
                         KS.harddata.z, KS.softdata.z, KS.softdata.vs, ...
                         KG.covmodel, KG.covparam, BMEparam.nhmax, BMEparam.nsmax, ...
-                        BMEparam.dmax, KG.order, 0, grid_data);
+                        BMEparam.dmax, KG.order, 0, KS.harddata, soft_data);
 
                 otherwise
                     error('Invalid dataFormat: %s. Must be ''stv'', ''stg'', or ''stug''', ...

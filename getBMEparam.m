@@ -48,7 +48,7 @@ switch BMEnsmax
     case 0, BMEparam.nsmax = 0;   % No soft data
     case 1, BMEparam.nsmax = 3;
     case 2, BMEparam.nsmax = 4;
-    case 3, BMEparam.nsmax = 5;
+    case 3, BMEparam.nsmax = 10;
     case 4, BMEparam.nsmax = 50;
     case 5, BMEparam.nsmax = 100;
     case 6, BMEparam.nsmax = 200;
