@@ -43,12 +43,6 @@ mapResolution = estParam.mapResolution;
 tk = BMEs.tk;
 displayArea = BMEs.estGridArea;
 
-% Get keepOnlyLand parameter (default to true)
-keepOnlyLand = true;
-if isfield(estParam, 'keepOnlyLand')
-    keepOnlyLand = estParam.keepOnlyLand;
-end
-
 % Directories
 dataDir = '1data';
 figDir = fullfile('5BMEspatialPlots', 'figs', 'variance');
@@ -83,33 +77,13 @@ bordersAvailable = false;
 if exist(fullfile(dataDir, 'borderdata.mat'), 'file')
     load(fullfile(dataDir, 'borderdata.mat'), 'places', 'lon', 'lat');
     bordersAvailable = true;
-
+    
     % Create mask contour for land areas
     maskcontour = [];
     for k = 1:length(places)
         if ~isempty(lon{k})
             maskcontour = [maskcontour; [lon{k}(:), lat{k}(:)]; [NaN, NaN]];
         end
-    end
-end
-
-%% Apply Land Mask if Requested
-% When keepOnlyLand is true, mask out ocean areas by setting them to NaN
-% Use local copies for plotting to avoid modifying the original data
-stdDev_plot = stdDev;
-XkBMEv_plot = XkBMEv;
-CV_plot = CV;
-YkBMEm_plot = BMEs.YkBMEm;
-
-if keepOnlyLand
-    fprintf('  Applying land mask to variance estimation points...\n');
-    stdDev_plot = applyLandMask(BMEs.sk, stdDev_plot, dataDir);
-    XkBMEv_plot = applyLandMask(BMEs.sk, XkBMEv_plot, dataDir);
-    if ~isempty(CV_plot)
-        CV_plot = applyLandMask(BMEs.sk, CV_plot, dataDir);
-    end
-    if ~isempty(YkBMEm_plot)
-        YkBMEm_plot = applyLandMask(BMEs.sk, YkBMEm_plot, dataDir);
     end
 end
 
@@ -132,10 +106,10 @@ switch plotType
     case 1  % Standard Deviation
         % figure('Position', [100 100 1200 800], 'Color', 'w');
         hold on;
-
+        
         % Plot standard deviation
-        plotFieldTOAR(BMEs.sk, stdDev_plot, displayArea, maskcontour);
-        stdRange = quantest(stdDev_plot(~isnan(stdDev_plot)), [0 0.95]);
+        plotFieldTOAR(BMEs.sk, stdDev, displayArea, maskcontour);
+        stdRange = quantest(stdDev(~isnan(stdDev)), [0 0.95]);
         clim(stdRange);
         
         % Add observation locations
@@ -158,10 +132,10 @@ switch plotType
 
         % Statistics
         stats = sprintf('Mean: %.2f %s\nStd: %.2f %s\nMin: %.2f %s\nMax: %.2f %s', ...
-            mean(stdDev_plot, 'omitnan'), obs.Zunit, ...
-            std(stdDev_plot, 'omitnan'), obs.Zunit, ...
-            min(stdDev_plot), obs.Zunit, ...
-            max(stdDev_plot), obs.Zunit);
+            mean(stdDev, 'omitnan'), obs.Zunit, ...
+            std(stdDev, 'omitnan'), obs.Zunit, ...
+            min(stdDev), obs.Zunit, ...
+            max(stdDev), obs.Zunit);
         annotation('textbox', [0.15 0.15 0.2 0.12], 'String', stats, ...
             'FitBoxToText', 'on', 'BackgroundColor', 'white', ...
             'EdgeColor', 'black', 'FontSize', 10);
@@ -173,10 +147,10 @@ switch plotType
     case 2  % Variance
         % figure('Position', [100 100 1200 800], 'Color', 'w');
         hold on;
-
+        
         % Plot variance
-        plotFieldTOAR(BMEs.sk, XkBMEv_plot, displayArea, maskcontour);
-        varRange = quantest(XkBMEv_plot(~isnan(XkBMEv_plot)), [0 0.95]);
+        plotFieldTOAR(BMEs.sk, XkBMEv, displayArea, maskcontour);
+        varRange = quantest(XkBMEv(~isnan(XkBMEv)), [0 0.95]);
         clim(varRange);
         
         % Add observation locations
@@ -199,10 +173,10 @@ switch plotType
 
         % Statistics
         stats = sprintf('Mean: %.2f %s²\nStd: %.2f %s²\nMin: %.2f %s²\nMax: %.2f %s²', ...
-            mean(XkBMEv_plot, 'omitnan'), obs.Zunit, ...
-            std(XkBMEv_plot, 'omitnan'), obs.Zunit, ...
-            min(XkBMEv_plot), obs.Zunit, ...
-            max(XkBMEv_plot), obs.Zunit);
+            mean(XkBMEv, 'omitnan'), obs.Zunit, ...
+            std(XkBMEv, 'omitnan'), obs.Zunit, ...
+            min(XkBMEv), obs.Zunit, ...
+            max(XkBMEv), obs.Zunit);
         annotation('textbox', [0.15 0.15 0.2 0.12], 'String', stats, ...
             'FitBoxToText', 'on', 'BackgroundColor', 'white', ...
             'EdgeColor', 'black', 'FontSize', 10);
@@ -212,17 +186,17 @@ switch plotType
             BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat, tk);
         
     case 3  % Coefficient of Variation
-        if isempty(CV_plot)
+        if isempty(CV)
             warning('Cannot compute CV without YkBMEm. Skipping.');
             return;
         end
-
+        
         % figure('Position', [100 100 1200 800], 'Color', 'w');
         hold on;
-
+        
         % Plot CV
-        plotFieldTOAR(BMEs.sk, CV_plot, displayArea, maskcontour);
-        cvRange = quantest(CV_plot(~isnan(CV_plot) & ~isinf(CV_plot)), [0.05 0.95]);
+        plotFieldTOAR(BMEs.sk, CV, displayArea, maskcontour);
+        cvRange = quantest(CV(~isnan(CV) & ~isinf(CV)), [0.05 0.95]);
         clim(cvRange);
         
         % Add observation locations
@@ -245,7 +219,7 @@ switch plotType
 
         % Statistics
         stats = sprintf('Mean: %.1f%%\nStd: %.1f%%\nMin: %.1f%%\nMax: %.1f%%', ...
-            mean(CV_plot, 'omitnan'), std(CV_plot, 'omitnan'), min(CV_plot), max(CV_plot));
+            mean(CV, 'omitnan'), std(CV, 'omitnan'), min(CV), max(CV));
         annotation('textbox', [0.15 0.15 0.2 0.1], 'String', stats, ...
             'FitBoxToText', 'on', 'BackgroundColor', 'white', ...
             'EdgeColor', 'black', 'FontSize', 10);
@@ -260,8 +234,8 @@ switch plotType
         % Panel 1: Standard Deviation
         subplot(1, 3, 1);
         hold on;
-        plotFieldTOAR(BMEs.sk, stdDev_plot, displayArea, maskcontour);
-        stdRange = quantest(stdDev_plot(~isnan(stdDev_plot)), [0 0.95]);
+        plotFieldTOAR(BMEs.sk, stdDev, displayArea, maskcontour);
+        stdRange = quantest(stdDev(~isnan(stdDev)), [0 0.95]);
         clim(stdRange);
         if ~isempty(BMEs.sMSobs)
             scatter(BMEs.sMSobs(:,1), BMEs.sMSobs(:,2), 20, 'k', 'filled', ...
@@ -277,8 +251,8 @@ switch plotType
         % Panel 2: Variance
         subplot(1, 3, 2);
         hold on;
-        plotFieldTOAR(BMEs.sk, XkBMEv_plot, displayArea, maskcontour);
-        varRange = quantest(XkBMEv_plot(~isnan(XkBMEv_plot)), [0 0.95]);
+        plotFieldTOAR(BMEs.sk, XkBMEv, displayArea, maskcontour);
+        varRange = quantest(XkBMEv(~isnan(XkBMEv)), [0 0.95]);
         clim(varRange);
         if ~isempty(BMEs.sMSobs)
             scatter(BMEs.sMSobs(:,1), BMEs.sMSobs(:,2), 20, 'k', 'filled', ...
@@ -294,9 +268,9 @@ switch plotType
         % Panel 3: Coefficient of Variation
         subplot(1, 3, 3);
         hold on;
-        if ~isempty(CV_plot)
-            plotFieldTOAR(BMEs.sk, CV_plot, displayArea, maskcontour);
-            cvRange = quantest(CV_plot(~isnan(CV_plot) & ~isinf(CV_plot)), [0.05 0.95]);
+        if ~isempty(CV)
+            plotFieldTOAR(BMEs.sk, CV, displayArea, maskcontour);
+            cvRange = quantest(CV(~isnan(CV) & ~isinf(CV)), [0.05 0.95]);
             clim(cvRange);
             if ~isempty(BMEs.sMSobs)
                 scatter(BMEs.sMSobs(:,1), BMEs.sMSobs(:,2), 20, 'k', 'filled', ...
