@@ -193,13 +193,15 @@ end
 nBefore = numel(softData.Z);
 
 % Enforce minimum variance
-lowVar = softData.Zv < options.minVariance;
-if sum(lowVar(:)) > 0
-    if options.verbose
-        fprintf('  Setting %d low variance values (< %.3f) to %.3f\n', ...
-            sum(lowVar(:)), options.minVariance, options.minVariance);
+if options.minVariance > 0
+    lowVar = softData.Zv < options.minVariance;
+    if sum(lowVar(:)) > 0
+        if options.verbose
+            fprintf('  Setting %d low variance values (< %.3f) to %.3f\n', ...
+                sum(lowVar(:)), options.minVariance, options.minVariance);
+        end
+        softData.Zv(lowVar) = options.minVariance;
     end
-    softData.Zv(lowVar) = options.minVariance;
 end
 
 % Remove infinite or NaN values

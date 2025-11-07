@@ -367,7 +367,7 @@ switch analysisScenario
 
         % Soft data configuration
         softDataConfig = struct();
-        softDataConfig.modelName = 'MERRA2-GMI';  % Model to use for soft data
+        softDataConfig.modelName = 'MERRA2-GMI';  % Model to use for soft data - MERRA2-GMI
         softDataConfig.years = 2016:2017;      % Years to load
         softDataConfig.dataDir = fullfile('1data', 'CTM', 'ramp_data');  % Parquet directory
         softDataConfig.forceReload = 0;        % Use cache if available
@@ -424,8 +424,8 @@ switch analysisScenario
 
             % Spatial thinning: match or slightly finer than estimation resolution
             % For 1° estimation grid, use thinning factor 2-4
-            subsetOptions.thinningFactor = 2;  % Keep every 2nd point
-            subsetOptions.minVariance = 0.01;
+            subsetOptions.thinningFactor = 0;  % Keep every 2nd point
+            subsetOptions.minVariance = 0;
             subsetOptions.verbose = 1;
 
             % Apply subsetting
@@ -471,7 +471,7 @@ switch analysisScenario
         analyzeParam.forceCov = 0;
 
         % BME method with soft data
-        analyzeParam.BMEmethod = '11000412';  % Digit 2 = 1 enables soft data
+        analyzeParam.BMEmethod = '11000112';  % Digit 2 = 1 enables soft data
         analyzeParam.dataFormat = 'stug';     % Use optimized STUG for uniform grids
         analyzeParam.softData = softData;     % Pass soft data structure
 
@@ -482,7 +482,7 @@ switch analysisScenario
 
         % Force and plotting
         analyzeParam.forceEstimation = 0;
-        analyzeParam.keepOnlyLand = false;
+        analyzeParam.keepOnlyLand = true;
         analyzeParam.includeAntarctica = false;
         analyzeParam.plotResults = 1;         % 2 for Estimates + observations
         analyzeParam.plotVariance = 1;        % Standard deviation map
