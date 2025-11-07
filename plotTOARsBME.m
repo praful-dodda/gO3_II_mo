@@ -39,6 +39,12 @@ mapResolution = estParam.mapResolution;
 tk = BMEs.tk;
 displayArea = BMEs.estGridArea;
 
+% Get keepOnlyLand parameter (default to true)
+keepOnlyLand = true;
+if isfield(estParam, 'keepOnlyLand')
+    keepOnlyLand = estParam.keepOnlyLand;
+end
+
 % Directories
 dataDir = '1data';
 figDir = fullfile('5BMEspatialPlots', 'figs');
@@ -61,18 +67,25 @@ else
     cmap = jet(64);
 end
 
-%% Load Border Data
-bordersAvailable = false;
-if exist(fullfile(dataDir, 'borderdata.mat'), 'file')
-    load(fullfile(dataDir, 'borderdata.mat'), 'places', 'lon', 'lat');
-    bordersAvailable = true;
-    
-    % Create mask contour for land areas
-    % Combine all country boundaries
-    maskcontour = [];
-    for k = 1:length(places)
-        if ~isempty(lon{k})
-            maskcontour = [maskcontour; [lon{k}(:), lat{k}(:)]; [NaN, NaN]];
+%% Setup Mask Contour
+% When keepOnlyLand is true, use land contour to mask ocean areas
+% Otherwise, use country borders for reference
+maskcontour = [];
+
+if keepOnlyLand
+    % Get land boundary contour for ocean masking
+    fprintf('  Setting up land contour for ocean masking...\n');
+    maskcontour = getLandContour(dataDir);
+else
+    % Use country borders (if available) for reference
+    if exist(fullfile(dataDir, 'borderdata.mat'), 'file')
+        load(fullfile(dataDir, 'borderdata.mat'), 'places', 'lon', 'lat');
+
+        % Combine all country boundaries
+        for k = 1:length(places)
+            if ~isempty(lon{k})
+                maskcontour = [maskcontour; [lon{k}(:), lat{k}(:)]; [NaN, NaN]];
+            end
         end
     end
 end
