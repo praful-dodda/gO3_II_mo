@@ -39,6 +39,12 @@ mapResolution = estParam.mapResolution;
 tk = BMEs.tk;
 displayArea = BMEs.estGridArea;
 
+% Get keepOnlyLand parameter (default to true)
+keepOnlyLand = true;
+if isfield(estParam, 'keepOnlyLand')
+    keepOnlyLand = estParam.keepOnlyLand;
+end
+
 % Directories
 dataDir = '1data';
 figDir = fullfile('5BMEspatialPlots', 'figs');
@@ -77,6 +83,22 @@ if exist(fullfile(dataDir, 'borderdata.mat'), 'file')
     end
 end
 
+%% Apply Land Mask if Requested
+% When keepOnlyLand is true, mask out ocean areas by setting them to NaN
+% Use local copies to avoid modifying the original BMEs structure
+YkBMEm_plot = BMEs.YkBMEm;
+XkBMEm_plot = BMEs.XkBMEm;
+XkBMEv_plot = BMEs.XkBMEv;
+
+if keepOnlyLand
+    fprintf('  Applying land mask to estimation points...\n');
+    YkBMEm_plot = applyLandMask(BMEs.sk, YkBMEm_plot, dataDir);
+    XkBMEm_plot = applyLandMask(BMEs.sk, XkBMEm_plot, dataDir);
+    if isfield(BMEs, 'XkBMEv')
+        XkBMEv_plot = applyLandMask(BMEs.sk, XkBMEv_plot, dataDir);
+    end
+end
+
 %% Create Figure
 % figure('Position', [100 100 1200 800]);
 % hold on;
@@ -84,15 +106,15 @@ end
 %% Plot Based on Type
 switch plotType
     case 1  % BME estimates only
-        plotField(BMEs.sk, BMEs.YkBMEm, displayArea, maskcontour);
+        plotField(BMEs.sk, YkBMEm_plot, displayArea, maskcontour);
         clim(yrange);
         plotTitle = sprintf('%s BME Estimate', obs.Zname);
         figSuffix = 'BME';
-        
+
     case 2  % BME estimates + observations
-        plotField(BMEs.sk, BMEs.YkBMEm, displayArea, maskcontour);
+        plotField(BMEs.sk, YkBMEm_plot, displayArea, maskcontour);
         clim(yrange);
-        
+
         % Overlay observations
         if ~isempty(BMEs.Yobs)
             Property = {'Marker', 'MarkerSize', 'MarkerEdgeColor'};
@@ -101,12 +123,12 @@ switch plotType
         end
         plotTitle = sprintf('%s BME Estimate + Observations', obs.Zname);
         figSuffix = 'BME_obs';
-        
+
     case 3  % Residuals (offset-removed)
-        plotField(BMEs.sk, BMEs.XkBMEm, displayArea, maskcontour);
-        xrange = quantest(BMEs.XkBMEm(~isnan(BMEs.XkBMEm)), yrangeQuant);
+        plotField(BMEs.sk, XkBMEm_plot, displayArea, maskcontour);
+        xrange = quantest(XkBMEm_plot(~isnan(XkBMEm_plot)), yrangeQuant);
         clim(xrange);
-        
+
         % Overlay residual observations
         if ~isempty(BMEs.Xobs)
             Property = {'Marker', 'MarkerSize', 'MarkerEdgeColor'};
@@ -115,10 +137,10 @@ switch plotType
         end
         plotTitle = sprintf('%s Residuals (Offset-Removed)', obs.Yname);
         figSuffix = 'residuals';
-        
+
     case 4  % BME uncertainty
         % Plot standard deviation
-        stdDev = sqrt(max(0, BMEs.XkBMEv));
+        stdDev = sqrt(max(0, XkBMEv_plot));
         plotField(BMEs.sk, stdDev, displayArea, maskcontour);
         stdRange = quantest(stdDev(~isnan(stdDev)), [0 0.95]);
         clim(stdRange);
@@ -173,12 +195,12 @@ title({plotTitle, timeStr, ...
 % Add statistics text box
 if plotType <= 2
     stats = sprintf('Mean: %.2f %s\nStd: %.2f %s\nMin: %.2f %s\nMax: %.2f %s', ...
-        mean(BMEs.YkBMEm, 'omitnan'), obs.Zunit, ...
-        std(BMEs.YkBMEm, 'omitnan'), obs.Zunit, ...
-        min(BMEs.YkBMEm), obs.Zunit, ...
-        max(BMEs.YkBMEm), obs.Zunit);
+        mean(YkBMEm_plot, 'omitnan'), obs.Zunit, ...
+        std(YkBMEm_plot, 'omitnan'), obs.Zunit, ...
+        min(YkBMEm_plot), obs.Zunit, ...
+        max(YkBMEm_plot), obs.Zunit);
 elseif plotType == 4
-    stdDev = sqrt(max(0, BMEs.XkBMEv));
+    stdDev = sqrt(max(0, XkBMEv_plot));
     stats = sprintf('Mean Unc: %.2f %s\nMax Unc: %.2f %s', ...
         mean(stdDev, 'omitnan'), obs.Zunit, ...
         max(stdDev), obs.Zunit);
