@@ -42,28 +42,28 @@ yg=[ax(3):dy1:ax(4)+dy1-eps];
 [xg yg]=meshgrid(xg,yg);                   % Gridpoint of pixel used to display the field
 Zg=griddata(sk(:,1),sk(:,2),zk,xg,yg,'linear');     % Value of the field at the pixel gridppoints
 Zg=reshape(Zg,size(xg));
-
-% Efficiently mask the data based on maskcontour using inpolygon
-if ~isempty(maskcontour)
-  % Remove duplicate consecutive points from maskcontour
-  idx=[find(sum(abs(diff(maskcontour,1,1)),2)~=0);size(maskcontour,1)];
-  maskcontour=maskcontour(idx,:);
-
-  % Use inpolygon to efficiently determine which grid points are inside the mask
-  in_mask = inpolygon(xg, yg, maskcontour(:,1), maskcontour(:,2));
-
-  % Set values outside the mask to NaN (this efficiently masks the data)
-  Zg(~in_mask) = NaN;
-end
-
 maxZg=max(max(Zg));
 
 figure;
-pcolor(xg,yg,Zg);        % Create the color map (NaN values won't be plotted)
+pcolor(xg,yg,Zg);        % Create the color map
 shading interp;
 hold on
 
-% Plot the mask contour boundary
+%  Create a mask and fill out the outside of the mask with a uniform color
 if ~isempty(maskcontour)
+  axmask = [ min([maskcontour(:,1);ax(1)]) max([maskcontour(:,1);ax(2)])...
+      min([maskcontour(:,2);ax(3)]) max([maskcontour(:,2);ax(4)]) ];
+  [dummy,i]=min( abs( maskcontour(:,1) - axmask(1)));
+  i=i(1);
+  mask=[maskcontour(i:end,:);maskcontour(1:i-1,:)];
+  idx=[find(sum(abs(diff(maskcontour,1,1)),2)~=0);size(maskcontour,1)];
+  maskcontour=maskcontour(idx,:);
+  mask=[maskcontour;maskcontour(1,:)];
+  if maskcontour(2,2)>maskcontour(1,2), maskcontour=maskcontour(end:-1:1,:); end;
+  fmask=[[axmask(1),maskcontour(1,2)];maskcontour;[axmask(1),maskcontour(1,2)];...
+      [axmask(1) axmask(4)];[axmask(2) axmask(4)];[axmask(2) axmask(3)];...
+      [axmask(1) axmask(3)];[axmask(1),maskcontour(1,2)]];
+  h=fill(fmask(:,1),fmask(:,2),maskfillcolor);
+  set(h,'EdgeColor',maskfillcolor);
   plot(maskcontour(:,1),maskcontour(:,2),masklinetype);
 end
