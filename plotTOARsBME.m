@@ -97,13 +97,13 @@ end
 %% Plot Based on Type
 switch plotType
     case 1  % BME estimates only
-        plotField(BMEs.sk, BMEs.YkBMEm, displayArea, maskcontour);
+        plotFieldTOAR(BMEs.sk, BMEs.YkBMEm, displayArea, maskcontour);
         clim(yrange);
         plotTitle = sprintf('%s BME Estimate', obs.Zname);
         figSuffix = 'BME';
         
     case 2  % BME estimates + observations
-        plotField(BMEs.sk, BMEs.YkBMEm, displayArea, maskcontour);
+        plotFieldTOAR(BMEs.sk, BMEs.YkBMEm, displayArea, maskcontour);
         clim(yrange);
         
         % Overlay observations
@@ -116,7 +116,7 @@ switch plotType
         figSuffix = 'BME_obs';
         
     case 3  % Residuals (offset-removed)
-        plotField(BMEs.sk, BMEs.XkBMEm, displayArea, maskcontour);
+        plotFieldTOAR(BMEs.sk, BMEs.XkBMEm, displayArea, maskcontour);
         xrange = quantest(BMEs.XkBMEm(~isnan(BMEs.XkBMEm)), yrangeQuant);
         clim(xrange);
         
@@ -132,7 +132,7 @@ switch plotType
     case 4  % BME uncertainty
         % Plot standard deviation
         stdDev = sqrt(max(0, BMEs.XkBMEv));
-        plotField(BMEs.sk, stdDev, displayArea, maskcontour);
+        plotFieldTOAR(BMEs.sk, stdDev, displayArea, maskcontour);
         stdRange = quantest(stdDev(~isnan(stdDev)), [0 0.95]);
         clim(stdRange);
         plotTitle = sprintf('%s BME Uncertainty (Std Dev)', obs.Zname);
