@@ -43,12 +43,6 @@ mapResolution = estParam.mapResolution;
 tk = BMEs.tk;
 displayArea = BMEs.estGridArea;
 
-% Get keepOnlyLand parameter (default to true)
-keepOnlyLand = true;
-if isfield(estParam, 'keepOnlyLand')
-    keepOnlyLand = estParam.keepOnlyLand;
-end
-
 % Directories
 dataDir = '1data';
 figDir = fullfile('5BMEspatialPlots', 'figs', 'variance');
@@ -78,25 +72,17 @@ else
     cmap = jet(64);
 end
 
-%% Setup Mask Contour
-% When keepOnlyLand is true, use land contour to mask ocean areas
-% Otherwise, use country borders for reference
-maskcontour = [];
-
-if keepOnlyLand
-    % Get land boundary contour for ocean masking
-    fprintf('  Setting up land contour for ocean masking...\n');
-    maskcontour = getLandContour(dataDir);
-else
-    % Use country borders (if available) for reference
-    if exist(fullfile(dataDir, 'borderdata.mat'), 'file')
-        load(fullfile(dataDir, 'borderdata.mat'), 'places', 'lon', 'lat');
-
-        % Combine all country boundaries
-        for k = 1:length(places)
-            if ~isempty(lon{k})
-                maskcontour = [maskcontour; [lon{k}(:), lat{k}(:)]; [NaN, NaN]];
-            end
+%% Load Border Data
+bordersAvailable = false;
+if exist(fullfile(dataDir, 'borderdata.mat'), 'file')
+    load(fullfile(dataDir, 'borderdata.mat'), 'places', 'lon', 'lat');
+    bordersAvailable = true;
+    
+    % Create mask contour for land areas
+    maskcontour = [];
+    for k = 1:length(places)
+        if ~isempty(lon{k})
+            maskcontour = [maskcontour; [lon{k}(:), lat{k}(:)]; [NaN, NaN]];
         end
     end
 end
@@ -140,10 +126,9 @@ switch plotType
         ylabel('Latitude (deg)', 'FontSize', 14);
         
         title({sprintf('%s BME Standard Deviation', obs.Zname), timeStr, ...
-            sprintf('BME Method: %s, GO: %d, Area: %d, Res: %.2f°, Format: %s', ...
-            BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat)}, ...
+            sprintf('GO: %d, Area: %d, Res: %.2f°', go.scenario, areaCode, mapResolution)}, ...
             'FontSize', 14, 'FontWeight', 'bold');
-
+        
         % Statistics
         stats = sprintf('Mean: %.2f %s\nStd: %.2f %s\nMin: %.2f %s\nMax: %.2f %s', ...
             mean(stdDev, 'omitnan'), obs.Zunit, ...
@@ -153,10 +138,10 @@ switch plotType
         annotation('textbox', [0.15 0.15 0.2 0.12], 'String', stats, ...
             'FitBoxToText', 'on', 'BackgroundColor', 'white', ...
             'EdgeColor', 'black', 'FontSize', 10);
-
+        
         % Save
-        figFilename = sprintf('BME%s_go%d_area%d_res%.2f_%s_time%.2f_stddev.png', ...
-            BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat, tk);
+        figFilename = sprintf('BME%s_go%d_area%d_res%.2f_time%.2f_stddev.png', ...
+            BMEmethod8digits, go.scenario, areaCode, mapResolution, tk);
         
     case 2  % Variance
         % figure('Position', [100 100 1200 800], 'Color', 'w');
@@ -181,10 +166,9 @@ switch plotType
         ylabel('Latitude (deg)', 'FontSize', 14);
         
         title({sprintf('%s BME Variance', obs.Zname), timeStr, ...
-            sprintf('BME Method: %s, GO: %d, Area: %d, Res: %.2f°, Format: %s', ...
-            BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat)}, ...
+            sprintf('GO: %d, Area: %d, Res: %.2f°', go.scenario, areaCode, mapResolution)}, ...
             'FontSize', 14, 'FontWeight', 'bold');
-
+        
         % Statistics
         stats = sprintf('Mean: %.2f %s²\nStd: %.2f %s²\nMin: %.2f %s²\nMax: %.2f %s²', ...
             mean(XkBMEv, 'omitnan'), obs.Zunit, ...
@@ -194,10 +178,10 @@ switch plotType
         annotation('textbox', [0.15 0.15 0.2 0.12], 'String', stats, ...
             'FitBoxToText', 'on', 'BackgroundColor', 'white', ...
             'EdgeColor', 'black', 'FontSize', 10);
-
+        
         % Save
-        figFilename = sprintf('BME%s_go%d_area%d_res%.2f_%s_time%.2f_variance.png', ...
-            BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat, tk);
+        figFilename = sprintf('BME%s_go%d_area%d_res%.2f_time%.2f_variance.png', ...
+            BMEmethod8digits, go.scenario, areaCode, mapResolution, tk);
         
     case 3  % Coefficient of Variation
         if isempty(CV)
@@ -227,20 +211,19 @@ switch plotType
         ylabel('Latitude (deg)', 'FontSize', 14);
         
         title({sprintf('%s BME Coefficient of Variation', obs.Zname), timeStr, ...
-            sprintf('BME Method: %s, GO: %d, Area: %d, Res: %.2f°, Format: %s', ...
-            BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat)}, ...
+            sprintf('GO: %d, Area: %d, Res: %.2f°', go.scenario, areaCode, mapResolution)}, ...
             'FontSize', 14, 'FontWeight', 'bold');
-
+        
         % Statistics
         stats = sprintf('Mean: %.1f%%\nStd: %.1f%%\nMin: %.1f%%\nMax: %.1f%%', ...
             mean(CV, 'omitnan'), std(CV, 'omitnan'), min(CV), max(CV));
         annotation('textbox', [0.15 0.15 0.2 0.1], 'String', stats, ...
             'FitBoxToText', 'on', 'BackgroundColor', 'white', ...
             'EdgeColor', 'black', 'FontSize', 10);
-
+        
         % Save
-        figFilename = sprintf('BME%s_go%d_area%d_res%.2f_%s_time%.2f_CV.png', ...
-            BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat, tk);
+        figFilename = sprintf('BME%s_go%d_area%d_res%.2f_time%.2f_CV.png', ...
+            BMEmethod8digits, go.scenario, areaCode, mapResolution, tk);
         
     case 4  % Multi-panel (all three)
         % figure('Position', [100 100 1800 600], 'Color', 'w');
@@ -300,13 +283,13 @@ switch plotType
         
         % Overall title
         sgtitle({sprintf('%s BME Uncertainty - %s', obs.Zname, timeStr), ...
-            sprintf('BME Method: %s, GO: %d, Area: %d, Resolution: %.2f°, Format: %s', ...
-            BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat)}, ...
+            sprintf('GO: %d, Area: %d, Resolution: %.2f°', ...
+            go.scenario, areaCode, mapResolution)}, ...
             'FontSize', 15, 'FontWeight', 'bold');
-
+        
         % Save
-        figFilename = sprintf('BME%s_go%d_area%d_res%.2f_%s_time%.2f_uncertainty_all.png', ...
-            BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat, tk);
+        figFilename = sprintf('BME%s_go%d_area%d_res%.2f_time%.2f_uncertainty_all.png', ...
+            BMEmethod8digits, go.scenario, areaCode, mapResolution, tk);
         
     otherwise
         error('plotVariance must be 1 (std), 2 (var), 3 (CV), or 4 (all)');
