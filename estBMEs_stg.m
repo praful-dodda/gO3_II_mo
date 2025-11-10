@@ -13,12 +13,16 @@ function estBMEs_stg(KS, KG, obs, go, BMEparam, estParam)
     
     BMEprobaType = str2double(BMEmethod8digits(8));
 
-    % BME filename - method, go, areaEst, mapRes, nsmax, nhmax
-    BMEsFile = sprintf('BME%s_go%d_obsZeros%d_areaEst%d_mapResolution_%d_nsmax%d', ...
-        BMEmethod8digits, go.scenario, obs.obsZeroType, mapArea.areaEst, mapResolution, cov.BMEparam.nsmax);
+    % Get keepOnlyLand flag (default to 1 if not specified)
+    keepOnlyLand = 1;
+    if isfield(estParam, 'keepOnlyLand')
+        keepOnlyLand = estParam.keepOnlyLand;
+    end
 
-    % add '_stg' to BMEsFile
-    BMEsFile = [BMEsFile, '_stg'];
+    % BME filename - method, go, areaEst, mapRes, nsmax, nhmax, dataFormat, land flag
+    BMEsFile = sprintf('BME%s_go%d_obsZeros%d_areaEst%d_mapResolution_%d_nsmax%d_%s_land%d', ...
+        BMEmethod8digits, go.scenario, obs.obsZeroType, mapArea.areaEst, mapResolution, ...
+        cov.BMEparam.nsmax, BMEparam.dataFormat, keepOnlyLand);
 
     % appropriately get the estimation points
     % Get boundaries for the area of interest
@@ -54,7 +58,33 @@ function estBMEs_stg(KS, KG, obs, go, BMEparam, estParam)
 
                 case 2
                     tic
-                    [XkBMEm,XkBMEv]=krigingME_stg(pk, KS.harddata, KS.softdata, KG.covmodel, KG.covparam, BMEparam.nhmax, BMEparam.nsmax, BMEparam.dmax, KG.order);
+                    % Select kriging method based on data format
+                    switch BMEparam.dataFormat
+                        case 'stv'
+                            fprintf('    Using krigingME (STV format)...\n');
+                            [XkBMEm, XkBMEv] = krigingME(pk, KS.harddata.p, KS.softdata.p, ...
+                                KS.harddata.z, KS.softdata.z, KS.softdata.vs, ...
+                                KG.covmodel, KG.covparam, BMEparam.nhmax, BMEparam.nsmax, ...
+                                BMEparam.dmax, KG.order);
+
+                        case 'stg'
+                            fprintf('    Using krigingME_stg (STG format)...\n');
+                            [XkBMEm, XkBMEv] = krigingME_stg(pk, KS.harddata, KS.softdata, ...
+                                KG.covmodel, KG.covparam, BMEparam.nhmax, BMEparam.nsmax, ...
+                                BMEparam.dmax, KG.order);
+
+                        case 'stug'
+                            fprintf('    Using krigingME_stug (STUG format)...\n');
+                            grid_data = reformat_stg_to_stug(KS.softdata);
+                            [XkBMEm, XkBMEv] = krigingME_stug(pk, KS.harddata.p, KS.softdata.p, ...
+                                KS.harddata.z, KS.softdata.z, KS.softdata.vs, ...
+                                KG.covmodel, KG.covparam, BMEparam.nhmax, BMEparam.nsmax, ...
+                                BMEparam.dmax, KG.order, 0, grid_data);
+
+                        otherwise
+                            error('Invalid dataFormat: %s. Must be ''stv'', ''stg'', or ''stug''', ...
+                                BMEparam.dataFormat);
+                    end
                     toc
             end
 

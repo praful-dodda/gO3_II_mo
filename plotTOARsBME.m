@@ -39,6 +39,12 @@ mapResolution = estParam.mapResolution;
 tk = BMEs.tk;
 displayArea = BMEs.estGridArea;
 
+% Get keepOnlyLand parameter (default to true)
+keepOnlyLand = true;
+if isfield(estParam, 'keepOnlyLand')
+    keepOnlyLand = estParam.keepOnlyLand;
+end
+
 % Directories
 dataDir = '1data';
 figDir = fullfile('5BMEspatialPlots', 'figs');
@@ -61,18 +67,25 @@ else
     cmap = jet(64);
 end
 
-%% Load Border Data
-bordersAvailable = false;
-if exist(fullfile(dataDir, 'borderdata.mat'), 'file')
-    load(fullfile(dataDir, 'borderdata.mat'), 'places', 'lon', 'lat');
-    bordersAvailable = true;
-    
-    % Create mask contour for land areas
-    % Combine all country boundaries
-    maskcontour = [];
-    for k = 1:length(places)
-        if ~isempty(lon{k})
-            maskcontour = [maskcontour; [lon{k}(:), lat{k}(:)]; [NaN, NaN]];
+%% Setup Mask Contour
+% When keepOnlyLand is true, use land contour to mask ocean areas
+% Otherwise, use country borders for reference
+maskcontour = [];
+
+if keepOnlyLand
+    % Get land boundary contour for ocean masking
+    fprintf('  Setting up land contour for ocean masking...\n');
+    maskcontour = getLandContour(dataDir);
+else
+    % Use country borders (if available) for reference
+    if exist(fullfile(dataDir, 'borderdata.mat'), 'file')
+        load(fullfile(dataDir, 'borderdata.mat'), 'places', 'lon', 'lat');
+
+        % Combine all country boundaries
+        for k = 1:length(places)
+            if ~isempty(lon{k})
+                maskcontour = [maskcontour; [lon{k}(:), lat{k}(:)]; [NaN, NaN]];
+            end
         end
     end
 end
@@ -84,13 +97,13 @@ end
 %% Plot Based on Type
 switch plotType
     case 1  % BME estimates only
-        plotField(BMEs.sk, BMEs.YkBMEm, displayArea, maskcontour);
+        plotFieldTOAR(BMEs.sk, BMEs.YkBMEm, displayArea, maskcontour);
         clim(yrange);
         plotTitle = sprintf('%s BME Estimate', obs.Zname);
         figSuffix = 'BME';
         
     case 2  % BME estimates + observations
-        plotField(BMEs.sk, BMEs.YkBMEm, displayArea, maskcontour);
+        plotFieldTOAR(BMEs.sk, BMEs.YkBMEm, displayArea, maskcontour);
         clim(yrange);
         
         % Overlay observations
@@ -103,7 +116,7 @@ switch plotType
         figSuffix = 'BME_obs';
         
     case 3  % Residuals (offset-removed)
-        plotField(BMEs.sk, BMEs.XkBMEm, displayArea, maskcontour);
+        plotFieldTOAR(BMEs.sk, BMEs.XkBMEm, displayArea, maskcontour);
         xrange = quantest(BMEs.XkBMEm(~isnan(BMEs.XkBMEm)), yrangeQuant);
         clim(xrange);
         
@@ -119,7 +132,7 @@ switch plotType
     case 4  % BME uncertainty
         % Plot standard deviation
         stdDev = sqrt(max(0, BMEs.XkBMEv));
-        plotField(BMEs.sk, stdDev, displayArea, maskcontour);
+        plotFieldTOAR(BMEs.sk, stdDev, displayArea, maskcontour);
         stdRange = quantest(stdDev(~isnan(stdDev)), [0 0.95]);
         clim(stdRange);
         plotTitle = sprintf('%s BME Uncertainty (Std Dev)', obs.Zname);
@@ -167,8 +180,8 @@ elseif abs(tk*12 - round(tk*12)) < 1e-6
 end
 
 title({plotTitle, timeStr, ...
-    sprintf('GO Scenario: %d, Area: %d, Resolution: %.2f°', ...
-    go.scenario, areaCode, mapResolution)}, 'FontSize', 14);
+    sprintf('BME Method: %s, GO Scenario: %d, Area: %d, Resolution: %.2f°, Format: %s', ...
+    BMEparam.BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat)}, 'FontSize', 14);
 
 % Add statistics text box
 if plotType <= 2
@@ -193,8 +206,9 @@ end
 %% Save Figure
 % Create filename
 BMEmethod8digits = BMEparam.BMEmethod8digits;
-figFilename = sprintf('BME%s_go%d_lt%d_area%d_res%.2f_time%.2f_%s.png', ...
-    BMEmethod8digits, go.scenario, obs.logTransf, areaCode, mapResolution, tk, figSuffix);
+dataFormat = BMEparam.dataFormat;
+figFilename = sprintf('BME%s_go%d_lt%d_area%d_res%.2f_%s_time%.2f_%s.png', ...
+    BMEmethod8digits, go.scenario, obs.logTransf, areaCode, mapResolution, dataFormat, tk, figSuffix);
 figPath = fullfile(figDir, figFilename);
 
 % Save figure
