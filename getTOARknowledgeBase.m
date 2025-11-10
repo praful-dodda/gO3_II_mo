@@ -1,11 +1,11 @@
-function [KG, KS, BMEparam] = getTOARknowledgeBase(obs, go, cov, softData, BMEmethod8digits)
+function [KG, KS, BMEparam] = getTOARknowledgeBase(obs, go, cov, softData, BMEmethod8digits, dataFormat)
 % getTOARknowledgeBase - Prepare knowledge bases for BME estimation of TOAR ozone
 %
 % Creates General Knowledge (KG), Site-specific Knowledge (KS), and BME
 % parameters for Bayesian Maximum Entropy estimation
 %
 % SYNTAX:
-%   [KG, KS, BMEparam] = getTOARknowledgeBase(obs, go, cov, softData, BMEmethod8digits)
+%   [KG, KS, BMEparam] = getTOARknowledgeBase(obs, go, cov, softData, BMEmethod8digits, dataFormat)
 %
 % INPUTS:
 %   obs      - Structure from getTOARobservationalData
@@ -24,6 +24,7 @@ function [KG, KS, BMEparam] = getTOARknowledgeBase(obs, go, cov, softData, BMEme
 %                      Digit 6: BMEnsmax (0-6)
 %                      Digit 7: BMEnhmax (1-3)
 %                      Digit 8: BMEprobaType (1=BMEprobaMoments, 2=KrigingME)
+%   dataFormat - Data format: 'stv', 'stg', or 'stug' (optional, default 'stg')
 %
 % OUTPUTS:
 %   KG       - General Knowledge structure:
@@ -45,10 +46,11 @@ function [KG, KS, BMEparam] = getTOARknowledgeBase(obs, go, cov, softData, BMEme
 %   obs = getTOARobservationalData('all', [2015 2020]);
 %   go = getTOARglobalOffset(obs, 3);
 %   cov = getTOARautoCov(obs, go);
-%   [KG, KS, BMEparam] = getTOARknowledgeBase(obs, go, cov, [], '10000132');
+%   [KG, KS, BMEparam] = getTOARknowledgeBase(obs, go, cov, [], '10000132', 'stg');
 
 if nargin < 4, softData = []; end
 if nargin < 5, BMEmethod8digits = '10000132'; end
+if nargin < 6, dataFormat = 'stg'; end
 
 
 % Input validation
@@ -139,13 +141,13 @@ if CTMtype >= 1 && ~isempty(softData)
     switch CTMtype
         case 1
             if isfield(softData, 'ctm')
-                ctmData = softData.ctm;
+                ctmData = softData;
             else
                 error('CTMtype=1 but softData.ctm not provided');
             end
         case 2
             if isfield(softData, 'ctm2')
-                ctmData = softData.ctm2;
+                ctmData = softData;
             else
                 error('CTMtype=2 but softData.ctm2 not provided');
             end
@@ -218,7 +220,7 @@ end
 fprintf('  Setting up BME parameters...\n');
 
 % Get BME parameters using separate function
-BMEparam = getBMEparam(BMEmethod8digits, cov.stmetric);
+BMEparam = getBMEparam(BMEmethod8digits, cov.stmetric, dataFormat);
 
 fprintf('  Search parameters: spatial=%.1f deg, temporal=%.1f yr, metric=%.2f\n', ...
     BMEparam.dmax(1), BMEparam.dmax(2), BMEparam.dmax(3));

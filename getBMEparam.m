@@ -1,19 +1,24 @@
-function BMEparam = getBMEparam(BMEmethod8digits, stmetric)
+function BMEparam = getBMEparam(BMEmethod8digits, stmetric, dataFormat)
 % getBMEparam - Get BME estimation parameters from method code
 %
 % SYNTAX:
-%   BMEparam = getBMEparam(BMEmethod8digits, stmetric)
+%   BMEparam = getBMEparam(BMEmethod8digits, stmetric, dataFormat)
 %
 % INPUTS:
 %   BMEmethod8digits - 8-digit BME method code
 %   stmetric         - Space-time metric from covariance
+%   dataFormat       - Data format: 'stv', 'stg', or 'stug' (optional, default 'stg')
 %
 % OUTPUT:
 %   BMEparam - Structure with BME parameters:
-%              .nhmax, .nsmax, .order, .dmax, .options
+%              .nhmax, .nsmax, .order, .dmax, .options, .dataFormat
 
 if nargin < 2
     stmetric = 100;
+end
+
+if nargin < 3
+    dataFormat = 'stg';  % Default to space-time grid
 end
 
 % Parse method code
@@ -43,7 +48,7 @@ switch BMEnsmax
     case 0, BMEparam.nsmax = 0;   % No soft data
     case 1, BMEparam.nsmax = 3;
     case 2, BMEparam.nsmax = 4;
-    case 3, BMEparam.nsmax = 5;
+    case 3, BMEparam.nsmax = 10;
     case 4, BMEparam.nsmax = 50;
     case 5, BMEparam.nsmax = 100;
     case 6, BMEparam.nsmax = 200;
@@ -58,12 +63,12 @@ switch BMEprobaType
 end
 
 % Set search parameters
-% BMEparam.dmax = [90, 2, stmetric];
-BMEparam.dmax = [20, 2, min(stmetric, 200)];  % Limit spatial search
-
 % dmax(1) = spatial search radius (degrees)
 % dmax(2) = temporal search radius (years)
 % dmax(3) = space-time metric
+%
+% Optimized for regional analysis: 20° spatial (~2200 km), 0.5 yr temporal (~6 months)
+BMEparam.dmax = [20, 0.5, min(stmetric, 50)];  % Regional search radius
 
 % BME integration options
 maxpts = 500000;     % Number of function evaluations
@@ -77,5 +82,6 @@ BMEparam.options(4) = rEps;
 BMEparam.options(8) = nMom;
 
 BMEparam.BMEmethod8digits = BMEmethod8digits;
+BMEparam.dataFormat = dataFormat;
 
 end

@@ -204,7 +204,7 @@ if analyzeParam.runBME && analyzeParam.runGO && analyzeParam.runCov
     fprintf('====================================================\n');
     
     [KG, KS, BMEparam] = getTOARknowledgeBase(obs, go, cov, ...
-        analyzeParam.softData, analyzeParam.BMEmethod);
+        analyzeParam.softData, analyzeParam.BMEmethod, analyzeParam.dataFormat);
     
     fprintf('  Hard data points: %d\n', length(KS.harddata.z));
     if ~isempty(KS.softdata.z)
