@@ -15,12 +15,8 @@ sk = valPairOut.sk;
 tk = valPairOut.tk;
 
 % Add log-transform indicator
-ltStr = '';
-ltSuffix = '';
-if obs.logTransf == 1
-    ltStr = ', lt=1';
-    ltSuffix = '_lt1';
-end
+ltStr = sprintf(', lt=%d', obs.logTransf);
+ltSuffix = sprintf('_lt%d', obs.logTransf);
 
 %% Figure 1: Scatter Plot with Statistics
 figure('Position', [100 100 900 900], 'Color', 'w');
