@@ -193,10 +193,7 @@ elseif abs(tk*12 - round(tk*12)) < 1e-6
 end
 
 % Add log-transform indicator to title
-ltStr = '';
-if obs.logTransf == 1
-    ltStr = ', lt=1';
-end
+ltStr = sprintf(', lt=%d', obs.logTransf);
 
 title({plotTitle, timeStr, ...
     sprintf('BME Method: %s, GO Scenario: %d, Area: %d, Resolution: %.2f°, Format: %s%s', ...
@@ -223,13 +220,10 @@ if exist('stats', 'var')
 end
 
 %% Save Figure
-% Create filename with lt1 suffix when log transformation is used
+% Create filename with lt0 or lt1 suffix
 BMEmethod8digits = BMEparam.BMEmethod8digits;
 dataFormat = BMEparam.dataFormat;
-ltSuffix = '';
-if obs.logTransf == 1
-    ltSuffix = '_lt1';
-end
+ltSuffix = sprintf('_lt%d', obs.logTransf);
 figFilename = sprintf('BME%s_go%d%s_area%d_res%.2f_%s_time%.2f_%s.png', ...
     BMEmethod8digits, go.scenario, ltSuffix, areaCode, mapResolution, dataFormat, tk, figSuffix);
 figPath = fullfile(figDir, figFilename);

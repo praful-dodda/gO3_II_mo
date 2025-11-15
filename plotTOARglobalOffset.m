@@ -71,10 +71,7 @@ if plotBorders
 end
 
 % Add log-transform indicator for titles
-ltStr = '';
-if obs.logTransf == 1
-    ltStr = ' (lt=1)';
-end
+ltStr = sprintf(' (lt=%d)', obs.logTransf);
 
 % Time series of raw and smoothed mean trend
 if goPlot >= 1

@@ -122,12 +122,8 @@ elseif abs(tk*12 - round(tk*12)) < 1e-6
 end
 
 % Add log-transform indicator
-ltStr = '';
-ltSuffix = '';
-if obs.logTransf == 1
-    ltStr = ', lt=1';
-    ltSuffix = '_lt1';
-end
+ltStr = sprintf(', lt=%d', obs.logTransf);
+ltSuffix = sprintf('_lt%d', obs.logTransf);
 
 %% Plot Based on Type
 BMEmethod8digits = BMEparam.BMEmethod8digits;
