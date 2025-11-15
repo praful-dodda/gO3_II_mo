@@ -70,6 +70,12 @@ if plotBorders
     end
 end
 
+% Add log-transform indicator for titles
+ltStr = '';
+if obs.logTransf == 1
+    ltStr = ' (lt=1)';
+end
+
 % Time series of raw and smoothed mean trend
 if goPlot >= 1
     figure;
@@ -78,7 +84,7 @@ if goPlot >= 1
     ht = plot(go.tME, go.mt, '.-k', 'LineWidth', 1.5);
     xlabel('Time (years)', 'FontSize', 12);
     ylabel(obs.Ylabel, 'FontSize', 12);
-    title(sprintf('Raw and smoothed temporal mean trend of %s', obs.Yname), 'FontSize', 14);
+    title(sprintf('Raw and smoothed temporal mean trend of %s%s', obs.Yname, ltStr), 'FontSize', 14);
     legend([htRaw ht], 'Raw mean trend (spatial average)', 'Smoothed mean trend', 'Location', 'best');
     grid on;
     set(gca, 'FontSize', 12);
@@ -94,7 +100,7 @@ if goPlot >= 2
     cb = colorbar;
     ylabel(cb, obs.Ylabel, 'FontSize', 12);
     axis(ax);
-    title(sprintf('Raw spatial trend of %s', obs.Ylabel), 'FontSize', 14);
+    title(sprintf('Raw spatial trend of %s%s', obs.Ylabel, ltStr), 'FontSize', 14);
     xlabel('Longitude (deg.)', 'FontSize', 12);
     ylabel('Latitude (deg.)', 'FontSize', 12);
     hold on;
@@ -122,7 +128,7 @@ if goPlot >= 1
     hold on;
     axis(ax);
     plot(go.sMSraw(:,1), go.sMSraw(:,2), '.k', 'MarkerSize', 4);
-    title(sprintf('Smoothed spatial trend of %s', obs.Ylabel), 'FontSize', 14);
+    title(sprintf('Smoothed spatial trend of %s%s', obs.Ylabel, ltStr), 'FontSize', 14);
     xlabel('Longitude (deg.)', 'FontSize', 12);
     ylabel('Latitude (deg.)', 'FontSize', 12);
     
