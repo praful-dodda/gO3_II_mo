@@ -50,11 +50,24 @@ dataDir = '1data';
 figDir = fullfile('5BMEspatialPlots', 'figs');
 if ~exist(figDir, 'dir'), mkdir(figDir); end
 
+% Select data to plot (use back-transformed if available, otherwise use log-space)
+if isfield(BMEs, 'ZkBMEm') && ~isempty(BMEs.ZkBMEm)
+    plotData = BMEs.ZkBMEm;  % Back-transformed (original concentration space)
+    if isfield(BMEs, 'Zobs') && ~isempty(BMEs.Zobs)
+        obsData = BMEs.Zobs;  % Back-transformed observations
+    else
+        obsData = BMEs.Yobs;  % Fallback to log space
+    end
+else
+    plotData = BMEs.YkBMEm;  % Log space (fallback)
+    obsData = BMEs.Yobs;     % Log space
+end
+
 % Color range for concentrations
 yrangeQuant = [0.05 0.95];
-allValues = BMEs.YkBMEm(~isnan(BMEs.YkBMEm));
-if ~isempty(BMEs.Yobs)
-    allValues = [allValues; BMEs.Yobs(~isnan(BMEs.Yobs))];
+allValues = plotData(~isnan(plotData));
+if ~isempty(obsData)
+    allValues = [allValues; obsData(~isnan(obsData))];
 end
 yrange = quantest(allValues, yrangeQuant);
 
@@ -97,20 +110,20 @@ end
 %% Plot Based on Type
 switch plotType
     case 1  % BME estimates only
-        plotField(BMEs.sk, BMEs.YkBMEm, displayArea, maskcontour);
+        plotFieldTOAR(BMEs.sk, plotData, displayArea, maskcontour);
         clim(yrange);
         plotTitle = sprintf('%s BME Estimate', obs.Zname);
         figSuffix = 'BME';
-        
+
     case 2  % BME estimates + observations
-        plotField(BMEs.sk, BMEs.YkBMEm, displayArea, maskcontour);
+        plotFieldTOAR(BMEs.sk, plotData, displayArea, maskcontour);
         clim(yrange);
-        
+
         % Overlay observations
-        if ~isempty(BMEs.Yobs)
+        if ~isempty(obsData)
             Property = {'Marker', 'MarkerSize', 'MarkerEdgeColor'};
             Value = {'o', 8, 'k'};
-            colorplot(BMEs.sMSobs, BMEs.Yobs, cmap, Property, Value, yrange);
+            colorplot(BMEs.sMSobs, obsData, cmap, Property, Value, yrange);
         end
         plotTitle = sprintf('%s BME Estimate + Observations', obs.Zname);
         figSuffix = 'BME_obs';
@@ -179,17 +192,23 @@ elseif abs(tk*12 - round(tk*12)) < 1e-6
     timeStr = sprintf('Year: %d, Month: %d', year, month);
 end
 
+% Add log-transform indicator to title
+ltStr = '';
+if obs.logTransf == 1
+    ltStr = ', lt=1';
+end
+
 title({plotTitle, timeStr, ...
-    sprintf('BME Method: %s, GO Scenario: %d, Area: %d, Resolution: %.2f°, Format: %s', ...
-    BMEparam.BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat)}, 'FontSize', 14);
+    sprintf('BME Method: %s, GO Scenario: %d, Area: %d, Resolution: %.2f°, Format: %s%s', ...
+    BMEparam.BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat, ltStr)}, 'FontSize', 14);
 
 % Add statistics text box
 if plotType <= 2
     stats = sprintf('Mean: %.2f %s\nStd: %.2f %s\nMin: %.2f %s\nMax: %.2f %s', ...
-        mean(BMEs.YkBMEm, 'omitnan'), obs.Zunit, ...
-        std(BMEs.YkBMEm, 'omitnan'), obs.Zunit, ...
-        min(BMEs.YkBMEm), obs.Zunit, ...
-        max(BMEs.YkBMEm), obs.Zunit);
+        mean(plotData, 'omitnan'), obs.Zunit, ...
+        std(plotData, 'omitnan'), obs.Zunit, ...
+        min(plotData), obs.Zunit, ...
+        max(plotData), obs.Zunit);
 elseif plotType == 4
     stdDev = sqrt(max(0, BMEs.XkBMEv));
     stats = sprintf('Mean Unc: %.2f %s\nMax Unc: %.2f %s', ...
@@ -204,11 +223,15 @@ if exist('stats', 'var')
 end
 
 %% Save Figure
-% Create filename
+% Create filename with lt1 suffix when log transformation is used
 BMEmethod8digits = BMEparam.BMEmethod8digits;
 dataFormat = BMEparam.dataFormat;
-figFilename = sprintf('BME%s_go%d_lt%d_area%d_res%.2f_%s_time%.2f_%s.png', ...
-    BMEmethod8digits, go.scenario, obs.logTransf, areaCode, mapResolution, dataFormat, tk, figSuffix);
+ltSuffix = '';
+if obs.logTransf == 1
+    ltSuffix = '_lt1';
+end
+figFilename = sprintf('BME%s_go%d%s_area%d_res%.2f_%s_time%.2f_%s.png', ...
+    BMEmethod8digits, go.scenario, ltSuffix, areaCode, mapResolution, dataFormat, tk, figSuffix);
 figPath = fullfile(figDir, figFilename);
 
 % Save figure

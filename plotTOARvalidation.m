@@ -14,6 +14,14 @@ Y_est = valPairOut.Y_est;
 sk = valPairOut.sk;
 tk = valPairOut.tk;
 
+% Add log-transform indicator
+ltStr = '';
+ltSuffix = '';
+if obs.logTransf == 1
+    ltStr = ', lt=1';
+    ltSuffix = '_lt1';
+end
+
 %% Figure 1: Scatter Plot with Statistics
 figure('Position', [100 100 900 900], 'Color', 'w');
 
@@ -35,8 +43,8 @@ plot([minVal maxVal], yfit, 'r-', 'LineWidth', 2.5);
 xlabel(['Observed ' obs.Zlabel], 'FontSize', 16, 'FontWeight', 'bold');
 ylabel(['Predicted ' obs.Zlabel], 'FontSize', 16, 'FontWeight', 'bold');
 title({'TOAR BME Leave-One-Out Cross Validation', ...
-    sprintf('BME Method: %s, GO Scenario: %d, Format: %s', ...
-    BMEparam.BMEmethod8digits, go.scenario, BMEparam.dataFormat)}, ...
+    sprintf('BME Method: %s, GO Scenario: %d, Format: %s%s', ...
+    BMEparam.BMEmethod8digits, go.scenario, BMEparam.dataFormat, ltStr)}, ...
     'FontSize', 18, 'FontWeight', 'bold');
 grid on;
 axis equal;
@@ -69,8 +77,8 @@ legend('Validation Pairs', '1:1 Line', ...
     'Location', 'southeast', 'FontSize', 13);
 
 % Save
-filename = sprintf('TOAR_LOOCV_scatter_BME%s_go%d_%s_y%s.png', ...
-    BMEparam.BMEmethod8digits, go.scenario, BMEparam.dataFormat, mat2str(valParam.valYears));
+filename = sprintf('TOAR_LOOCV_scatter_BME%s_go%d%s_%s_y%s.png', ...
+    BMEparam.BMEmethod8digits, go.scenario, ltSuffix, BMEparam.dataFormat, mat2str(valParam.valYears));
 print(fullfile(figDir, filename), '-dpng', '-r300');
 
 %% Figure 2: Residual Analysis

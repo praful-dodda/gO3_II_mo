@@ -276,8 +276,8 @@ end
 
 %% Set Y Variable
 if logTransf == 1
-    obs.Z(obs.Z <= 0) = NaN;
-    obs.Y = log(obs.Z);
+    % Apply log transformation using dedicated function
+    [obs.Y, ~] = applyLogTransform(obs.Z);
     obs.Yname = sprintf('log(%s)', obs.Zname);
     obs.Yunit = sprintf('log(%s)', obs.Zunit);
     obs.Ylabel = sprintf('log %s', obs.Zlabel);
