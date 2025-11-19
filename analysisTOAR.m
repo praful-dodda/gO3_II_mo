@@ -367,7 +367,7 @@ switch analysisScenario
 
         % Soft data configuration
         softDataConfig = struct();
-        softDataConfig.modelName = 'MERRA2-GMI';  % Model to use for soft data - MERRA2-GMI
+        softDataConfig.modelName = 'M3fusion';  % Model to use for soft data - MERRA2-GMI
         softDataConfig.years = 2016:2017;      % Years to load
         softDataConfig.dataDir = fullfile('1data', 'CTM', 'ramp_data');  % Parquet directory
         softDataConfig.forceReload = 0;        % Use cache if available
@@ -471,7 +471,7 @@ switch analysisScenario
         analyzeParam.forceCov = 0;
 
         % BME method with soft data
-        analyzeParam.BMEmethod = '11000112';  % Digit 2 = 1 enables soft data
+        analyzeParam.BMEmethod = '12000112';  % Digit 2 = 1 enables soft data
         analyzeParam.dataFormat = 'stug';     % Use optimized STUG for uniform grids
         analyzeParam.softData = softData;     % Pass soft data structure
 
@@ -482,7 +482,7 @@ switch analysisScenario
 
         % Force and plotting
         analyzeParam.forceEstimation = 0;
-        analyzeParam.keepOnlyLand = true;
+        analyzeParam.keepOnlyLand = false;
         analyzeParam.includeAntarctica = false;
         analyzeParam.plotResults = 1;         % 2 for Estimates + observations
         analyzeParam.plotVariance = 1;        % Standard deviation map

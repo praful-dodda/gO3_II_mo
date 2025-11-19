@@ -134,7 +134,7 @@ switch plotType
         hold on;
         
         % Plot standard deviation
-        plotFieldTOAR(BMEs.sk, stdDev, displayArea, maskcontour);
+        plotField(BMEs.sk, stdDev, displayArea, maskcontour);
         stdRange = quantest(stdDev(~isnan(stdDev)), [0 0.95]);
         clim(stdRange);
         
@@ -175,7 +175,7 @@ switch plotType
         hold on;
         
         % Plot variance
-        plotFieldTOAR(BMEs.sk, XkBMEv, displayArea, maskcontour);
+        plotField(BMEs.sk, XkBMEv, displayArea, maskcontour);
         varRange = quantest(XkBMEv(~isnan(XkBMEv)), [0 0.95]);
         clim(varRange);
         
@@ -221,7 +221,7 @@ switch plotType
         hold on;
         
         % Plot CV
-        plotFieldTOAR(BMEs.sk, CV, displayArea, maskcontour);
+        plotField(BMEs.sk, CV, displayArea, maskcontour);
         cvRange = quantest(CV(~isnan(CV) & ~isinf(CV)), [0.05 0.95]);
         clim(cvRange);
         
@@ -260,7 +260,7 @@ switch plotType
         % Panel 1: Standard Deviation
         subplot(1, 3, 1);
         hold on;
-        plotFieldTOAR(BMEs.sk, stdDev, displayArea, maskcontour);
+        plotField(BMEs.sk, stdDev, displayArea, maskcontour);
         stdRange = quantest(stdDev(~isnan(stdDev)), [0 0.95]);
         clim(stdRange);
         if ~isempty(BMEs.sMSobs)
@@ -277,7 +277,7 @@ switch plotType
         % Panel 2: Variance
         subplot(1, 3, 2);
         hold on;
-        plotFieldTOAR(BMEs.sk, XkBMEv, displayArea, maskcontour);
+        plotField(BMEs.sk, XkBMEv, displayArea, maskcontour);
         varRange = quantest(XkBMEv(~isnan(XkBMEv)), [0 0.95]);
         clim(varRange);
         if ~isempty(BMEs.sMSobs)
@@ -295,7 +295,7 @@ switch plotType
         subplot(1, 3, 3);
         hold on;
         if ~isempty(CV)
-            plotFieldTOAR(BMEs.sk, CV, displayArea, maskcontour);
+            plotField(BMEs.sk, CV, displayArea, maskcontour);
             cvRange = quantest(CV(~isnan(CV) & ~isinf(CV)), [0.05 0.95]);
             clim(cvRange);
             if ~isempty(BMEs.sMSobs)
