@@ -365,40 +365,100 @@ switch analysisScenario
         fprintf('STEP 1: Loading RAMP-corrected soft data...\n');
         fprintf('--------------------------------------------\n');
 
-        % Soft data configuration
-        softDataConfig = struct();
-        softDataConfig.modelName = 'M3fusion';  % Model to use for soft data - MERRA2-GMI
-        softDataConfig.years = 2016:2017;      % Years to load
-        softDataConfig.dataDir = fullfile('1data', 'CTM', 'ramp_data');  % Parquet directory
-        softDataConfig.forceReload = 0;        % Use cache if available
+        % Soft datasets configuration
+        modelNames = {'M3fusion', 'MERRA2-GMI'};  % List of CTM models to load
+        modelYears = {2016:2017, 2016:2017};  % Corresponding years for each model
+        softDataDir = fullfile('1data', 'CTM', 'ramp_data');  % Parquet directory
+        softDataForceReload = {0, 0};  % Use cache if available
+        joinMethod = 'concat';
 
-        % Load RAMP data
-        fprintf('  Model: %s\n', softDataConfig.modelName);
-        fprintf('  Years: %s\n', mat2str(softDataConfig.years));
-        fprintf('  Directory: %s\n', softDataConfig.dataDir);
+        % Initialize cell-array to hold multiple soft datasets as per the size of modelNames
+        softDatasets = cell(length(modelNames), 1);
+        
+        for m = 1:length(modelNames)
+            
 
-        if ~exist(softDataConfig.dataDir, 'dir')
-            error('Soft data directory not found: %s\nPlease ensure parquet files are in this directory.', softDataConfig.dataDir);
+            modelName = modelNames{m};
+            fprintf('\nLoading soft data for model: %s\n', modelName);
+            softDataConfig = struct();
+            softDataConfig.modelName = modelName;
+            softDataConfig.years = modelYears{m};
+            softDataConfig.dataDir = softDataDir;
+            softDataConfig.forceReload = softDataForceReload{m};
+
+            try 
+                softDataModel = loadRAMPdata(softDataConfig.modelName, ...
+                                            softDataConfig.years, ...
+                                            softDataConfig.dataDir, ...
+                                            softDataConfig.forceReload);
+
+                % Mark as CTM data for getTOARknowledgeBase
+                softDataModel.ctm = 1;
+
+                fprintf('✓ Soft data loaded successfully\n');
+                fprintf('    Grid points: %d\n', size(softDataModel.sMS, 1));
+                fprintf('    Time periods: %d months\n', length(softDataModel.tME));
+                fprintf('    Coverage: %.4f - %.4f\n', min(softDataModel.tME), max(softDataModel.tME));
+
+                % Store in array
+                softDatasets{m} = softDataModel;
+            catch ME
+                warning('Could not load soft data for model %s: %s', modelName, ME.message);
+            end  
         end
 
-        try
-            softData = loadRAMPdata(softDataConfig.modelName, ...
-                                   softDataConfig.years, ...
-                                   softDataConfig.dataDir, ...
-                                   softDataConfig.forceReload);
-
-            % Mark as CTM data for getTOARknowledgeBase
-            softData.ctm = 1;
-
-            fprintf('✓ Soft data loaded successfully\n');
-            fprintf('    Grid points: %d\n', size(softData.sMS, 1));
-            fprintf('    Time periods: %d months\n', length(softData.tME));
-            fprintf('    Coverage: %.4f - %.4f\n', min(softData.tME), max(softData.tME));
-        catch ME
-            % warning('Could not load soft data: %s', ME.message);
-            fprintf('Proceeding without soft data (hard data only)\n');
-            softData = [];
+        % Fuse multiple soft datasets if more than one model is loaded
+        if length(softDatasets) > 1
+            fprintf('\nFusing multiple soft datasets using method: %s\n', joinMethod);
+            try
+                softData = fuseSoftData(softDatasets, joinMethod);
+                fprintf('✓ Soft data fused successfully\n');
+                fprintf('    Total grid points: %d\n', size(softData.sMS, 1));
+                fprintf('    Total time periods: %d months\n', length(softData.tME));
+                fprintf('    Coverage: %.4f - %.4f\n', min(softData.tME), max(softData.tME));
+            catch ME
+                warning(ME.identifier, '%s', ME.message);
+                fprintf('Proceeding without soft data (hard data only)\n');
+                softData = [];
+            end
+        else
+            softData = softDatasets{1};
         end
+
+
+        % softDataConfig = struct();
+        % softDataConfig.modelName = 'M3fusion';  % Model to use for soft data - MERRA2-GMI
+        % softDataConfig.years = 2016:2017;      % Years to load
+        % softDataConfig.dataDir = fullfile('1data', 'CTM', 'ramp_data');  % Parquet directory
+        % softDataConfig.forceReload = 0;        % Use cache if available
+
+        % % Load RAMP data
+        % fprintf('  Model: %s\n', softDataConfig.modelName);
+        % fprintf('  Years: %s\n', mat2str(softDataConfig.years));
+        % fprintf('  Directory: %s\n', softDataConfig.dataDir);
+
+        % if ~exist(softDataConfig.dataDir, 'dir')
+        %     error('Soft data directory not found: %s\nPlease ensure parquet files are in this directory.', softDataConfig.dataDir);
+        % end
+
+        % try
+        %     softData = loadRAMPdata(softDataConfig.modelName, ...
+        %                            softDataConfig.years, ...
+        %                            softDataConfig.dataDir, ...
+        %                            softDataConfig.forceReload);
+
+        %     % Mark as CTM data for getTOARknowledgeBase
+        %     softData.ctm = 1;
+
+        %     fprintf('✓ Soft data loaded successfully\n');
+        %     fprintf('    Grid points: %d\n', size(softData.sMS, 1));
+        %     fprintf('    Time periods: %d months\n', length(softData.tME));
+        %     fprintf('    Coverage: %.4f - %.4f\n', min(softData.tME), max(softData.tME));
+        % catch ME
+        %     % warning('Could not load soft data: %s', ME.message);
+        %     fprintf('Proceeding without soft data (hard data only)\n');
+        %     softData = [];
+        % end
 
         %% ====================================================================
         %                    SOFT DATA OPTIMIZATION
