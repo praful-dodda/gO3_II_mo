@@ -22,42 +22,33 @@ function fusedData = fuseSoftData(softDataCell, method, varargin)
 %                   'concat'    : Simple concatenation (keeps all points)
 %
 % OPTIONAL NAME-VALUE PAIRS:
-%   'DisagreementThreshold' - For hybrid extension (default: 2.0)
-%   'MinVariance'           - Floor for variances to prevent div/0 (default: 1e-10)
-%   'VarianceTolerance'     - Tolerance for tie detection in selection (default: 1e-6)
-%   'Verbose'               - Print diagnostics (default: true)
+%   'SpatialTolerance'  - Tolerance for matching locations across grids (default: 0.001°)
+%                         Used for selection/bma when grids differ
+%   'MinVariance'       - Floor for variances to prevent div/0 (default: 1e-10)
+%   'VarianceTolerance' - Tolerance for tie detection in selection (default: 1e-6)
+%   'SortOutput'        - Sort output by (lat, lon) ascending (default: true)
+%   'Verbose'           - Print diagnostics (default: true)
 %
 % OUTPUT:
 %   fusedData     - Struct with same format as input, plus:
-%                   .fusionMethod   - Method used
-%                   .sourceModels   - Cell array of source model names
-%                   .modelSelected  - (selection only) Index of selected model at each point
-%                   .weights        - (bma only) Struct with weight arrays per model
+%                   .fusionMethod     - Method used
+%                   .sourceModels     - Cell array of source model names
+%                   .modelSelected    - (selection only) Index of selected model
+%                   .weights          - (bma only) Struct with weight arrays
+%                   .nModelsAvailable - Number of models with data at each point
 %
 % METHODS:
 %
 %   1. SELECTION ('selection')
 %      At each (s,t), selects the model with minimum RAMP variance.
-%      Z_fused = Z_k*,  Zv_fused = Zv_k*  where k* = argmin(Zv_k)
-%      Best when models have distinct geographic strengths.
+%      Handles different spatial grids via union grid approach.
 %
 %   2. BMA ('bma')
-%      Bayesian Model Averaging with moment matching (Law of Total Variance).
-%      w_k = (1/Zv_k) / sum(1/Zv_k)
-%      Z_fused = sum(w_k * Z_k)
-%      Zv_fused = sum(w_k * Zv_k) + sum(w_k * (Z_k - Z_fused)^2)
-%               = within-model var  + between-model var (disagreement penalty)
-%      Best for rigorous uncertainty quantification.
+%      Bayesian Model Averaging with moment matching.
+%      Models without data at a location contribute zero weight.
 %
 %   3. CONCATENATION ('concat')
-%      Simply stacks all soft data points, even if co-located.
-%      Useful when you want BME to handle the weighting internally.
-%      Output will have nGrid * nModels rows.
-%
-% EXAMPLE:
-%   softData1 = load('RAMP_MERRA2-GMI.mat');
-%   softData2 = load('RAMP_M3fusion.mat');
-%   fused = fuseSoftData({softData1, softData2}, 'bma');
+%      Stacks all soft data points. Output sorted by (lat, lon) ascending.
 %
 % Author: Praful Dodda
 % Date: November 2025
@@ -66,9 +57,10 @@ function fusedData = fuseSoftData(softDataCell, method, varargin)
     p = inputParser;
     addRequired(p, 'softDataCell', @iscell);
     addRequired(p, 'method', @(x) ismember(lower(x), {'selection', 'bma', 'concat'}));
-    addParameter(p, 'DisagreementThreshold', 2.0, @isnumeric);
+    addParameter(p, 'SpatialTolerance', 0.001, @isnumeric);  % ~100m
     addParameter(p, 'MinVariance', 1e-10, @isnumeric);
     addParameter(p, 'VarianceTolerance', 1e-6, @isnumeric);
+    addParameter(p, 'SortOutput', true, @islogical);
     addParameter(p, 'Verbose', true, @islogical);
     parse(p, softDataCell, method, varargin{:});
     
@@ -80,67 +72,55 @@ function fusedData = fuseSoftData(softDataCell, method, varargin)
         error('fuseSoftData:NotEnoughModels', 'Need at least 2 models for fusion');
     end
     
-    %% Validate inputs
+    %% Print header
     if opts.Verbose
         fprintf('\n========================================\n');
         fprintf('SOFT DATA FUSION\n');
         fprintf('========================================\n');
         fprintf('Method: %s\n', upper(method));
         fprintf('Number of models: %d\n', K);
+        fprintf('Spatial tolerance: %.4f°\n', opts.SpatialTolerance);
     end
     
-    % Get reference dimensions
+    %% Validate temporal alignment
     ref = softDataCell{1};
-    [nGrid, nMonths] = size(ref.Z);
-    
     modelNames = cell(K, 1);
+    
     for k = 1:K
         sd = softDataCell{k};
         modelNames{k} = sd.modelName;
         
+        nGrid_k = size(sd.Z, 1);
+        nMonths_k = size(sd.Z, 2);
+        
         if opts.Verbose
-            fprintf('  Model %d: %s (%d x %d)\n', k, sd.modelName, size(sd.Z, 1), size(sd.Z, 2));
+            fprintf('  Model %d: %s (%d locations x %d times)\n', ...
+                k, sd.modelName, nGrid_k, nMonths_k);
         end
         
-        % Validate dimensions (except for concat which allows different grids)
-        if ~strcmp(method, 'concat')
-            if size(sd.Z, 1) ~= nGrid || size(sd.Z, 2) ~= nMonths
-                error('fuseSoftData:DimensionMismatch', ...
-                    'Model %s has size [%d, %d], expected [%d, %d]', ...
-                    sd.modelName, size(sd.Z, 1), size(sd.Z, 2), nGrid, nMonths);
-            end
-            
-            % Check spatial alignment
-            if ~isequal(size(sd.sMS), size(ref.sMS)) || max(abs(sd.sMS(:) - ref.sMS(:))) > 1e-6
-                error('fuseSoftData:SpatialMismatch', ...
-                    'Model %s has different spatial coordinates than %s', ...
-                    sd.modelName, ref.modelName);
-            end
-            
-            % Check temporal alignment
-            if ~isequal(sd.tME, ref.tME)
-                error('fuseSoftData:TemporalMismatch', ...
-                    'Model %s has different time events than %s', ...
-                    sd.modelName, ref.modelName);
-            end
+        % Check temporal alignment
+        if ~isequal(sd.tME, ref.tME)
+            error('fuseSoftData:TemporalMismatch', ...
+                'Model %s has different time events than %s. All models must share the same tME.', ...
+                sd.modelName, ref.modelName);
         end
     end
     
     %% Dispatch to appropriate method
     switch method
         case 'selection'
-            fusedData = fuseSelection(softDataCell, opts);
+            fusedData = fuseSelectionUnion(softDataCell, opts);
         case 'bma'
-            fusedData = fuseBMA(softDataCell, opts);
+            fusedData = fuseBMAUnion(softDataCell, opts);
         case 'concat'
-            fusedData = fuseConcat(softDataCell, opts);
+            fusedData = fuseConcatSorted(softDataCell, opts);
     end
     
     % Add common metadata
     fusedData.fusionMethod = method;
     fusedData.sourceModels = modelNames;
-    fusedData.version = 4;  % Increment version for fused data
-    fusedData.loadedAt = datetime("now", 'Format', 'yyyy-MM-dd HH:mm:ss');
+    fusedData.version = 4;
+    fusedData.loadedAt = datestr(now);
     
     %% Print diagnostics
     if opts.Verbose
@@ -150,192 +130,264 @@ end
 
 
 %% ========================================================================
-%  FUSION METHODS
+%  UNION GRID CONSTRUCTION
 %  ========================================================================
 
-function fusedData = fuseSelection(softDataCell, opts)
-% FUSESELECTION Spatially Varying Selection (Champion Method)
+function [unionSMS, alignedZ, alignedZv, nModelsAvailable] = buildUnionGrid(softDataCell, opts)
+% BUILDUNIONGRID Create union of all spatial grids and align model data
 %
-% At each (s,t), select the model with minimum variance.
+% For models with different spatial resolutions, this:
+%   1. Collects all unique (lat, lon) locations across models
+%   2. Creates aligned arrays with NaN where a model has no data
+%
+% Uses coordinate rounding for efficient unique-finding on large grids.
 
     K = numel(softDataCell);
-    ref = softDataCell{1};
-    [nGrid, nMonths] = size(ref.Z);
+    nMonths = size(softDataCell{1}.Z, 2);
+    tol = opts.SpatialTolerance;
     
-    % Stack all Z and Zv into 3D arrays: (nGrid x nMonths x K)
-    allZ = zeros(nGrid, nMonths, K, 'single');
-    allZv = zeros(nGrid, nMonths, K, 'single');
+    % Precision for rounding (digits after decimal)
+    precision = -floor(log10(tol));
     
-    for k = 1:K
-        allZ(:,:,k) = single(softDataCell{k}.Z);
-        allZv(:,:,k) = single(softDataCell{k}.Zv);
+    if opts.Verbose
+        fprintf('\nBuilding union grid...\n');
     end
     
-    % Handle NaN variances by setting to Inf
-    allZv_masked = allZv;
-    allZv_masked(isnan(allZv)) = Inf;
+    %% Step 1: Collect all coordinates
+    totalPoints = 0;
+    for k = 1:K
+        totalPoints = totalPoints + size(softDataCell{k}.sMS, 1);
+    end
     
-    % Find model with minimum variance at each point
-    [minZv, modelSelected] = min(allZv_masked, [], 3);  % (nGrid x nMonths)
+    allCoords = zeros(totalPoints, 2);
+    allCoordsRounded = zeros(totalPoints, 2);
+    modelSource = zeros(totalPoints, 1);  % Track which model each point came from
+    localIdx = zeros(totalPoints, 1);     % Track original index within model
     
-    % Extract fused values using linear indexing
-    Z_fused = zeros(nGrid, nMonths, 'single');
-    Zv_fused = zeros(nGrid, nMonths, 'single');
+    idx = 1;
+    for k = 1:K
+        sMS_k = softDataCell{k}.sMS;
+        nk = size(sMS_k, 1);
+        rows = idx:(idx + nk - 1);
+        
+        allCoords(rows, :) = sMS_k;
+        allCoordsRounded(rows, :) = round(sMS_k, precision);
+        modelSource(rows) = k;
+        localIdx(rows) = (1:nk)';
+        
+        idx = idx + nk;
+    end
     
-    for i = 1:nGrid
-        for j = 1:nMonths
-            k = modelSelected(i, j);
-            Z_fused(i, j) = allZ(i, j, k);
-            Zv_fused(i, j) = allZv(i, j, k);
+    %% Step 2: Find unique locations via sorting
+    % Create compound key for sorting: lat * 1e9 + lon (handles negative lons)
+    keys = allCoordsRounded(:,1) * 1e9 + allCoordsRounded(:,2);
+    [keysSorted, sortIdx] = sort(keys);
+    
+    % Find first occurrence of each unique key
+    isFirst = [true; diff(keysSorted) ~= 0];
+    uniqueMask = false(totalPoints, 1);
+    uniqueMask(sortIdx(isFirst)) = true;
+    
+    % Extract unique coordinates (use original unrounded for precision)
+    uniqueIdx = find(uniqueMask);
+    unionSMS = allCoords(uniqueIdx, :);
+    nUnion = size(unionSMS, 1);
+    
+    if opts.Verbose
+        fprintf('  Total input locations: %d\n', totalPoints);
+        fprintf('  Unique union locations: %d\n', nUnion);
+    end
+    
+    %% Step 3: Build mapping from rounded coords to union index
+    unionRounded = round(unionSMS, precision);
+    unionKeys = unionRounded(:,1) * 1e9 + unionRounded(:,2);
+    
+    % Create lookup table using containers.Map
+    keyToUnionIdx = containers.Map(unionKeys, 1:nUnion);
+    
+    %% Step 4: Align each model to union grid
+    alignedZ = NaN(nUnion, nMonths, K, 'single');
+    alignedZv = NaN(nUnion, nMonths, K, 'single');
+    
+    for k = 1:K
+        sMS_k = softDataCell{k}.sMS;
+        Z_k = single(softDataCell{k}.Z);
+        Zv_k = single(softDataCell{k}.Zv);
+        nGrid_k = size(sMS_k, 1);
+        
+        % Round and create keys
+        sMS_k_rounded = round(sMS_k, precision);
+        modelKeys = sMS_k_rounded(:,1) * 1e9 + sMS_k_rounded(:,2);
+        
+        % Vectorized lookup using arrayfun
+        for i = 1:nGrid_k
+            key = modelKeys(i);
+            if isKey(keyToUnionIdx, key)
+                uIdx = keyToUnionIdx(key);
+                alignedZ(uIdx, :, k) = Z_k(i, :);
+                alignedZv(uIdx, :, k) = Zv_k(i, :);
+            end
+        end
+        
+        nMapped = sum(~isnan(alignedZ(:, 1, k)));
+        if opts.Verbose
+            fprintf('  %s: %d/%d locations mapped (%.1f%%)\n', ...
+                softDataCell{k}.modelName, nMapped, nGrid_k, 100*nMapped/nGrid_k);
         end
     end
     
-    % Check for ties
-    nTies = 0;
-    for k = 1:K
-        nearTie = abs(allZv_masked(:,:,k) - minZv) < opts.VarianceTolerance;
-        nTies = nTies + sum(nearTie(:));
-    end
-    nTies = nTies - numel(minZv);  % Subtract the winners themselves
-    tieFraction = nTies / numel(minZv);
-    if tieFraction > 0.1
-        warning('fuseSoftData:ManyTies', ...
-            '%.1f%% of points have near-tied variances. First model wins ties.', ...
-            tieFraction * 100);
-    end
+    %% Step 5: Count models available at each location
+    nModelsAvailable = sum(~isnan(alignedZ(:, 1, :)), 3);
     
-    % Build output struct
-    fusedData = buildOutputStruct(ref, Z_fused, Zv_fused, 'selection');
-    fusedData.modelSelected = modelSelected;
+    if opts.Verbose
+        fprintf('  All %d models available: %d locations (%.1f%%)\n', ...
+            K, sum(nModelsAvailable == K), 100*sum(nModelsAvailable == K)/nUnion);
+        fprintf('  Only 1 model available: %d locations (%.1f%%)\n', ...
+            sum(nModelsAvailable == 1), 100*sum(nModelsAvailable == 1)/nUnion);
+    end
 end
 
 
-function fusedData = fuseBMA(softDataCell, opts)
-% FUSEBMA Bayesian Model Averaging with Moment Matching
-%
-% Uses precision (inverse-variance) weighting.
-% Fused variance = within-model + between-model (Law of Total Variance)
+%% ========================================================================
+%  FUSION METHODS
+%  ========================================================================
+
+function fusedData = fuseSelectionUnion(softDataCell, opts)
+% FUSESELECTIONUNION Spatially Varying Selection with union grid support
 
     K = numel(softDataCell);
     ref = softDataCell{1};
-    [nGrid, nMonths] = size(ref.Z);
+    nMonths = size(ref.Z, 2);
     
-    % Stack all Z and Zv into 3D arrays: (nGrid x nMonths x K)
-    allZ = zeros(nGrid, nMonths, K, 'single');
-    allZv = zeros(nGrid, nMonths, K, 'single');
+    % Build union grid
+    [unionSMS, alignedZ, alignedZv, nModelsAvailable] = buildUnionGrid(softDataCell, opts);
+    nUnion = size(unionSMS, 1);
     
-    for k = 1:K
-        allZ(:,:,k) = single(softDataCell{k}.Z);
-        allZv(:,:,k) = single(softDataCell{k}.Zv);
+    % Set NaN variances to Inf so they're never selected
+    alignedZv_masked = alignedZv;
+    alignedZv_masked(isnan(alignedZv)) = Inf;
+    
+    % Find model with minimum variance at each point
+    [~, modelSelected] = min(alignedZv_masked, [], 3);
+    
+    % Extract fused values
+    Z_fused = NaN(nUnion, nMonths, 'single');
+    Zv_fused = NaN(nUnion, nMonths, 'single');
+    
+    for j = 1:nMonths
+        for i = 1:nUnion
+            k = modelSelected(i, j);
+            if ~isinf(alignedZv_masked(i, j, k))
+                Z_fused(i, j) = alignedZ(i, j, k);
+                Zv_fused(i, j) = alignedZv(i, j, k);
+            end
+        end
     end
+    
+    % Sort output
+    if opts.SortOutput
+        [unionSMS, sortIdx] = sortrows(unionSMS, [1, 2]);
+        Z_fused = Z_fused(sortIdx, :);
+        Zv_fused = Zv_fused(sortIdx, :);
+        modelSelected = modelSelected(sortIdx, :);
+        nModelsAvailable = nModelsAvailable(sortIdx);
+    end
+    
+    % Build output
+    fusedData = buildOutputStruct(ref, unionSMS, Z_fused, Zv_fused, 'selection');
+    fusedData.modelSelected = modelSelected;
+    fusedData.nModelsAvailable = nModelsAvailable;
+end
+
+
+function fusedData = fuseBMAUnion(softDataCell, opts)
+% FUSEBMAUNION Bayesian Model Averaging with union grid support
+
+    K = numel(softDataCell);
+    ref = softDataCell{1};
+    nMonths = size(ref.Z, 2);
+    
+    % Build union grid
+    [unionSMS, alignedZ, alignedZv, nModelsAvailable] = buildUnionGrid(softDataCell, opts);
+    nUnion = size(unionSMS, 1);
     
     % Apply variance floor
-    allZv_safe = max(allZv, opts.MinVariance);
+    alignedZv_safe = max(alignedZv, opts.MinVariance);
     
-    % Compute precisions (1/variance), setting NaN variances to 0 precision
-    precisions = zeros(nGrid, nMonths, K, 'single');
-    for k = 1:K
-        prec = 1 ./ allZv_safe(:,:,k);
-        prec(isnan(allZv(:,:,k))) = 0;  % NaN variance -> 0 contribution
-        precisions(:,:,k) = prec;
-    end
+    % Compute precisions (1/variance), NaN -> 0 precision
+    precisions = 1 ./ alignedZv_safe;
+    precisions(isnan(alignedZv)) = 0;
     
     % Normalize to get weights
-    precisionSum = sum(precisions, 3);  % (nGrid x nMonths)
+    precisionSum = sum(precisions, 3);
     precisionSum(precisionSum == 0) = 1;  % Avoid div by 0
+    weights = precisions ./ precisionSum;
     
-    weights = zeros(nGrid, nMonths, K, 'single');
-    for k = 1:K
-        weights(:,:,k) = precisions(:,:,k) ./ precisionSum;
+    % Fused mean
+    alignedZ_safe = alignedZ;
+    alignedZ_safe(isnan(alignedZ)) = 0;
+    Z_fused = sum(weights .* alignedZ_safe, 3);
+    
+    % Fused variance: within + between
+    withinVar = sum(weights .* alignedZv_safe, 3);
+    deviations = alignedZ_safe - Z_fused;
+    betweenVar = sum(weights .* (deviations.^2), 3);
+    Zv_fused = single(withinVar + betweenVar);
+    Z_fused = single(Z_fused);
+    
+    % Handle all-NaN locations
+    allNaN = all(isnan(alignedZ), 3);
+    Z_fused(allNaN) = NaN;
+    Zv_fused(allNaN) = NaN;
+    
+    % Sort output
+    if opts.SortOutput
+        [unionSMS, sortIdx] = sortrows(unionSMS, [1, 2]);
+        Z_fused = Z_fused(sortIdx, :);
+        Zv_fused = Zv_fused(sortIdx, :);
+        nModelsAvailable = nModelsAvailable(sortIdx);
+        weights = weights(sortIdx, :, :);
     end
     
-    % Fused mean: weighted average
-    % Handle NaN in Z: treat as 0 contribution (weight already 0)
-    allZ_safe = allZ;
-    allZ_safe(isnan(allZ)) = 0;
+    % Build output
+    fusedData = buildOutputStruct(ref, unionSMS, Z_fused, Zv_fused, 'bma');
+    fusedData.nModelsAvailable = nModelsAvailable;
     
-    Z_fused = zeros(nGrid, nMonths, 'single');
-    for k = 1:K
-        Z_fused = Z_fused + weights(:,:,k) .* allZ_safe(:,:,k);
-    end
-    
-    % Fused variance: Law of Total Variance
-    % Term 1: Within-model variance (average internal uncertainty)
-    withinVar = zeros(nGrid, nMonths, 'single');
-    for k = 1:K
-        withinVar = withinVar + weights(:,:,k) .* allZv_safe(:,:,k);
-    end
-    
-    % Term 2: Between-model variance (disagreement penalty)
-    betweenVar = zeros(nGrid, nMonths, 'single');
-    for k = 1:K
-        deviation = allZ_safe(:,:,k) - Z_fused;
-        betweenVar = betweenVar + weights(:,:,k) .* (deviation.^2);
-    end
-    
-    Zv_fused = withinVar + betweenVar;
-    
-    % Where all models were NaN, result should be NaN
-    allNanMask = all(isnan(allZ), 3);
-    Z_fused(allNanMask) = NaN;
-    Zv_fused(allNanMask) = NaN;
-    
-    % Build output struct
-    fusedData = buildOutputStruct(ref, Z_fused, Zv_fused, 'bma');
-    
-    % Store weights
     fusedData.weights = struct();
     for k = 1:K
         fieldName = matlab.lang.makeValidName(softDataCell{k}.modelName);
-        fusedData.weights.(fieldName) = weights(:,:,k);
+        fusedData.weights.(fieldName) = squeeze(weights(:, :, k));
     end
 end
 
 
-function fusedData = fuseConcat(softDataCell, ~)
-% FUSECONCAT Simple concatenation of soft datasets
-%
-% Stacks all soft data points vertically, even if co-located.
-% BME will handle the weighting internally during kriging.
+function fusedData = fuseConcatSorted(softDataCell, opts)
+% FUSECONCATSORTED Concatenation with sorted output
 
     K = numel(softDataCell);
+    ref = softDataCell{1};
+    nMonths = size(ref.Z, 2);
     
-    % Count total grid points
+    % Count total points
     totalGrid = 0;
     for k = 1:K
         totalGrid = totalGrid + size(softDataCell{k}.Z, 1);
     end
     
-    % Get time dimension from first model (assume all have same tME)
-    ref = softDataCell{1};
-    nMonths = size(ref.Z, 2);
-    
     % Pre-allocate
     sMS_cat = zeros(totalGrid, 2);
-    lat_cat = zeros(totalGrid, 1);
-    lon_cat = zeros(totalGrid, 1);
     Z_cat = zeros(totalGrid, nMonths, 'single');
     Zv_cat = zeros(totalGrid, nMonths, 'single');
-    modelIndex = zeros(totalGrid, 1);  % Track which model each row came from
+    modelIndex = zeros(totalGrid, 1);
     
     % Concatenate
     idx = 1;
     for k = 1:K
         sd = softDataCell{k};
         nk = size(sd.Z, 1);
-        
         rows = idx:(idx + nk - 1);
+        
         sMS_cat(rows, :) = sd.sMS;
-        if isfield(sd, 'lat')
-            lat_cat(rows) = sd.lat;
-        else
-            lat_cat(rows) = sd.sMS(:, 1);
-        end
-        if isfield(sd, 'lon')
-            lon_cat(rows) = sd.lon;
-        else
-            lon_cat(rows) = sd.sMS(:, 2);
-        end
         Z_cat(rows, :) = single(sd.Z);
         Zv_cat(rows, :) = single(sd.Zv);
         modelIndex(rows) = k;
@@ -343,12 +395,24 @@ function fusedData = fuseConcat(softDataCell, ~)
         idx = idx + nk;
     end
     
-    % Build output struct
+    % Sort by (lat, lon)
+    if opts.SortOutput
+        [sMS_cat, sortIdx] = sortrows(sMS_cat, [1, 2]);
+        Z_cat = Z_cat(sortIdx, :);
+        Zv_cat = Zv_cat(sortIdx, :);
+        modelIndex = modelIndex(sortIdx);
+        
+        if opts.Verbose
+            fprintf('\nOutput sorted by (lat, lon) ascending.\n');
+        end
+    end
+    
+    % Build output
     fusedData = struct();
     fusedData.modelName = 'ConcatFusion';
     fusedData.years = ref.years;
-    fusedData.lon = lon_cat;
-    fusedData.lat = lat_cat;
+    fusedData.lat = sMS_cat(:, 1);
+    fusedData.lon = sMS_cat(:, 2);
     fusedData.sMS = sMS_cat;
     fusedData.tME = ref.tME;
     fusedData.Z = Z_cat;
@@ -358,11 +422,11 @@ function fusedData = fuseConcat(softDataCell, ~)
     fusedData.Zlabel = 'Concatenated RAMP-corrected MDA8 Ozone';
     fusedData.nGrid = totalGrid;
     fusedData.nMonths = nMonths;
-    fusedData.modelIndex = modelIndex;  % Track source model for each row
+    fusedData.modelIndex = modelIndex;
     
     if isfield(ref, 'gridInfo')
         fusedData.gridInfo = ref.gridInfo;
-        fusedData.gridInfo.note = 'Grid info from first model; concatenated data has multiple grids';
+        fusedData.gridInfo.note = 'Contains multiple grids stacked';
     end
 end
 
@@ -371,39 +435,24 @@ end
 %  HELPER FUNCTIONS
 %  ========================================================================
 
-function fusedData = buildOutputStruct(ref, Z_fused, Zv_fused, method)
+function fusedData = buildOutputStruct(ref, sMS, Z_fused, Zv_fused, method)
 % BUILDOUTPUTSTRUCT Create output struct matching input format
 
     fusedData = struct();
-    
-    % Generate combined model name
     fusedData.modelName = sprintf('%sFusion', upper(method(1)));
-    
-    % Copy spatial-temporal coordinates from reference
     fusedData.years = ref.years;
-    if isfield(ref, 'lon')
-        fusedData.lon = ref.lon;
-    end
-    if isfield(ref, 'lat')
-        fusedData.lat = ref.lat;
-    end
-    fusedData.sMS = ref.sMS;
+    fusedData.lat = sMS(:, 1);
+    fusedData.lon = sMS(:, 2);
+    fusedData.sMS = sMS;
     fusedData.tME = ref.tME;
-    
-    % Fused values
     fusedData.Z = Z_fused;
     fusedData.Zv = Zv_fused;
-    
-    % Metadata
     fusedData.Zname = sprintf('%s-Fused-RAMP', upper(method));
     fusedData.Zunit = ref.Zunit;
     fusedData.Zlabel = sprintf('%s-Fused RAMP-corrected MDA8 Ozone', upper(method));
-    
-    % Dimensions
     fusedData.nGrid = size(Z_fused, 1);
     fusedData.nMonths = size(Z_fused, 2);
     
-    % Copy grid info if present
     if isfield(ref, 'gridInfo')
         fusedData.gridInfo = ref.gridInfo;
     end
@@ -417,61 +466,60 @@ function printDiagnostics(softDataCell, fusedData, method)
     
     fprintf('\n--- Diagnostics ---\n');
     
-    % Model agreement (correlation between models)
-    if ~strcmp(method, 'concat')
-        fprintf('Model Correlations:\n');
-        for i = 1:K
-            for j = (i+1):K
-                Zi = softDataCell{i}.Z(:);
-                Zj = softDataCell{j}.Z(:);
-                mask = ~isnan(Zi) & ~isnan(Zj);
-                if sum(mask) > 10
-                    r = corr(Zi(mask), Zj(mask));
-                    fprintf('  %s vs %s: r = %.3f\n', ...
-                        softDataCell{i}.modelName, softDataCell{j}.modelName, r);
-                end
-            end
+    % Output dimensions
+    fprintf('Output: %d locations x %d times\n', fusedData.nGrid, fusedData.nMonths);
+    
+    % Verify sorting
+    sMS = fusedData.sMS;
+    if size(sMS, 1) > 1
+        latSorted = all(diff(sMS(:,1)) >= 0);
+        fprintf('Sorted by lat: %s\n', mat2str(latSorted));
+    end
+    
+    % Model coverage
+    if isfield(fusedData, 'nModelsAvailable')
+        nma = fusedData.nModelsAvailable;
+        fprintf('\nCoverage:\n');
+        for n = K:-1:1
+            fprintf('  %d model(s): %d pts (%.1f%%)\n', n, sum(nma == n), 100*sum(nma == n)/numel(nma));
         end
     end
     
     % Variance analysis
     inputVarMean = 0;
     for k = 1:K
-        inputVarMean = inputVarMean + mean(softDataCell{k}.Zv(:), "omitmissing");
+        inputVarMean = inputVarMean + nanmean(softDataCell{k}.Zv(:));
     end
     inputVarMean = inputVarMean / K;
+    fusedVarMean = nanmean(fusedData.Zv(:));
     
-    fusedVarMean = mean(fusedData.Zv(:), "omitmissing");
-    varRatio = fusedVarMean / inputVarMean;
-    
-    fprintf('\nVariance Analysis:\n');
-    fprintf('  Mean input variance: %.2f\n', inputVarMean);
-    fprintf('  Mean fused variance: %.2f\n', fusedVarMean);
-    fprintf('  Ratio (fused/input): %.3f\n', varRatio);
-    
-    if varRatio > 1.5
-        fprintf('  -> High ratio indicates significant model disagreement\n');
-    elseif varRatio < 0.8
-        fprintf('  -> Low ratio suggests models are quite consistent\n');
+    fprintf('\nVariance:\n');
+    fprintf('  Input mean: %.2f\n', inputVarMean);
+    fprintf('  Fused mean: %.2f\n', fusedVarMean);
+    fprintf('  Ratio: %.3f', fusedVarMean / inputVarMean);
+    if fusedVarMean / inputVarMean > 1.5
+        fprintf(' (high disagreement)\n');
+    elseif fusedVarMean / inputVarMean < 0.8
+        fprintf(' (consistent models)\n');
+    else
+        fprintf('\n');
     end
     
     % Selection fractions
     if strcmp(method, 'selection') && isfield(fusedData, 'modelSelected')
-        fprintf('\nSelection Fractions:\n');
+        fprintf('\nSelection:\n');
         for k = 1:K
             frac = mean(fusedData.modelSelected(:) == k);
             fprintf('  %s: %.1f%%\n', softDataCell{k}.modelName, frac * 100);
         end
     end
     
-    % Concatenation info
+    % Concat info
     if strcmp(method, 'concat')
-        fprintf('\nConcatenation Info:\n');
-        fprintf('  Total grid points: %d\n', fusedData.nGrid);
+        fprintf('\nConcat:\n');
         for k = 1:K
             nk = sum(fusedData.modelIndex == k);
-            fprintf('  %s: %d points (%.1f%%)\n', ...
-                softDataCell{k}.modelName, nk, nk/fusedData.nGrid*100);
+            fprintf('  %s: %d pts\n', softDataCell{k}.modelName, nk);
         end
     end
     
