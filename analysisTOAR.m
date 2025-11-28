@@ -368,7 +368,8 @@ switch analysisScenario
         % Soft datasets configuration
         modelNames = {'M3fusion', 'MERRA2-GMI'};  % List of CTM models to load
         modelYears = {2016:2017, 2016:2017};  % Corresponding years for each model
-        softDataDir = fullfile('1data', 'CTM', 'ramp_data');  % Parquet directory
+        % softDataDir = fullfile('1data', 'CTM', 'ramp_data');  % Parquet directory
+        softDataDir = fullfile('d:\Users\praful\Documents\Data\ramp_data\');  % Parquet directory
         softDataForceReload = {0, 0};  % Use cache if available
         joinMethod = 'concat';
 
@@ -407,24 +408,24 @@ switch analysisScenario
             end  
         end
 
-        % Fuse multiple soft datasets if more than one model is loaded
-        if length(softDatasets) > 1
-            fprintf('\nFusing multiple soft datasets using method: %s\n', joinMethod);
-            try
-                softData = fuseSoftData(softDatasets, joinMethod);
-                fprintf('✓ Soft data fused successfully\n');
-                fprintf('    Total grid points: %d\n', size(softData.sMS, 1));
-                fprintf('    Total time periods: %d months\n', length(softData.tME));
-                fprintf('    Coverage: %.4f - %.4f\n', min(softData.tME), max(softData.tME));
-            catch ME
-                warning(ME.identifier, '%s', ME.message);
-                fprintf('Proceeding without soft data (hard data only)\n');
-                softData = [];
-            end
-        else
-            softData = softDatasets{1};
-        end
-
+        % % Fuse multiple soft datasets if more than one model is loaded
+        % if length(softDatasets) > 1
+        %     fprintf('\nFusing multiple soft datasets using method: %s\n', joinMethod);
+        %     try
+        %         softData = fuseSoftData(softDatasets, joinMethod);
+        %         fprintf('✓ Soft data fused successfully\n');
+        %         fprintf('    Total grid points: %d\n', size(softData.sMS, 1));
+        %         fprintf('    Total time periods: %d months\n', length(softData.tME));
+        %         fprintf('    Coverage: %.4f - %.4f\n', min(softData.tME), max(softData.tME));
+        %     catch ME
+        %         warning(ME.identifier, '%s', ME.message);
+        %         fprintf('Proceeding without soft data (hard data only)\n');
+        %         softData = [];
+        %     end
+        % else
+        %     softData = softDatasets{1};
+        % end
+        softData = softDatasets;
 
         % softDataConfig = struct();
         % softDataConfig.modelName = 'M3fusion';  % Model to use for soft data - MERRA2-GMI
@@ -490,10 +491,19 @@ switch analysisScenario
 
             % Apply subsetting
             try
-                softData = subsetSoftData(softData, subsetOptions);
-
-                % Mark as CTM data again after subsetting
-                softData.ctm = 1;
+                if iscell(softData)
+                    for m = 1:length(softData)
+                        fprintf('\nSubsetting soft data model: %s\n', softData{m}.modelName);
+                        softData{m} = subsetSoftData(softData{m}, subsetOptions);
+                        % Mark as CTM data again after subsetting
+                        softData{m}.ctm = 1;
+                    end
+                else
+                    fprintf('\nSubsetting soft data...\n');
+                    softData = subsetSoftData(softData, subsetOptions);
+                    % Mark as CTM data again after subsetting
+                    softData.ctm = 1;
+                end
             catch ME
                 warning('Soft data subsetting failed. Using full dataset.');
             end
@@ -531,7 +541,7 @@ switch analysisScenario
         analyzeParam.forceCov = 0;
 
         % BME method with soft data
-        analyzeParam.BMEmethod = '12000112';  % Digit 2 = 1 enables soft data
+        analyzeParam.BMEmethod = '13000113';  % Digit 2 = 1 enables soft data
         analyzeParam.dataFormat = 'stug';     % Use optimized STUG for uniform grids
         analyzeParam.softData = softData;     % Pass soft data structure
 
@@ -542,7 +552,7 @@ switch analysisScenario
 
         % Force and plotting
         analyzeParam.forceEstimation = 0;
-        analyzeParam.keepOnlyLand = false;
+        analyzeParam.keepOnlyLand = true;
         analyzeParam.includeAntarctica = false;
         analyzeParam.plotResults = 1;         % 2 for Estimates + observations
         analyzeParam.plotVariance = 1;        % Standard deviation map
@@ -562,11 +572,18 @@ switch analysisScenario
         fprintf('  Log transform: %d\n\n', analyzeParam.logTransf);
 
         fprintf('SOFT DATA:\n');
-        if ~isempty(softData)
+        if ~isempty(softData) && ~iscell(softData)
             fprintf('  Model: %s\n', softData.modelName);
             fprintf('  Grid points: %d\n', size(softData.sMS, 1));
             fprintf('  Time coverage: %d months\n', length(softData.tME));
             fprintf('  Years: %s\n\n', mat2str(softData.years));
+        elseif ~isempty(softData) && iscell(softData)
+            for m = 1:length(softData)
+                fprintf('  Model: %s\n', softData{m}.modelName);
+                fprintf('  Grid points: %d\n', size(softData{m}.sMS, 1));
+                fprintf('  Time coverage: %d months\n', length(softData{m}.tME));
+                fprintf('  Years: %s\n\n', mat2str(softData{m}.years));
+            end
         else
             fprintf('  None (hard data only)\n\n');
         end
@@ -618,11 +635,20 @@ switch analysisScenario
         fprintf('Total time: %.1f minutes\n', elapsedTime/60);
 
         % Display soft data statistics
-        if ~isempty(softData) && isfield(KS, 'softdata')
+        if ~isempty(softData) && ~iscell(softData)
             fprintf('\nData Fusion Summary:\n');
             fprintf('  Hard data points: %d\n', length(KS.harddata.z));
             fprintf('  Soft data points: %d\n', length(KS.softdata.z));
             fprintf('  Ratio (soft:hard): %.1f:1\n', length(KS.softdata.z)/length(KS.harddata.z));
+        elseif ~isempty(softData) && iscell(softData)
+            intotal = 0;
+            for m = 1:length(softData)
+                intotal = intotal + length(KS.softdata{m}.z);
+            end
+            fprintf('\nData Fusion Summary (multiple soft data models):\n');
+            fprintf('  Hard data points: %d\n', length(KS.harddata.z));
+            fprintf('  Soft data points (total): %d\n', intotal);
+            fprintf('  Ratio (soft:hard): %.1f:1\n', intotal/length(KS.harddata.z));
         end
 
         fprintf('\nResults saved in:\n');

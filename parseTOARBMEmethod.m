@@ -47,8 +47,8 @@ BMEprobaType = str2double(BMEmethodStr(8));
 if ~ismember(obsType, [1, 2])
     warning('obsType (digit 1) must be 1 or 2');
 end
-if ~ismember(CTMtype, [0, 1, 2])
-    warning('CTMtype (digit 2) must be 0, 1, or 2');
+if ~ismember(CTMtype, [0, 1, 2, 3])
+    warning('CTMtype (digit 2) must be 0, 1, 2, or 3');
 end
 if ~ismember(BMEnsmax, 0:6)
     warning('BMEnsmax (digit 6) must be 0-6');
@@ -56,7 +56,7 @@ end
 if ~ismember(BMEnhmax, 1:3)
     warning('BMEnhmax (digit 7) must be 1-3');
 end
-if ~ismember(BMEprobaType, [1, 2])
+if ~ismember(BMEprobaType, [1, 2, 3])
     warning('BMEprobaType (digit 8) must be 1 or 2');
 end
 

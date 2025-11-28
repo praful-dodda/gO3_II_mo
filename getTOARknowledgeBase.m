@@ -82,8 +82,10 @@ switch BMEprobaType
         KG.order = NaN;  % Zero mean (residuals should have zero mean)
     case 2  % KrigingME
         KG.order = 0;    % Constant mean
+    case 3
+        KG.order = 0;
     otherwise
-        error('BMEprobaType must be 1 (BMEprobaMoments) or 2 (KrigingME)');
+        error('BMEprobaType must be 1 (BMEprobaMoments) or 2 (KrigingME) or 3 (for multiple soft-datasets');
 end
 
 % Covariance model from fitted covariance
@@ -149,41 +151,93 @@ if CTMtype >= 1 && ~isempty(softData)
             if isfield(softData, 'ctm')
                 ctmData = softData;
             else
-                error('CTMtype=2 but softData.ctm2 not provided');
+                error('CTMtype=2 but softData.ctm not provided');
             end
+        case 3
+            % Get multiple soft datasets
+            if ~iscell(softData)
+                ctmData = softData;
+            elseif iscell(softData)
+                ctmData = softData;
+            end
+
+            % if isfield(softData, 'ctm')
+            %     ctmData = softData;
+            % else
+            %     error('CTMtype=2 but softData.ctm2 not provided');
+            % end
+    end
+
+    % Process single or multiple soft datasets
+    if CTMtype == 1 || CTMtype == 2
+        % Single soft dataset
+        % Remove global offset from soft data
+        Os = stmeaninterp(go.sMS, go.tME, go.ms, go.mt, ctmData.sMS, ctmData.tME);
+        
+        % TODO: Apply RAMP correction here based on RAMPnonLinearity, 
+        % RAMPnonHomoscedasticity, RAMPnonStationary
+        % For now, use uncorrected CTM data
+        Xms = ctmData.Z - Os;
+        Xvs = ctmData.Zv;  % Variance
+        
+        % Store in STG format
+        KS.softdata.sMS = ctmData.sMS;
+        KS.softdata.tME = ctmData.tME;
+        KS.softdata.Xms = Xms;
+        KS.softdata.Xvs = Xvs;
+        
+        % Track NaN locations
+        KS.softdata.Zisnotnan = ~isnan(Xms);
+        KS.softdata.nanratio = sum(~KS.softdata.Zisnotnan(:)) / numel(Xms);
+        KS.softdata.index_stg_to_stv = cumsum(KS.softdata.Zisnotnan(:));
+        
+        % Convert to STV format
+        [p_stg, z_stg] = valstg2stv(Xms, ctmData.sMS, ctmData.tME);
+        [~, vs_stg] = valstg2stv(Xvs, ctmData.sMS, ctmData.tME);
+        
+        valid_idx = ~isnan(z_stg);
+        KS.softdata.p = p_stg(valid_idx, :);
+        KS.softdata.z = z_stg(valid_idx);
+        KS.softdata.vs = vs_stg(valid_idx);
+        
+        fprintf('    Soft data: %d valid points (%.1f%% complete)\n', ...
+            length(KS.softdata.z), 100*(1-KS.softdata.nanratio));
+    elseif CTMtype == 3
+        % Multiple soft datasets
+        KS.softdata = cell(length(ctmData), 1);
+        for m = 1:length(ctmData)
+            fprintf('      Processing soft data model %d...\n', m);
+            ctmModel = ctmData{m};
+            
+            % Remove global offset from soft data
+            Os = stmeaninterp(go.sMS, go.tME, go.ms, go.mt, ctmModel.sMS, ctmModel.tME);
+            Xms = ctmModel.Z - Os;
+            Xvs = ctmModel.Zv;  % Variance
+            
+            % Store in STG format
+            KS.softdata{m}.sMS = ctmModel.sMS;
+            KS.softdata{m}.tME = ctmModel.tME;
+            KS.softdata{m}.Xms = Xms;
+            KS.softdata{m}.Xvs = Xvs;
+            
+            % Track NaN locations
+            KS.softdata{m}.Zisnotnan = ~isnan(Xms);
+            KS.softdata{m}.nanratio = sum(~KS.softdata{m}.Zisnotnan(:)) / numel(Xms);
+            KS.softdata{m}.index_stg_to_stv = cumsum(KS.softdata{m}.Zisnotnan(:));
+            
+            % Convert to STV format
+            [p_stg, z_stg] = valstg2stv(Xms, ctmModel.sMS, ctmModel.tME);
+            [~, vs_stg] = valstg2stv(Xvs, ctmModel.sMS, ctmModel.tME);
+
+            valid_idx = ~isnan(z_stg);
+            KS.softdata{m}.p = p_stg(valid_idx, :);
+            KS.softdata{m}.z = z_stg(valid_idx);
+            KS.softdata{m}.vs = vs_stg(valid_idx);
+            fprintf('        Soft data model %d: %d valid points (%.1f%% complete)\n', ...
+                m, length(KS.softdata{m}.z), 100*(1-KS.softdata{m}.nanratio));
+        end
     end
     
-    % Remove global offset from soft data
-    Os = stmeaninterp(go.sMS, go.tME, go.ms, go.mt, ctmData.sMS, ctmData.tME);
-    
-    % TODO: Apply RAMP correction here based on RAMPnonLinearity, 
-    % RAMPnonHomoscedasticity, RAMPnonStationary
-    % For now, use uncorrected CTM data
-    Xms = ctmData.Z - Os;
-    Xvs = ctmData.Zv;  % Variance
-    
-    % Store in STG format
-    KS.softdata.sMS = ctmData.sMS;
-    KS.softdata.tME = ctmData.tME;
-    KS.softdata.Xms = Xms;
-    KS.softdata.Xvs = Xvs;
-    
-    % Track NaN locations
-    KS.softdata.Zisnotnan = ~isnan(Xms);
-    KS.softdata.nanratio = sum(~KS.softdata.Zisnotnan(:)) / numel(Xms);
-    KS.softdata.index_stg_to_stv = cumsum(KS.softdata.Zisnotnan(:));
-    
-    % Convert to STV format
-    [p_stg, z_stg] = valstg2stv(Xms, ctmData.sMS, ctmData.tME);
-    [~, vs_stg] = valstg2stv(Xvs, ctmData.sMS, ctmData.tME);
-    
-    valid_idx = ~isnan(z_stg);
-    KS.softdata.p = p_stg(valid_idx, :);
-    KS.softdata.z = z_stg(valid_idx);
-    KS.softdata.vs = vs_stg(valid_idx);
-    
-    fprintf('    Soft data: %d valid points (%.1f%% complete)\n', ...
-        length(KS.softdata.z), 100*(1-KS.softdata.nanratio));
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -191,7 +245,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Convert soft data to probability format for BME
-if ~isempty(KS.softdata.z)
+if ~iscell(KS.softdata) && ~isempty(KS.softdata.z)
     switch BMEprobaType
         case 1  % BMEprobaMoments - Gaussian PDF
             [softpdftype, nl, limi, probdens] = probaGaussian(KS.softdata.z, KS.softdata.vs);
@@ -205,6 +259,31 @@ if ~isempty(KS.softdata.z)
             KS.limi = [];
             KS.probdens = [];
     end
+elseif iscell(KS.softdata) && ~isempty(KS.softdata)
+    % Multiple soft datasets
+    KS.softpdftype = cell(length(KS.softdata), 1);
+    KS.nl = cell(length(KS.softdata), 1);
+    KS.limi = cell(length(KS.softdata), 1);
+    KS.probdens = cell(length(KS.softdata), 1);
+    
+    for m = 1:length(KS.softdata)
+        if ~isempty(KS.softdata{m}.z)
+            switch BMEprobaType
+                case 1  % BMEprobaMoments - Gaussian PDF
+                    [softpdftype, nl, limi, probdens] = probaGaussian(KS.softdata{m}.z, KS.softdata{m}.vs);
+                    KS.softpdftype{m} = softpdftype;
+                    KS.nl{m} = nl;
+                    KS.limi{m} = limi;
+                    KS.probdens{m} = probdens;
+                case 2  % KrigingME - use mean/variance directly
+                    KS.softpdftype{m} = 2;
+                    KS.nl{m} = [];
+                    KS.limi{m} = [];
+                    KS.probdens{m} = [];
+            end
+        end
+    end 
+
 else
     % No soft data
     KS.softpdftype = 1;

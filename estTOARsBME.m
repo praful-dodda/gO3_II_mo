@@ -212,6 +212,44 @@ for iTime = 1:length(tkVec)
 
             % Replace NaNs in XkBMEm with 0s
             XkBMEm(isnan(XkBMEm)) = 0;
+
+        case 3  % KrigingME
+            % Select kriging method based on data format
+            switch BMEparam.dataFormat
+                case 'stug'
+                    fprintf('    Using krigingME_stug (STUG format - space-time unstructured grid)...\n');
+                    % STUG format: fastest for large uniform grids
+                    % reformat for all of the softdatasets if it's a cell array
+                    if iscell(KS.softdata)
+                        soft_data = cell(size(KS.softdata));
+                        p_soft = cell(size(KS.softdata));
+                        z_soft = cell(size(KS.softdata));
+                        vs_soft = cell(size(KS.softdata));
+
+                        for ii = 1:length(KS.softdata)
+                            soft_data{ii} = reformat_stg_to_stug(KS.softdata{ii});
+                            p_soft{ii} = KS.softdata{ii}.p;
+                            z_soft{ii} = KS.softdata{ii}.z;
+                            vs_soft{ii} = KS.softdata{ii}.vs;
+                        end
+                    else
+                        soft_data = reformat_stg_to_stug(KS.softdata);
+                    end
+                    % [XkBMEm, XkBMEv] = krigingME_stug(pk, KS.harddata.p, KS.softdata.p, ...
+                    %     KS.harddata.z, KS.softdata.z, KS.softdata.vs, ...
+                    %     KG.covmodel, KG.covparam, BMEparam.nhmax, BMEparam.nsmax, ...
+                    %     BMEparam.dmax, KG.order, 0, KS.harddata, soft_data);
+                    [XkBMEm, XkBMEv] = krigingME_stug_multi(pk, KS.harddata.p, p_soft, KS.harddata.z, ...
+                        z_soft, vs_soft, KG.covmodel, KG.covparam, BMEparam.nhmax, BMEparam.nsmax, ...
+                        BMEparam.dmax, KG.order, BMEparam.options, KS.harddata, soft_data);
+
+                otherwise
+                    error('Invalid dataFormat: %s. Must be ''stv'', ''stg'', or ''stug''', ...
+                        BMEparam.dataFormat);
+            end
+
+            % Replace NaNs in XkBMEm with 0s
+            XkBMEm(isnan(XkBMEm)) = 0;
             
         otherwise
             error('Invalid BMEprobaType: %d', BMEprobaType);
