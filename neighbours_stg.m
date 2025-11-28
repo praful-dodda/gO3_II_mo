@@ -166,7 +166,38 @@ dMEsub=dMEsub(idx);
 
 % Select only the ME that are no further from t0 than the furthest selected
 % MS is from s0
+
+% SAFETY CHECK: Ensure we have spatial neighbors before accessing dMSsubReduced(end)
+if isempty(dMSsubReduced) || nMSsubReduced == 0
+  % No spatial neighbors within dmax(1) - return empty
+  psub = [];
+  zsub = [];
+  dsub = [];
+  nsub = 0;
+  index = [];
+  return;
+end
+
+% Apply space-time constraint to select temporal neighbors
 nMEsubReduced=max(find(dmax(3)*dMEsub<=dMSsubReduced(end)));
+
+% SAFETY CHECK: Handle case where no temporal neighbors satisfy space-time constraint
+if isempty(nMEsubReduced) || nMEsubReduced == 0
+  % Space-time constraint is too restrictive
+  % Strategy: Include at least the closest temporal neighbor if any exist
+  if nMEsub > 0
+    nMEsubReduced = 1;  % Keep at least the closest time event
+  else
+    % No temporal neighbors within dmax(2) at all - return empty
+    psub = [];
+    zsub = [];
+    dsub = [];
+    nsub = 0;
+    index = [];
+    return;
+  end
+end
+
 indexMEsubReduced=indexMEsub(1:nMEsubReduced);
 dMEsubReduced=dMEsub(1:nMEsubReduced);
 
@@ -187,27 +218,7 @@ nsubReduced=sum(reshape(data.Zisnotnan(indexMSsubReduced,indexMEsubReduced),...
 
 % If nsubReduced<nmax then try to increase nMSsubReduced or nMEsubReduced
 
-% PD add the following lines. Remove this later
-% fprintf('nsubReduced: %d\n', nsubReduced)
-% fprintf('nmax: %d\n', nmax)
-% fprintf('nMSsubReduced: %d\n', nMSsubReduced)
-% fprintf('nMSsub: %d\n', nMSsub)
-% fprintf('nMEsubReduced: %d\n', nMEsubReduced)
-% fprintf('nMEsub: %d\n', nMEsub)
-
-% try 
-%   nMEsubReduced<nMEsub;
-% catch ME
-%   sprintf(ME.message)
-%   if isempty(nMEsubReduced)
-%     nMEsubReduced = 0;
-%   end
-% end
-
-if isempty(nMEsubReduced)
-  nMEsubReduced = 0;
-end
-
+% If we have fewer neighbors than nmax, try to expand the search
 if nsubReduced<nmax  && (nMSsubReduced<nMSsub || nMEsubReduced<nMEsub)
 
   if nMSsubReduced<nMSsub
@@ -234,16 +245,7 @@ if nsubReduced<nmax  && (nMSsubReduced<nMSsub || nMEsubReduced<nMEsub)
       ii=ii+1;
     else
       delta_dst_along_MS=dMSsub(nMSsubCandidates(ii+1))-dMSsub(nMSsubCandidates(ii));
-      % delta_dst_along_ME=dmax(3)*(dMEsub(nMEsubCandidates(ii+1))-dMEsub(nMEsubCandidates(ii)));
-      % PD removed this line in Oct. 2024 and replaced with the line
-      % below
-      
-      % % PD edit this later
-      try
-        delta_dst_along_ME=dmax(3)*(dMEsub(nMEsubCandidates(jj+1))-dMEsub(nMEsubCandidates(jj)));
-      catch ME
-          sprintf(ME.message)
-      end
+      delta_dst_along_ME=dmax(3)*(dMEsub(nMEsubCandidates(jj+1))-dMEsub(nMEsubCandidates(jj)));
 
       if delta_dst_along_MS<delta_dst_along_ME
         ii=ii+1;
