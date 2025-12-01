@@ -54,15 +54,23 @@ dataDir = '1data';
 figDir = fullfile('5BMEspatialPlots', 'figs', 'variance');
 if ~exist(figDir, 'dir'), mkdir(figDir); end
 
+% Select variance data to plot (use back-transformed if available, otherwise use log-space)
+if isfield(BMEs, 'ZkBMEv') && ~isempty(BMEs.ZkBMEv)
+    XkBMEv = BMEs.ZkBMEv;  % Back-transformed variance (original concentration space)
+    usePlotData = BMEs.ZkBMEm;  % Use back-transformed mean for CV calculation
+else
+    XkBMEv = BMEs.XkBMEv;  % Log space variance (fallback)
+    usePlotData = BMEs.YkBMEm;  % Use log space mean for CV calculation
+end
+
 % Clean variance data
-XkBMEv = BMEs.XkBMEv;
 XkBMEv = real(XkBMEv);  % Remove imaginary parts
 XkBMEv(XkBMEv < 0) = 0;  % Remove negative variances
 
 % Calculate derived quantities
 stdDev = sqrt(XkBMEv);
-if ~isempty(BMEs.YkBMEm)
-    CV = (stdDev ./ abs(BMEs.YkBMEm)) * 100;  % Coefficient of variation (%)
+if ~isempty(usePlotData)
+    CV = (stdDev ./ abs(usePlotData)) * 100;  % Coefficient of variation (%)
     CV(isinf(CV)) = NaN;
     CV(CV > 200) = NaN;  % Cap at 200%
 else
@@ -113,6 +121,10 @@ elseif abs(tk*12 - round(tk*12)) < 1e-6
     timeStr = sprintf('Year: %d, Month: %d', year, month);
 end
 
+% Add log-transform indicator
+ltStr = sprintf(', lt=%d', obs.logTransf);
+ltSuffix = sprintf('_lt%d', obs.logTransf);
+
 %% Plot Based on Type
 BMEmethod8digits = BMEparam.BMEmethod8digits;
 
@@ -140,8 +152,8 @@ switch plotType
         ylabel('Latitude (deg)', 'FontSize', 14);
         
         title({sprintf('%s BME Standard Deviation', obs.Zname), timeStr, ...
-            sprintf('BME Method: %s, GO: %d, Area: %d, Res: %.2f°, Format: %s', ...
-            BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat)}, ...
+            sprintf('BME Method: %s, GO: %d, Area: %d, Res: %.2f°, Format: %s%s', ...
+            BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat, ltStr)}, ...
             'FontSize', 14, 'FontWeight', 'bold');
 
         % Statistics
@@ -155,8 +167,8 @@ switch plotType
             'EdgeColor', 'black', 'FontSize', 10);
 
         % Save
-        figFilename = sprintf('BME%s_go%d_area%d_res%.2f_%s_time%.2f_stddev.png', ...
-            BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat, tk);
+        figFilename = sprintf('BME%s_go%d%s_area%d_res%.2f_%s_time%.2f_stddev.png', ...
+            BMEmethod8digits, go.scenario, ltSuffix, areaCode, mapResolution, BMEparam.dataFormat, tk);
         
     case 2  % Variance
         % figure('Position', [100 100 1200 800], 'Color', 'w');
@@ -181,8 +193,8 @@ switch plotType
         ylabel('Latitude (deg)', 'FontSize', 14);
         
         title({sprintf('%s BME Variance', obs.Zname), timeStr, ...
-            sprintf('BME Method: %s, GO: %d, Area: %d, Res: %.2f°, Format: %s', ...
-            BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat)}, ...
+            sprintf('BME Method: %s, GO: %d, Area: %d, Res: %.2f°, Format: %s%s', ...
+            BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat, ltStr)}, ...
             'FontSize', 14, 'FontWeight', 'bold');
 
         % Statistics
@@ -196,8 +208,8 @@ switch plotType
             'EdgeColor', 'black', 'FontSize', 10);
 
         % Save
-        figFilename = sprintf('BME%s_go%d_area%d_res%.2f_%s_time%.2f_variance.png', ...
-            BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat, tk);
+        figFilename = sprintf('BME%s_go%d%s_area%d_res%.2f_%s_time%.2f_variance.png', ...
+            BMEmethod8digits, go.scenario, ltSuffix, areaCode, mapResolution, BMEparam.dataFormat, tk);
         
     case 3  % Coefficient of Variation
         if isempty(CV)
@@ -227,8 +239,8 @@ switch plotType
         ylabel('Latitude (deg)', 'FontSize', 14);
         
         title({sprintf('%s BME Coefficient of Variation', obs.Zname), timeStr, ...
-            sprintf('BME Method: %s, GO: %d, Area: %d, Res: %.2f°, Format: %s', ...
-            BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat)}, ...
+            sprintf('BME Method: %s, GO: %d, Area: %d, Res: %.2f°, Format: %s%s', ...
+            BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat, ltStr)}, ...
             'FontSize', 14, 'FontWeight', 'bold');
 
         % Statistics
@@ -239,8 +251,8 @@ switch plotType
             'EdgeColor', 'black', 'FontSize', 10);
 
         % Save
-        figFilename = sprintf('BME%s_go%d_area%d_res%.2f_%s_time%.2f_CV.png', ...
-            BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat, tk);
+        figFilename = sprintf('BME%s_go%d%s_area%d_res%.2f_%s_time%.2f_CV.png', ...
+            BMEmethod8digits, go.scenario, ltSuffix, areaCode, mapResolution, BMEparam.dataFormat, tk);
         
     case 4  % Multi-panel (all three)
         % figure('Position', [100 100 1800 600], 'Color', 'w');
@@ -300,13 +312,13 @@ switch plotType
         
         % Overall title
         sgtitle({sprintf('%s BME Uncertainty - %s', obs.Zname, timeStr), ...
-            sprintf('BME Method: %s, GO: %d, Area: %d, Resolution: %.2f°, Format: %s', ...
-            BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat)}, ...
+            sprintf('BME Method: %s, GO: %d, Area: %d, Resolution: %.2f°, Format: %s%s', ...
+            BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat, ltStr)}, ...
             'FontSize', 15, 'FontWeight', 'bold');
 
         % Save
-        figFilename = sprintf('BME%s_go%d_area%d_res%.2f_%s_time%.2f_uncertainty_all.png', ...
-            BMEmethod8digits, go.scenario, areaCode, mapResolution, BMEparam.dataFormat, tk);
+        figFilename = sprintf('BME%s_go%d%s_area%d_res%.2f_%s_time%.2f_uncertainty_all.png', ...
+            BMEmethod8digits, go.scenario, ltSuffix, areaCode, mapResolution, BMEparam.dataFormat, tk);
         
     otherwise
         error('plotVariance must be 1 (std), 2 (var), 3 (CV), or 4 (all)');

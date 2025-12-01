@@ -137,13 +137,28 @@ for iTime = 1:length(tkVec)
     if exist(BMEsPath, 'file') && ~forceEstimation
         fprintf('  Results exist, loading...\n');
         load(BMEsPath, 'BMEs');
-        
+
         if plotResults > 0
             % replace NaNs in BMEs.XkBMEm with 0s
             BMEs.XkBMEm(isnan(BMEs.XkBMEm)) = 0;
 
             % recalculate YkBMEm
             BMEs.YkBMEm = BMEs.XkBMEm + BMEs.gok;
+
+            % Recalculate back-transformed values if needed and not present
+            if obs.logTransf == 1 && (~isfield(BMEs, 'ZkBMEm') || isempty(BMEs.ZkBMEm))
+                fprintf('  Recalculating back-transformed values...\n');
+                [BMEs.ZkBMEm, BMEs.ZkBMEv] = applyBackLogTransform(BMEs.YkBMEm, BMEs.XkBMEv, 'simple');
+                if ~isempty(BMEs.Yobs) && (~isfield(BMEs, 'Zobs') || isempty(BMEs.Zobs))
+                    BMEs.Zobs = exp(BMEs.Yobs);
+                end
+            elseif obs.logTransf == 0 && (~isfield(BMEs, 'ZkBMEm') || isempty(BMEs.ZkBMEm))
+                BMEs.ZkBMEm = BMEs.YkBMEm;
+                BMEs.ZkBMEv = BMEs.XkBMEv;
+                if ~isempty(BMEs.Yobs) && (~isfield(BMEs, 'Zobs') || isempty(BMEs.Zobs))
+                    BMEs.Zobs = BMEs.Yobs;
+                end
+            end
 
             plotTOARsBME(obs, go, BMEs, BMEparam, estParam);
             plotTOARsBMEvar(obs, go, BMEs, BMEparam, estParam);
@@ -261,24 +276,40 @@ for iTime = 1:length(tkVec)
     % Add global offset back to get final predictions
     gok = stmeaninterp(go.sMS, go.tME, go.ms, go.mt, sk, tk);
 
-    YkBMEm = XkBMEm + gok;
+    YkBMEm = XkBMEm + gok;  % Still in log space if logTransf=1
 
     % Debug:
     fprintf('XkBMEm range: [%.2e, %.2e]\n', min(XkBMEm), max(XkBMEm));
     fprintf('gok range: [%.2e, %.2e]\n', min(gok), max(gok));
     fprintf('YkBMEm range: [%.2e, %.2e]\n', min(YkBMEm), max(YkBMEm));
-    
+
     % Clean up variance estimates
     XkBMEv(isnan(XkBMEv)) = max(XkBMEv(~isnan(XkBMEv)));
     XkBMEv = real(XkBMEv);  % Remove any imaginary components
-    
+
+    % Back-transform if log transformation was used
+    if obs.logTransf == 1
+        fprintf('  Applying back log-transformation...\n');
+
+        % Back-transform predictions to original concentration space
+        [ZkBMEm, ZkBMEv] = applyBackLogTransform(YkBMEm, XkBMEv, 'simple');
+
+        fprintf('    ZkBMEm range: [%.2f, %.2f] %s\n', min(ZkBMEm), max(ZkBMEm), obs.Zunit);
+    else
+        % No transformation needed
+        ZkBMEm = YkBMEm;
+        ZkBMEv = XkBMEv;
+    end
+
     % Package results
     BMEs.sk = sk;
     BMEs.tk = tk;
-    BMEs.XkBMEm = XkBMEm;           % Residual mean
-    BMEs.XkBMEv = XkBMEv;           % Residual variance
-    BMEs.gok = gok;                 % Global offset
-    BMEs.YkBMEm = YkBMEm;           % Final prediction (with GO)
+    BMEs.XkBMEm = XkBMEm;           % Residual mean (log space if logTransf=1)
+    BMEs.XkBMEv = XkBMEv;           % Residual variance (log space if logTransf=1)
+    BMEs.gok = gok;                 % Global offset (log space if logTransf=1)
+    BMEs.YkBMEm = YkBMEm;           % Final prediction with GO (log space if logTransf=1)
+    BMEs.ZkBMEm = ZkBMEm;           % Back-transformed prediction (original space)
+    BMEs.ZkBMEv = ZkBMEv;           % Back-transformed variance (original space)
     BMEs.estGridArea = axMS_est;
     BMEs.areaCode = areaCode;
     BMEs.mapResolution = mapResolution;
@@ -289,31 +320,40 @@ for iTime = 1:length(tkVec)
         validObs = ~isnan(obs.Y(:, iME));
         if any(validObs)
             BMEs.sMSobs = obs.sMS(validObs, :);
-            BMEs.Yobs = obs.Y(validObs, iME);
-            
+            BMEs.Yobs = obs.Y(validObs, iME);  % Log space if logTransf=1
+
+            % Back-transform observations if log transformation was used
+            if obs.logTransf == 1
+                BMEs.Zobs = exp(BMEs.Yobs);  % Original concentration space
+            else
+                BMEs.Zobs = BMEs.Yobs;
+            end
+
             % Also include residuals
             Xh = obs.Y - stmeaninterp(go.sMS, go.tME, go.ms, go.mt, obs.sMS, obs.tME);
             BMEs.Xobs = Xh(validObs, iME);
         else
             BMEs.sMSobs = [];
             BMEs.Yobs = [];
+            BMEs.Zobs = [];
             BMEs.Xobs = [];
         end
     else
         BMEs.sMSobs = [];
         BMEs.Yobs = [];
+        BMEs.Zobs = [];
         BMEs.Xobs = [];
     end
     
     % Save results
     fprintf('  Saving results to: %s\n', BMEsFile);
     save(BMEsPath, 'BMEs', '-v7.3');
-    
-    % Summary statistics
+
+    % Summary statistics (show in original concentration space)
     fprintf('  Results summary:\n');
-    fprintf('    Mean prediction: %.2f %s\n', mean(YkBMEm, "omitmissing"), obs.Zunit);
-    fprintf('    Std prediction: %.2f %s\n', std(YkBMEm, "omitmissing"), obs.Zunit);
-    fprintf('    Mean uncertainty: %.2f %s\n', mean(sqrt(XkBMEv), "omitmissing"), obs.Zunit);
+    fprintf('    Mean prediction: %.2f %s\n', mean(ZkBMEm, "omitmissing"), obs.Zunit);
+    fprintf('    Std prediction: %.2f %s\n', std(ZkBMEm, "omitmissing"), obs.Zunit);
+    fprintf('    Mean uncertainty: %.2f %s\n', mean(sqrt(ZkBMEv), "omitmissing"), obs.Zunit);
     
     % Plot if requested
     if plotResults > 0

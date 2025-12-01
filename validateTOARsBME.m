@@ -104,10 +104,17 @@ for iYear = 1:length(valParam.valYears)
             continue;
         end
 
-        % Accumulate results
-        Y_obs_all = [Y_obs_all; valResults.Y_obs];
-        Y_est_all = [Y_est_all; valResults.Y_est];
-        Y_estNoGo_all = [Y_estNoGo_all; valResults.Y_estNoGo];
+        % Accumulate results (back-transform if log transformation was used)
+        if obs.logTransf == 1
+            % Back-transform from log space to original concentration space
+            Y_obs_all = [Y_obs_all; exp(valResults.Y_obs)];
+            Y_est_all = [Y_est_all; exp(valResults.Y_est)];
+            Y_estNoGo_all = [Y_estNoGo_all; exp(valResults.Y_estNoGo)];
+        else
+            Y_obs_all = [Y_obs_all; valResults.Y_obs];
+            Y_est_all = [Y_est_all; valResults.Y_est];
+            Y_estNoGo_all = [Y_estNoGo_all; valResults.Y_estNoGo];
+        end
         sk_all = [sk_all; valResults.sk];
         tk_all = [tk_all; valResults.tk];
         if isfield(valResults, 'XkBMEv')
