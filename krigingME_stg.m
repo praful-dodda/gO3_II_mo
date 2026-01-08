@@ -102,16 +102,23 @@ function [zk, vk] = krigingME_stg(pk,harddata,softdata,covmodel,covparam,nhmax,n
 
         % [phlocal, zhlocal, ~, sumnhlocal, ~] = neighbours_stv(pk0, harddata.p(harddata.Zisnotnan,:), harddata.z(harddata.Zisnotnan), nhmax, dmax);
         [phlocal, zhlocal, ~, sumnhlocal, ~] = neighbours_stg(pk0, harddata, nhmax, dmax);
-        % [pslocal, zslocal, ~, sumnslocal, index] = neighbours_stg(pk0, softdata, nsmax, dmax);
-        
-        % % PD edit this later
+
+        % Get soft data neighbors with proper error handling
         try
             [pslocal, zslocal, ~, sumnslocal, index] = neighbours_stg(pk0, softdata, nsmax, dmax);
+            if ~isempty(index)
+                vslocal = softdata.vs(index);
+            else
+                vslocal = [];
+            end
         catch ME
-            sprintf(ME.message)
+            warning('Failed to get soft neighbors at point %d: %s', i, ME.message);
+            pslocal = [];
+            zslocal = [];
+            sumnslocal = 0;
+            index = [];
+            vslocal = [];
         end
-
-        vslocal = softdata.vs(index);
 
         Khh = coord2K(phlocal, phlocal, covmodel, covparam);
         Kss = coord2K(pslocal, pslocal, covmodel, covparam);
@@ -126,11 +133,9 @@ function [zk, vk] = krigingME_stg(pk,harddata,softdata,covmodel,covparam,nhmax,n
 
         chslocal=[phlocal;pslocal];
         [X,x]=krigconstr(chslocal,pk0,order);
-        index=findpairs(pk0,pslocal);
 
-        if isempty(index)
-            k0=coord2K(pk0,pk0,covmodel,covparam);             % compute the variance at pk0
-        end
+        % Always compute k0 - needed for variance calculation
+        k0=coord2K(pk0,pk0,covmodel,covparam);
 
         if (sumnhlocal+sumnslocal)>0
             nx=size(X,2);
