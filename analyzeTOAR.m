@@ -207,8 +207,14 @@ if analyzeParam.runBME && analyzeParam.runGO && analyzeParam.runCov
         analyzeParam.softData, analyzeParam.BMEmethod, analyzeParam.dataFormat);
     
     fprintf('  Hard data points: %d\n', length(KS.harddata.z));
-    if ~isempty(KS.softdata.z)
+    if isstruct(KS.softdata) && ~isempty(KS.softdata.z)
         fprintf('  Soft data points: %d\n', length(KS.softdata.z));
+    elseif iscell(KS.softdata)
+        totalSoft = 0;
+        for m = 1:length(KS.softdata)
+            totalSoft = totalSoft + length(KS.softdata{m}.z);
+        end
+        fprintf('  Soft data points (total): %d\n', totalSoft);
     end
 else
     KG = [];

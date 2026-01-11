@@ -158,7 +158,7 @@ for i=1:nk
   end
 
   % Get hard data neighbors
-  [chlocal,zhlocal,~,sumnhlocal,~]=neighbours(ck0,ch,zh,nhmax,dmax);
+  [chlocal,zhlocal,~,sumnhlocal,~]=neighbours_stg(ck0,hard_data,nhmax,dmax);
 
   % Get soft data neighbors - handle single or multiple datasets
   if hasMultipleSoftDatasets

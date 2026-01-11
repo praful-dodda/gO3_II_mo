@@ -316,4 +316,3 @@ psub=data.p(index,:);                  % extract the subset p
 zsub=data.z(index);                    % extract the subset z
 
 
-
