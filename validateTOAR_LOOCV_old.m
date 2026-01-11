@@ -1,4 +1,4 @@
-function [valOut, valPairOut] = validateTOAR_LOOCV(obs, go, cov, KG, KS, BMEparam, valParam)
+function [valOut, valPairOut] = validateTOAR_LOOCV_old(obs, go, cov, KG, KS, BMEparam, valParam)
 % validateTOAR_LOOCV - Leave-One-Out Cross Validation for TOAR BME estimates
 %
 % ** DEPRECATED: Please use validateTOARsBME.m instead **

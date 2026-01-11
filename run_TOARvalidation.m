@@ -26,7 +26,7 @@ switch validationMethod
     case 'loocv'
         % Leave-One-Out Cross-Validation (Monthly approach)
         fprintf('\nUsing monthly LOOCV validation approach...\n');
-        [valOut, valPairOut] = validateTOARsBME(obs, go, cov, BMEparam, valParam);
+        [valOut, valPairOut] = validateTOAR_loocv(obs, go, cov, BMEparam, valParam);
     case 'kfold'
         % K-Fold Cross-Validation
         if ~exist('validateTOAR_kFold', 'file')

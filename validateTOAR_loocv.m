@@ -1,11 +1,11 @@
-function [valOut, valPairOut] = validateTOARsBME(obs, go, cov, BMEparam, valParam)
-% validateTOARsBME - Monthly Leave-One-Out Cross Validation for TOAR BME
+function [valOut, valPairOut] = validateTOAR_loocv(obs, go, cov, BMEparam, valParam)
+% validateTOAR_loocv - Monthly Leave-One-Out Cross Validation for TOAR BME
 %
 % Performs LOOCV month-by-month to avoid memory issues and provide
 % realistic validation matching operational BME estimation approach
 %
 % SYNTAX:
-%   [valOut, valPairOut] = validateTOARsBME(obs, go, cov, BMEparam, valParam)
+%   [valOut, valPairOut] = validateTOAR_loocv(obs, go, cov, BMEparam, valParam)
 %
 % INPUTS:
 %   obs       - Structure from getTOARobservationalData
@@ -27,11 +27,11 @@ function [valOut, valPairOut] = validateTOARsBME(obs, go, cov, BMEparam, valPara
 %   valParam.valMonths = 1:12;
 %   valParam.forceEstimation = 0;
 %   valParam.plotResults = 1;
-%   [valOut, valPairOut] = validateTOARsBME(obs, go, cov, BMEparam, valParam);
+%   [valOut, valPairOut] = validateTOAR_loocv(obs, go, cov, BMEparam, valParam);
 
 %% Input Validation
 if nargin < 5
-    error('All 5 inputs required. See help validateTOARsBME');
+    error('All 5 inputs required. See help validateTOAR_loocv');
 end
 
 % Set defaults
