@@ -27,11 +27,13 @@ switch validationMethod
         % Leave-One-Out Cross-Validation (Monthly approach)
         fprintf('\nUsing monthly LOOCV validation approach...\n');
         [valOut, valPairOut] = validateTOAR_loocv(obs, go, cov, BMEparam, valParam);
+
     case 'cbcv'
         % Checker-Board Cross-Validation
         fprintf('\nUsing checker-board cross-validation (CBCV) approach...\n');
         % Note: runCBCV_toar handles data loading internally
         [valPairOut, valOut] = runCBCV_toar(valParam);
+        
     case 'kfold'
         % K-Fold Cross-Validation
         if ~exist('validateTOAR_kFold', 'file')

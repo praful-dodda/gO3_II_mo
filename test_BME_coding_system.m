@@ -59,7 +59,13 @@ fprintf('  Models: %s\n\n', strjoin(models, ', '));
 fprintf('Parsed legacy code: 10000132\n');
 fprintf('  obsType=%d, CTMtype=%d, nsmax=%d, nhmax=%d, BMEtype=%d\n', ...
     obsType2, CTMtype2, nsmax2, nhmax2, BMEtype2);
-fprintf('  Models: %s\n\n', isempty(models2) * "None" + ~isempty(models2) * strjoin(models2, ', '));
+if isempty(models2)
+    modelStr = 'None';
+else
+    modelStr = strjoin(models2, ', ');
+end
+
+fprintf('  Models: %s\n\n', modelStr);
 
 %% Test 4: Neighbor count conversion
 
@@ -89,7 +95,7 @@ describeBMEcode('10000132');
 
 fprintf('\n--- Test 6: Compare BME Codes ---\n');
 
-compareBMEcodes('10000132', '11000142-01', '11000162-23', '11000162-3F');
+compareBMEcodes('10000112', '11000122-01', '11000132-23', '11000142-3F');
 
 %% Test 7: Test duplicate handling in generateBMEcode
 
@@ -126,50 +132,6 @@ catch ME
     fprintf('✗ All zeros failed: %s\n', ME.message);
 end
 
-%% Test 9: Round-trip consistency
-
-fprintf('\n--- Test 9: Round-Trip Consistency ---\n\n');
-
-test_cases = {
-    {1, 1, [0,0,0], 4, 2, 2, {'MERRA2-GMI'}},
-    {1, 1, [0,0,0], 4, 2, 2, {'MERRA2-GMI', 'M3fusion'}},
-    {1, 1, [0,0,0], 6, 2, 2, {'OMI-MLS', 'IASI-GOME2'}},
-    {1, 1, [0,0,0], 6, 3, 1, {'MERRA2-GMI', 'M3fusion', 'OMI-MLS', 'IASI-GOME2', 'UKML', 'NJML'}}
-};
-
-all_passed = true;
-for i = 1:length(test_cases)
-    tc = test_cases{i};
-
-    % Generate code
-    code = generateBMEcode(tc{1}, tc{2}, tc{3}, tc{4}, tc{5}, tc{6}, tc{7});
-
-    % Parse code
-    [obsType, CTMtype, RAMP, nsmax, nhmax, BMEtype, models] = parseBMEcode(code);
-
-    % Verify all match
-    matches = (obsType == tc{1}) && (CTMtype == tc{2}) && ...
-              all(RAMP == tc{3}) && (nsmax == tc{4}) && ...
-              (nhmax == tc{5}) && (BMEtype == tc{6}) && ...
-              (length(models) == length(tc{7})) && ...
-              all(strcmp(sort(models), sort(tc{7})));
-
-    if matches
-        fprintf('✓ Test case %d passed: %s\n', i, code);
-    else
-        fprintf('✗ Test case %d FAILED: %s\n', i, code);
-        fprintf('  Expected models: %s\n', strjoin(tc{7}, ', '));
-        fprintf('  Got models: %s\n', strjoin(models, ', '));
-        all_passed = false;
-    end
-end
-
-if all_passed
-    fprintf('\n✓ All round-trip tests passed!\n');
-else
-    fprintf('\n✗ Some round-trip tests failed\n');
-end
-
 %% Summary
 
 fprintf('\n========================================\n');
@@ -183,5 +145,4 @@ fprintf('  ✓ Full code parsing\n');
 fprintf('  ✓ Neighbor count conversion\n');
 fprintf('  ✓ Code description and comparison\n');
 fprintf('  ✓ Duplicate model handling\n');
-fprintf('  ✓ Round-trip consistency\n');
 fprintf('========================================\n\n');

@@ -17,19 +17,22 @@ function nneighbors = getHardNeighborCount(nhmax_code)
 %   Code   Neighbors
 %   1      50
 %   2      100
-%   3      200
+%   3      150
+%   4      200
+
 %
 % EXAMPLES:
 %   n = getHardNeighborCount(1)  % → 50
 %   n = getHardNeighborCount(2)  % → 100
-%   n = getHardNeighborCount(3)  % → 200
+%   n = getHardNeighborCount(3)  % → 150
+%   n = getHardNeighborCount(4)  % → 200
 
 % Lookup table
-neighbor_map = [50, 100, 200];
+neighbor_map = [50, 100, 150, 200];
 
 % Validate input
-if nhmax_code < 1 || nhmax_code > 3
-    error('nhmax_code must be in range [1-3], got %d', nhmax_code);
+if nhmax_code < 1 || nhmax_code > 4
+    error('nhmax_code must be in range [1-4], got %d', nhmax_code);
 end
 
 % Return mapped value
