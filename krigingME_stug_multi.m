@@ -108,9 +108,11 @@ if nargin<15
     soft_data = struct();
 end
 
+% ---- soft neighbor selection mode for multi-dataset case ----
+softNeighborMode = 0;  % 0 = aggregate (default), 1 = per-dataset
+
 %%%%%% Detect if we have multiple soft datasets
-isCellArray = iscell(soft_data);
-hasMultipleSoftDatasets = isCellArray && ~isempty(soft_data);
+hasMultipleSoftDatasets = iscell(soft_data) && ~isempty(soft_data);
 
 if hasMultipleSoftDatasets
     nSoftDatasets = length(soft_data);
@@ -198,37 +200,50 @@ for i=1:nk
           end
       end
 
-      % Trim to nsmax total neighbors if we exceeded
-      if sumnslocal_total > nsmax
-          % Compute distances to select closest nsmax neighbors
-          if noindex==1
-              dists = sqrt(sum((cslocal_all - repmat(ck0, size(cslocal_all,1), 1)).^2, 2));
-          else
-              % Handle space-time distance
-              spatial_dists = sqrt(sum((cslocal_all(:,1:end-1) - ...
-                  repmat(ck0{1}, size(cslocal_all,1), 1)).^2, 2));
-              temporal_dists = abs(cslocal_all(:,end) - ck0{2}(1));
-              % Use same metric as dmax (assuming dmax is [spatial, temporal, metric])
-              if length(dmax) >= 3
-                  dists = spatial_dists + dmax(3) * temporal_dists;
-              else
-                  dists = spatial_dists + temporal_dists;
-              end
-          end
+        if softNeighborMode == 0
+            % ---- Mode 0: nsmax is TOTAL across all soft datasets (legacy behavior) ----
+            % Trim to nsmax total neighbors if we exceeded
 
-          [~, sort_idx] = sort(dists);
-          keep_idx = sort_idx(1:nsmax);
 
-          cslocal = cslocal_all(keep_idx, :);
-          zslocal = zslocal_all(keep_idx);
-          vslocal = vslocal_all(keep_idx);
-          sumnslocal = nsmax;
-      else
-          cslocal = cslocal_all;
-          zslocal = zslocal_all;
-          vslocal = vslocal_all;
-          sumnslocal = sumnslocal_total;
-      end
+            % Trim to nsmax total neighbors if we exceeded
+            if sumnslocal_total > nsmax
+                % Compute distances to select closest nsmax neighbors
+                if noindex==1
+                    dists = sqrt(sum((cslocal_all - repmat(ck0, size(cslocal_all,1), 1)).^2, 2));
+                else
+                    % Handle space-time distance
+                    spatial_dists = sqrt(sum((cslocal_all(:,1:end-1) - ...
+                        repmat(ck0{1}, size(cslocal_all,1), 1)).^2, 2));
+                    temporal_dists = abs(cslocal_all(:,end) - ck0{2}(1));
+                    % Use same metric as dmax (assuming dmax is [spatial, temporal, metric])
+                    if length(dmax) >= 3
+                        dists = spatial_dists + dmax(3) * temporal_dists;
+                    else
+                        dists = spatial_dists + temporal_dists;
+                    end
+                end
+
+                [~, sort_idx] = sort(dists);
+                keep_idx = sort_idx(1:nsmax);
+
+                cslocal = cslocal_all(keep_idx, :);
+                zslocal = zslocal_all(keep_idx);
+                vslocal = vslocal_all(keep_idx);
+                sumnslocal = nsmax;
+            else
+                cslocal = cslocal_all;
+                zslocal = zslocal_all;
+                vslocal = vslocal_all;
+                sumnslocal = sumnslocal_total;
+            end
+        else
+            % ---- Mode 1: nsmax is PER DATASET, no global trimming ----
+            % Each dataset already capped at nsmax in neighbours_stug_optimized
+            cslocal = cslocal_all;
+            zslocal = zslocal_all;
+            vslocal = vslocal_all;
+            sumnslocal = sumnslocal_total;
+        end 
 
   else
       % Single soft dataset (backward compatible)

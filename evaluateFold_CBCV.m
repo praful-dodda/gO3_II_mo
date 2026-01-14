@@ -42,7 +42,7 @@ function foldResults = evaluateFold_CBCV(obs, go, cov, BMEparam, trainMask, valM
 % EXAMPLE:
 %   [trainMask, valMask] = getCheckerBoard(obs.sMS, 5, 1);
 %   results = evaluateFold_CBCV(obs, go, cov, BMEparam, trainMask, valMask, valParam);
-%   stats = computeMetrics(results.Y_obs, results.Y_est, obs);
+%   stats = calculateValidationStats(results.Y_obs, results.Y_est);
 
 %% Input Validation
 if nargin < 7

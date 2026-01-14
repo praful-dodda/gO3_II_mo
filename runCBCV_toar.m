@@ -53,7 +53,7 @@ function [cbcvResults, cbcvStats] = runCBCV_toar(valParam)
 %   [results, stats] = runCBCV_toar(valParam);
 %
 % SEE ALSO:
-%   evaluateFold_CBCV, getCheckerBoard, computeMetrics, run_TOARvalidation
+%   evaluateFold_CBCV, getCheckerBoard, calculateValidationStats, run_TOARvalidation
 
 %% Set Defaults
 if nargin < 1
@@ -174,7 +174,7 @@ for iBox = 1:nBoxSizes
             %% Compute Metrics
             if foldResults.nVal > 0
                 fprintf('  Computing validation metrics...\n');
-                foldStats = computeMetrics(foldResults.Y_obs, foldResults.Y_est, obs);
+                foldStats = calculateValidationStats(foldResults.Y_obs, foldResults.Y_est);
                 foldStats.BoxSize = boxSize;
                 foldStats.Fold = iFold;
                 foldStats.nTrain = foldResults.nTrain;

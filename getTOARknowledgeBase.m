@@ -62,8 +62,10 @@ end
 
 fprintf('--- Preparing BME Knowledge Bases ---\n');
 % Parse BME method code
-[obsType, CTMtype, RAMPnonLinearity, RAMPnonHomoscedasticity, ...
- RAMPnonStationary, BMEnsmax, BMEnhmax, BMEprobaType] = parseTOARBMEmethod(BMEmethod8digits);
+% [obsType, CTMtype, RAMPnonLinearity, RAMPnonHomoscedasticity, ...
+%  RAMPnonStationary, BMEnsmax, BMEnhmax, BMEprobaType] = parseTOARBMEmethod(BMEmethod8digits);
+
+[obsType, CTMtype, ~, ~, ~, BMEprobaType] = parseBMEcode(BMEmethod8digits);
 
 fprintf('  BME Method: %s\n', BMEmethod8digits);
 fprintf('    Observation type: %d (1=hard, 2=hard/soft)\n', obsType);

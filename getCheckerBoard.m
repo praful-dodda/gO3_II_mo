@@ -1,4 +1,4 @@
-function [trainMask, valMask] = getCheckerBoard(sMS, boxSize, fold)
+function [trainMask, valMask] = getCheckerBoard(sMS, boxSize, fold, plotCheckerBoard)
 % getCheckerBoard - Generate checkerboard spatial pattern for cross-validation
 %
 % Creates a checkerboard pattern dividing spatial locations into training
@@ -6,7 +6,7 @@ function [trainMask, valMask] = getCheckerBoard(sMS, boxSize, fold)
 % squares, with the fold parameter determining which squares are for training.
 %
 % SYNTAX:
-%   [trainMask, valMask] = getCheckerBoard(sMS, boxSize, fold)
+%   [trainMask, valMask] = getCheckerBoard(sMS, boxSize, fold, plotCheckerBoard)
 %
 % INPUTS:
 %   sMS      - nPoints × 2 matrix of spatial coordinates [lon, lat]
@@ -16,6 +16,9 @@ function [trainMask, valMask] = getCheckerBoard(sMS, boxSize, fold)
 %   fold     - Which fold to use:
 %              1 = "black" squares for training, "white" for validation
 %              2 = "white" squares for training, "black" for validation
+%              (default: 1)
+%   plotCheckerBoard - (Optional) Boolean to plot the checkerboard pattern with
+%                      the legend (default: false)
 %
 % OUTPUTS:
 %   trainMask - nPoints × 1 logical array (true = training set)
@@ -42,6 +45,10 @@ function [trainMask, valMask] = getCheckerBoard(sMS, boxSize, fold)
 %% Input Validation
 if nargin < 3
     fold = 1;
+end
+
+if nargin < 4
+    plotCheckerBoard = false;
 end
 
 if nargin < 2 || isempty(boxSize)
@@ -109,5 +116,18 @@ fprintf('  Training points: %d (%.1f%%)\n', sum(trainMask), 100*sum(trainMask)/n
 fprintf('  Validation points: %d (%.1f%%)\n', sum(valMask), 100*sum(valMask)/nPoints);
 fprintf('  Spatial extent: [%.1f, %.1f] lon × [%.1f, %.1f] lat\n', ...
     lonMin, lonMax, latMin, latMax);
+
+%% Optional Plotting
+if plotCheckerBoard
+    figure;
+    hold on;
+    scatter(lon(trainMask), lat(trainMask), 20, 'b', 'filled', 'DisplayName', 'Training');
+    scatter(lon(valMask), lat(valMask), 20, 'r', 'filled', 'DisplayName', 'Validation');
+    xlabel('Longitude');
+    ylabel('Latitude');
+    title(sprintf('Checkerboard Pattern (Box: %.1f°×%.1f°, Fold: %d)', boxSizeLon, boxSizeLat, fold));
+    legend('Location', 'best');
+    grid on;
+    hold off;
 
 end

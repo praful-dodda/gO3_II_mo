@@ -101,7 +101,7 @@ fprintf('  Number of time periods: %d\n', length(tkVec));
 fprintf('\nCreating estimation grid...\n');
 
 % Get area boundaries
-[axMS_est, ~] = getTOARareaBoundaries(areaCode, [], [-180 180 -60 75]);
+[axMS_est, ~] = getTOARareaBoundaries(areaCode);
 
 % Create spatial grid
 sk = getTOARmapGrid(mapResolution, estParam.keepOnlyLand, estParam.includeAntarctica);

@@ -1,4 +1,4 @@
-function stats = calculateValidationStats(Y_obs, Y_est, obs)
+function stats = calculateValidationStats(Y_obs, Y_est, sigma_i)
 % calculateValidationStats - Calculate comprehensive validation metrics
 %
 % SYNTAX:
@@ -7,7 +7,7 @@ function stats = calculateValidationStats(Y_obs, Y_est, obs)
 % INPUTS:
 %   Y_obs - Observed values
 %   Y_est - Estimated values
-%   obs   - Observation structure (for units)
+%   sigma_i - (Optional) Uncertainty estimates for Y_est
 %
 % OUTPUTS:
 %   stats - Structure with validation statistics
@@ -43,7 +43,10 @@ stats.SpearmanR = corr(Y_obs, Y_est, 'Type', 'Spearman');
 stats.R2 = stats.PearsonR^2;
 
 %% Error Metrics
-residuals = Y_obs - Y_est;
+residuals = Y_est - Y_obs;
+
+% Mean Squared Error
+stats.MSE = mean(residuals.^2);
 
 % Root Mean Square Error
 stats.RMSE = sqrt(mean(residuals.^2));
@@ -56,6 +59,20 @@ stats.ME = mean(residuals);
 
 % Mean Bias Error (estimated - observed)
 stats.MBE = -stats.ME;
+
+% Variance of Errors
+stats.VarError = var(residuals);
+
+% r_QA
+numer_r_QA = var(Y_est) + var(Y_obs) - var(stats.MSE - stats.ME^2);
+denom_r_QA = 2 * sqrt(var(Y_est) * std(Y_obs));
+if denom_r_QA ~= 0
+    stats.r_QA = numer_r_QA / denom_r_QA;
+else
+    stats.r_QA = NaN;
+end
+
+stats.r2_QA = max(0, min(1, stats.r_QA^2));
 
 % Normalized Mean Bias (%)
 if sum(Y_obs) ~= 0
@@ -74,10 +91,10 @@ end
 %% Agreement Metrics
 % Index of Agreement (Willmott, 1981)
 meanObs = mean(Y_obs);
-numerator = sum((Y_obs - Y_est).^2);
-denominator = sum((abs(Y_est - meanObs) + abs(Y_obs - meanObs)).^2);
-if denominator ~= 0
-    stats.IOA = 1 - numerator / denominator;
+IOA_numerator = sum((Y_obs - Y_est).^2);
+IOA_denominator = sum((abs(Y_est - meanObs) + abs(Y_obs - meanObs)).^2);
+if IOA_denominator ~= 0
+    stats.IOA = 1 - IOA_numerator / IOA_denominator;
 else
     stats.IOA = NaN;
 end
@@ -94,5 +111,16 @@ stats.FAC2 = sum(ratio >= 0.5 & ratio <= 2, 'omitnan') / sum(~isnan(ratio)) * 10
 p = polyfit(Y_obs, Y_est, 1);
 stats.Slope = p(1);
 stats.Intercept = p(2);
+
+if all(~isnan(sigma_i)) && all(sigma_i > 0)
+    S = residuals ./ sigma_i(:);
+    stats.MS   = mean(S);
+    stats.RMSS = sqrt(mean(S.^2));
+    stats.MR   = mean(sigma_i);
+else
+    stats.MS = NaN; 
+    stats.RMSS = NaN;
+    stats.MR = NaN;
+end
 
 end

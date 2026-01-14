@@ -541,7 +541,10 @@ switch analysisScenario
         analyzeParam.forceCov = 0;
 
         % BME method with soft data
-        analyzeParam.BMEmethod = '13000113';  % Digit 2 = 1 enables soft data
+        BMEmethod_init = '13000113';  % Digit 2 = 1 enables soft data
+        [obsType, CTMtype, RAMP, nsmax, nhmax, BMEtype] = parseBMEcode(BMEmethod_init);
+        analyzeParam.BMEmethod = generateBMEcode(obsType, CTMtype, RAMP, nsmax, nhmax, BMEtype, modelNames);
+        
         analyzeParam.dataFormat = 'stug';     % Use optimized STUG for uniform grids
         analyzeParam.softData = softData;     % Pass soft data structure
 
