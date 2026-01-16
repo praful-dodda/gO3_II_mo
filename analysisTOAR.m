@@ -6,7 +6,10 @@
 % Advanced: Uncomment different scenarios below or modify parameters
 
 clear; close all;
-analysisScenario = 5;
+
+analysisScenario = 4;
+% 4 for cross-validation
+% 5 for BMEs-estimation
 
 %% ====================================================================
 %                    DATA CONFIGURATION
@@ -326,14 +329,19 @@ switch analysisScenario
         valParam.mapResolution = 1.0;
         valParam.tkVec = 2016:1/12:2017;  % Monthly 2016
         
-        valParam.valYears = 2016:2019;  % years to validate (only for LOOCV)
+        valParam.valYears = 2016:2017;  % years to validate (only for LOOCV)
         valParam.valMonths = 1:12;  % months to validate (only for LOOCV)
 
-        valParam.method = 'loocv'; % 'loocv' = monthly LOOCV (recommended), 'rcv' or 'kfold'
-        valParam.nFolds = 5;  % only used if method='kfold'
-        
+        % ------------ Specific to LOOCV ------------------ %
         % Note: LOOCV now uses monthly approach to avoid memory issues
 
+        % valParam.method = 'loocv'; % 'loocv' = monthly LOOCV (recommended), 'rcv' or 'kfold'
+        % valParam.nFolds = 5;  % only used if method='kfold'
+
+        % ------------ Specific to CBV ------------------- %
+        valParam.method = 'cbcv'; % 'cbcv' = checker-board validation
+        valParam.boxSizes = 5; % valid for [5, 10, 15]
+        
         % plot settings
         valParam.goPlot = 0;
         valParam.covPlot = 0;
@@ -344,7 +352,7 @@ switch analysisScenario
         % force re-calculation of each step
         valParam.forceGO = 0;
         valParam.forceCov = 0;
-        valParam.forceEstimation = 0; % this can't be 0 for validation
+        valParam.forceEstimation = 1; % this can't be 0 for validation
 
         % run validation
         run_TOARvalidation(valParam);

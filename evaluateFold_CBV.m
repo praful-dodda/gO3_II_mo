@@ -1,12 +1,12 @@
-function foldResults = evaluateFold_CBCV(obs, go, cov, BMEparam, trainMask, valMask, valParam)
-% evaluateFold_CBCV - Evaluate a single checkerboard cross-validation fold
+function foldResults = evaluateFold_CBV(obs, go, cov, BMEparam, trainMask, valMask, valParam)
+% evaluateFold_CBV - Evaluate a single checkerboard validation fold
 %
 % Trains BME model on training set (defined by trainMask) and validates
 % on validation set (defined by valMask). This is the core function for
-% checker-board cross-validation.
+% checker-board validation.
 %
 % SYNTAX:
-%   foldResults = evaluateFold_CBCV(obs, go, cov, BMEparam, trainMask, valMask, valParam)
+%   foldResults = evaluateFold_CBV(obs, go, cov, BMEparam, trainMask, valMask, valParam)
 %
 % INPUTS:
 %   obs       - Observational data structure from getTOARobservationalData
@@ -32,7 +32,7 @@ function foldResults = evaluateFold_CBCV(obs, go, cov, BMEparam, trainMask, valM
 %                 .nVal       - Number of validation points
 %
 % DESCRIPTION:
-%   This function implements one fold of checker-board cross-validation:
+%   This function implements one fold of checker-board validation:
 %   1. Creates training dataset from obs using trainMask
 %   2. Creates validation dataset from obs using valMask
 %   3. Prepares BME knowledge base using training data only
@@ -41,7 +41,7 @@ function foldResults = evaluateFold_CBCV(obs, go, cov, BMEparam, trainMask, valM
 %
 % EXAMPLE:
 %   [trainMask, valMask] = getCheckerBoard(obs.sMS, 5, 1);
-%   results = evaluateFold_CBCV(obs, go, cov, BMEparam, trainMask, valMask, valParam);
+%   results = evaluateFold_CBV(obs, go, cov, BMEparam, trainMask, valMask, valParam);
 %   stats = calculateValidationStats(results.Y_obs, results.Y_est);
 
 %% Input Validation

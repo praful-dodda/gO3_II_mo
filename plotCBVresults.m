@@ -1,27 +1,27 @@
-function plotCBCVresults(cbcvResults, cbcvStats, valParam)
-% plotCBCVresults - Create validation plots for CBCV results
+function plotCBVresults(cbvResults, cbvStats, valParam)
+% plotCBVresults - Create validation plots for CBV results
 %
 % SYNTAX:
-%   plotCBCVresults(cbcvResults, cbcvStats, valParam)
+%   plotCBVresults(cbvResults, cbvStats, valParam)
 %
 % INPUTS:
-%   cbcvResults - Cell array of results from runCBCV_toar
-%   cbcvStats   - Table of statistics from runCBCV_toar
+%   cbvResults - Cell array of results from runCBV_toar
+%   cbvStats   - Table of statistics from runCBV_toar
 %   valParam    - Validation parameters structure
 %
 % OUTPUTS:
 %   Creates figures showing validation results
 
 %% Create Figure Directory
-figDir = fullfile('7validation', 'CBCV', 'figures');
+figDir = fullfile('7validation', 'CBV', 'figures');
 if ~exist(figDir, 'dir')
     mkdir(figDir);
 end
 
 %% Plot 1: Scatter Plots for Each Box Size/Fold
 
-nBoxSizes = size(cbcvResults, 1);
-nFolds = size(cbcvResults, 2);
+nBoxSizes = size(cbvResults, 1);
+nFolds = size(cbvResults, 2);
 
 % Create subplot grid
 figure('Position', [100 100 1200 800]);
@@ -30,7 +30,7 @@ for iBox = 1:nBoxSizes
     for iFold = 1:nFolds
         subplot(nBoxSizes, nFolds, (iBox-1)*nFolds + iFold);
 
-        results = cbcvResults{iBox, iFold};
+        results = cbvResults{iBox, iFold};
 
         if ~isempty(results) && results.nVal > 0
             % Scatter plot
@@ -49,10 +49,10 @@ for iBox = 1:nBoxSizes
             grid on;
 
             % Get stats for this configuration
-            idx = (cbcvStats.BoxSize == valParam.boxSizes(iBox)) & ...
-                  (cbcvStats.Fold == iFold);
+            idx = (cbvStats.BoxSize == valParam.boxSizes(iBox)) & ...
+                  (cbvStats.Fold == iFold);
             if any(idx)
-                stats = cbcvStats(idx, :);
+                stats = cbvStats(idx, :);
                 title(sprintf('Box=%.0f°, Fold=%d\nR²=%.3f, RMSE=%.1f', ...
                     valParam.boxSizes(iBox), iFold, stats.R2, stats.RMSE));
             end
@@ -64,21 +64,21 @@ for iBox = 1:nBoxSizes
 end
 
 % Save
-sgtitle(sprintf('CBCV Scatter Plots - BME%s, GO%d', ...
+sgtitle(sprintf('CBV Scatter Plots - BME%s, GO%d', ...
     valParam.BMEmethod, valParam.goScenario));
-saveas(gcf, fullfile(figDir, sprintf('CBCV_scatter_BME%s_go%d.png', ...
+saveas(gcf, fullfile(figDir, sprintf('CBV_scatter_BME%s_go%d.png', ...
     valParam.BMEmethod, valParam.goScenario)));
 
 %% Plot 2: Performance vs Box Size
 
-if height(cbcvStats) > 0
+if height(cbvStats) > 0
     figure('Position', [150 150 1000 600]);
 
     % R² vs box size
     subplot(2, 2, 1);
     for iFold = 1:nFolds
-        idx = cbcvStats.Fold == iFold;
-        plot(cbcvStats.BoxSize(idx), cbcvStats.R2(idx), 'o-', ...
+        idx = cbvStats.Fold == iFold;
+        plot(cbvStats.BoxSize(idx), cbvStats.R2(idx), 'o-', ...
             'LineWidth', 2, 'MarkerSize', 8, 'DisplayName', sprintf('Fold %d', iFold));
         hold on;
     end
@@ -91,8 +91,8 @@ if height(cbcvStats) > 0
     % RMSE vs box size
     subplot(2, 2, 2);
     for iFold = 1:nFolds
-        idx = cbcvStats.Fold == iFold;
-        plot(cbcvStats.BoxSize(idx), cbcvStats.RMSE(idx), 'o-', ...
+        idx = cbvStats.Fold == iFold;
+        plot(cbvStats.BoxSize(idx), cbvStats.RMSE(idx), 'o-', ...
             'LineWidth', 2, 'MarkerSize', 8, 'DisplayName', sprintf('Fold %d', iFold));
         hold on;
     end
@@ -105,8 +105,8 @@ if height(cbcvStats) > 0
     % NMB vs box size
     subplot(2, 2, 3);
     for iFold = 1:nFolds
-        idx = cbcvStats.Fold == iFold;
-        plot(cbcvStats.BoxSize(idx), cbcvStats.NMB(idx), 'o-', ...
+        idx = cbvStats.Fold == iFold;
+        plot(cbvStats.BoxSize(idx), cbvStats.NMB(idx), 'o-', ...
             'LineWidth', 2, 'MarkerSize', 8, 'DisplayName', sprintf('Fold %d', iFold));
         hold on;
     end
@@ -120,8 +120,8 @@ if height(cbcvStats) > 0
     % Sample size vs box size
     subplot(2, 2, 4);
     for iFold = 1:nFolds
-        idx = cbcvStats.Fold == iFold;
-        plot(cbcvStats.BoxSize(idx), cbcvStats.nVal(idx), 'o-', ...
+        idx = cbvStats.Fold == iFold;
+        plot(cbvStats.BoxSize(idx), cbvStats.nVal(idx), 'o-', ...
             'LineWidth', 2, 'MarkerSize', 8, 'DisplayName', sprintf('Fold %d', iFold));
         hold on;
     end
@@ -131,9 +131,9 @@ if height(cbcvStats) > 0
     legend('Location', 'best');
     grid on;
 
-    sgtitle(sprintf('CBCV Performance Metrics - BME%s, GO%d', ...
+    sgtitle(sprintf('CBV Performance Metrics - BME%s, GO%d', ...
         valParam.BMEmethod, valParam.goScenario));
-    saveas(gcf, fullfile(figDir, sprintf('CBCV_metrics_BME%s_go%d.png', ...
+    saveas(gcf, fullfile(figDir, sprintf('CBV_metrics_BME%s_go%d.png', ...
         valParam.BMEmethod, valParam.goScenario)));
 end
 

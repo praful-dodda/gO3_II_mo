@@ -1,13 +1,13 @@
-function [cbcvResults, cbcvStats] = runCBCV_toar(valParam)
-% runCBCV_toar - Run Checker-Board Cross-Validation for TOAR BME analysis
+function [cbvResults, cbvStats] = runCBV_toar(valParam)
+% runCBV_toar - Run Checker-Board Validation for TOAR BME analysis
 %
-% Performs checker-board cross-validation (CBCV) by dividing the spatial
+% Performs checker-board validation (CBV) by dividing the spatial
 % domain into a checkerboard pattern, training on one set of squares, and
 % validating on the complementary set. Tests multiple box sizes and both
 % fold orientations.
 %
 % SYNTAX:
-%   [cbcvResults, cbcvStats] = runCBCV_toar(valParam)
+%   [cbvResults, cbvStats] = runCBV_toar(valParam)
 %
 % INPUTS:
 %   valParam - Structure with fields:
@@ -20,12 +20,12 @@ function [cbcvResults, cbcvStats] = runCBCV_toar(valParam)
 %              .valYears        - Years to validate (default: [2016])
 %              .valMonths       - Months to validate (default: 1:12)
 %              .boxSizes        - Array of box sizes in degrees (default: [5, 10, 15])
-%              .forceEstimation - Force re-calculation (default: 0)
+%              .forceEstimation - Force re-calculation (default: 1)
 %              .plotResults     - Create plots (default: 1)
 %
 % OUTPUTS:
-%   cbcvResults - Cell array {nBoxSizes × nFolds} of result structures
-%   cbcvStats   - Table with statistics for each box size and fold
+%   cbvResults - Cell array {nBoxSizes × nFolds} of result structures
+%   cbvStats   - Table with statistics for each box size and fold
 %
 % DESCRIPTION:
 %   For each box size:
@@ -43,17 +43,17 @@ function [cbcvResults, cbcvStats] = runCBCV_toar(valParam)
 %   % Basic usage with defaults
 %   valParam.valYears = 2016;
 %   valParam.boxSizes = [5, 10];
-%   [results, stats] = runCBCV_toar(valParam);
+%   [results, stats] = runCBV_toar(valParam);
 %
 %   % Multiple years and box sizes
 %   valParam.valYears = [2016 2017];
 %   valParam.valMonths = [6 7 8];  % Summer only
 %   valParam.boxSizes = [5, 10, 15, 20];
 %   valParam.BMEmethod = '11000142-01';  % With soft data
-%   [results, stats] = runCBCV_toar(valParam);
+%   [results, stats] = runCBV_toar(valParam);
 %
 % SEE ALSO:
-%   evaluateFold_CBCV, getCheckerBoard, calculateValidationStats, run_TOARvalidation
+%   evaluateFold_CBV, getCheckerBoard, calculateValidationStats, run_TOARvalidation
 
 %% Set Defaults
 if nargin < 1
@@ -69,7 +69,7 @@ if ~isfield(valParam, 'BMEmethod'), valParam.BMEmethod = '10000132'; end
 if ~isfield(valParam, 'valYears'), valParam.valYears = 2016; end
 if ~isfield(valParam, 'valMonths'), valParam.valMonths = 1:12; end
 if ~isfield(valParam, 'boxSizes'), valParam.boxSizes = [5, 10, 15]; end
-if ~isfield(valParam, 'forceEstimation'), valParam.forceEstimation = 0; end
+if ~isfield(valParam, 'forceEstimation'), valParam.forceEstimation = 1; end
 if ~isfield(valParam, 'plotResults'), valParam.plotResults = 1; end
 if ~isfield(valParam, 'goPlot'), valParam.goPlot = 0; end
 if ~isfield(valParam, 'forceGO'), valParam.forceGO = 0; end
@@ -78,7 +78,7 @@ if ~isfield(valParam, 'softData'), valParam.softData = []; end
 
 %% Print Configuration
 fprintf('\n========================================\n');
-fprintf('  CHECKER-BOARD CROSS-VALIDATION (CBCV)\n');
+fprintf('  CHECKER-BOARD VALIDATION (CBV)\n');
 fprintf('========================================\n');
 fprintf('Configuration:\n');
 fprintf('  BME method: %s\n', valParam.BMEmethod);
@@ -95,7 +95,7 @@ obs = getTOARobservationalData(valParam.stationTypes, valParam.timeRange, valPar
 fprintf('  Loaded %d stations, %d time periods\n', size(obs.Z, 1), size(obs.Z, 2));
 fprintf('  Valid data: %.1f%%\n', 100*sum(~isnan(obs.Z(:)))/numel(obs.Z));
 
-% Note: Soft data (CTM models) loaded inside evaluateFold_CBCV if needed
+% Note: Soft data (CTM models) loaded inside evaluateFold_CBV if needed
 % via getTOARknowledgeBase
 
 %% Load Global Offset and Covariance Models
@@ -106,7 +106,7 @@ go = getTOARglobalOffset(obs, valParam.goScenario, ...
 cov = getTOARautoCov(obs, go, valParam.temporalModel, valParam.forceCov);
 
 fprintf('  Global offset scenario: %d\n', go.scenario);
-fprintf('  Covariance model: %s\n', cov.covmodel);
+fprintf('  Covariance models: %s\n', strjoin(cov.covmodel, ', '));
 
 %% Get BME Parameters
 BMEparam = getBMEparam(valParam.BMEmethod);
@@ -117,20 +117,20 @@ fprintf('    nsmax: %d\n', BMEparam.nsmax);
 fprintf('    dmax: [%.1f, %.1f, %.1f]\n', BMEparam.dmax);
 
 %% Setup Output Directory
-cbcvDir = fullfile('7validation', 'CBCV');
-if ~exist(cbcvDir, 'dir')
-    mkdir(cbcvDir);
+cbvDir = fullfile('7validation', 'CBV');
+if ~exist(cbvDir, 'dir')
+    mkdir(cbvDir);
 end
 
 %% Initialize Results Storage
 nBoxSizes = length(valParam.boxSizes);
 nFolds = 2;  % Always 2 folds (forward and reverse)
-cbcvResults = cell(nBoxSizes, nFolds);
+cbvResults = cell(nBoxSizes, nFolds);
 statsData = [];
 
-%% Main CBCV Loop
+%% Main CBV Loop
 fprintf('\n========================================\n');
-fprintf('  RUNNING CBCV\n');
+fprintf('  RUNNING CBV\n');
 fprintf('========================================\n');
 
 totalRuns = nBoxSizes * nFolds;
@@ -148,10 +148,10 @@ for iBox = 1:nBoxSizes
             currentRun, totalRuns, boxSize, iFold);
 
         %% Check for Cached Results
-        resultFilename = sprintf('CBCV_BME%s_go%d_box%.0f_fold%d_y%s.mat', ...
+        resultFilename = sprintf('CBV_BME%s_go%d_box%.0f_fold%d_y%s.mat', ...
             valParam.BMEmethod, valParam.goScenario, boxSize, iFold, ...
             strjoin(arrayfun(@num2str, valParam.valYears, 'UniformOutput', false), '-'));
-        resultPath = fullfile(cbcvDir, resultFilename);
+        resultPath = fullfile(cbvDir, resultFilename);
 
         if exist(resultPath, 'file') && ~valParam.forceEstimation
             fprintf('  Loading cached results...\n');
@@ -165,7 +165,7 @@ for iBox = 1:nBoxSizes
             %% Evaluate This Fold
             fprintf('  Evaluating fold...\n');
             tic;
-            foldResults = evaluateFold_CBCV(obs, go, cov, BMEparam, ...
+            foldResults = evaluateFold_CBV(obs, go, cov, BMEparam, ...
                 trainMask, valMask, valParam);
             evalTime = toc;
 
@@ -202,7 +202,7 @@ for iBox = 1:nBoxSizes
         end
 
         %% Store Results
-        cbcvResults{iBox, iFold} = foldResults;
+        cbvResults{iBox, iFold} = foldResults;
 
         % Accumulate statistics
         if ~isempty(foldStats) && foldStats.N > 0
@@ -217,34 +217,34 @@ end
 
 %% Create Statistics Table
 fprintf('\n========================================\n');
-fprintf('  CBCV SUMMARY\n');
+fprintf('  CBV SUMMARY\n');
 fprintf('========================================\n');
 
 if ~isempty(statsData)
-    cbcvStats = struct2table(statsData);
+    cbvStats = struct2table(statsData);
 
     % Display summary
-    disp(cbcvStats(:, {'BoxSize', 'Fold', 'N', 'R2', 'RMSE', 'MAE', 'NMB', 'nTrain', 'nVal'}));
+    disp(cbvStats(:, {'BoxSize', 'Fold', 'N', 'R2', 'RMSE', 'MAE', 'NMB', 'nTrain', 'nVal'}));
 
     % Save summary table
-    summaryFilename = sprintf('CBCV_summary_BME%s_go%d.csv', ...
+    summaryFilename = sprintf('CBV_summary_BME%s_go%d.csv', ...
         valParam.BMEmethod, valParam.goScenario);
-    summaryPath = fullfile(cbcvDir, summaryFilename);
-    writetable(cbcvStats, summaryPath);
+    summaryPath = fullfile(cbvDir, summaryFilename);
+    writetable(cbvStats, summaryPath);
     fprintf('\nSummary table saved: %s\n', summaryFilename);
 else
-    cbcvStats = table();
+    cbvStats = table();
     warning('No valid statistics to summarize');
 end
 
 %% Create Plots (Optional)
-if valParam.plotResults && ~isempty(cbcvStats)
-    fprintf('\nCreating CBCV plots...\n');
-    plotCBCVresults(cbcvResults, cbcvStats, valParam);
+if valParam.plotResults && ~isempty(cbvStats)
+    fprintf('\nCreating CBV plots...\n');
+    plotCBVresults(cbvResults, cbvStats, valParam);
 end
 
 fprintf('\n========================================\n');
-fprintf('  CBCV COMPLETED\n');
+fprintf('  CBV COMPLETED\n');
 fprintf('========================================\n\n');
 
 end

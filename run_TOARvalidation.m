@@ -28,11 +28,11 @@ switch validationMethod
         fprintf('\nUsing monthly LOOCV validation approach...\n');
         [valOut, valPairOut] = validateTOAR_loocv(obs, go, cov, BMEparam, valParam);
 
-    case 'cbcv'
+    case 'cbv'
         % Checker-Board Cross-Validation
-        fprintf('\nUsing checker-board cross-validation (CBCV) approach...\n');
-        % Note: runCBCV_toar handles data loading internally
-        [valPairOut, valOut] = runCBCV_toar(valParam);
+        fprintf('\nUsing checker-board cross-validation (CBV) approach...\n');
+        % Note: runCBV_toar handles data loading internally
+        [valPairOut, valOut] = runCBV_toar(valParam);
         
     case 'kfold'
         % K-Fold Cross-Validation
@@ -47,7 +47,7 @@ switch validationMethod
         end
         [valOut, valPairOut] = validateTOAR_RCV(obs, go, cov, KG, KS, BMEparam, valParam);
     otherwise
-        error('Unknown validation method: %s. Valid options: loocv, cbcv, kfold, rcv', valParam.method);
+        error('Unknown validation method: %s. Valid options: loocv, cbv, kfold, rcv', valParam.method);
 end
 
 fprintf('\nValidation completed successfully.\n');

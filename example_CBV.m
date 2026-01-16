@@ -1,9 +1,9 @@
-%% Example: Checker-Board Cross-Validation for TOAR BME
+%% Example: Checker-Board Validation for TOAR BME
 %
-% This script demonstrates how to run checker-board cross-validation (CBCV)
+% This script demonstrates how to run checker-board validation (CBV)
 % for TOAR ozone data using the BME framework.
 %
-% CBCV provides spatial independence between training and validation sets,
+% CBV provides spatial independence between training and validation sets,
 % unlike LOOCV which has spatial correlation issues.
 %
 % Author: Based on TOAR-II BME framework
@@ -12,7 +12,7 @@
 clear; clc;
 
 fprintf('\n========================================\n');
-fprintf('  EXAMPLE: CHECKER-BOARD CROSS-VALIDATION\n');
+fprintf('  EXAMPLE: CHECKER-BOARD VALIDATION\n');
 fprintf('========================================\n');
 
 %% Configuration
@@ -31,7 +31,7 @@ valParam.temporalModel = 'exponentialC';  % Temporal covariance model
 valParam.BMEmethod = '10000132';      % Hard data only, nhmax=100, krigingME
 
 % Validation configuration
-valParam.method = 'cbcv';             % Checker-board cross-validation
+valParam.method = 'cbv';             % Checker-board validation
 valParam.valYears = 2016;             % Year(s) to validate
 valParam.valMonths = 1:12;            % All months
 valParam.boxSizes = [5, 10, 15];      % Test multiple box sizes (degrees)
@@ -49,12 +49,12 @@ fprintf('  Years: %s\n', mat2str(valParam.valYears));
 fprintf('  Months: %s\n', mat2str(valParam.valMonths));
 fprintf('  Box sizes: %s degrees\n', mat2str(valParam.boxSizes));
 
-%% Run CBCV
+%% Run CBV
 
-fprintf('\nRunning CBCV...\n');
+fprintf('\nRunning CBV...\n');
 tic;
 
-[cbcvResults, cbcvStats] = run_TOARvalidation(valParam);
+[cbvResults, cbvStats] = run_TOARvalidation(valParam);
 
 elapsedTime = toc;
 fprintf('\nTotal time: %.1f seconds (%.1f minutes)\n', elapsedTime, elapsedTime/60);
@@ -62,26 +62,26 @@ fprintf('\nTotal time: %.1f seconds (%.1f minutes)\n', elapsedTime, elapsedTime/
 %% Display Results
 
 fprintf('\n========================================\n');
-fprintf('  CBCV RESULTS SUMMARY\n');
+fprintf('  CBV RESULTS SUMMARY\n');
 fprintf('========================================\n');
 
-if ~isempty(cbcvStats)
+if ~isempty(cbvStats)
     % Display statistics table
-    disp(cbcvStats);
+    disp(cbvStats);
 
     % Summary statistics across all runs
     fprintf('\nSummary across all box sizes and folds:\n');
-    fprintf('  Mean R²: %.3f ± %.3f\n', mean(cbcvStats.R2), std(cbcvStats.R2));
-    fprintf('  Mean RMSE: %.2f ± %.2f ppbv\n', mean(cbcvStats.RMSE), std(cbcvStats.RMSE));
-    fprintf('  Mean MAE: %.2f ± %.2f ppbv\n', mean(cbcvStats.MAE), std(cbcvStats.MAE));
-    fprintf('  Mean NMB: %.1f ± %.1f%%\n', mean(cbcvStats.NMB), std(cbcvStats.NMB));
+    fprintf('  Mean R²: %.3f ± %.3f\n', mean(cbvStats.R2), std(cbvStats.R2));
+    fprintf('  Mean RMSE: %.2f ± %.2f ppbv\n', mean(cbvStats.RMSE), std(cbvStats.RMSE));
+    fprintf('  Mean MAE: %.2f ± %.2f ppbv\n', mean(cbvStats.MAE), std(cbvStats.MAE));
+    fprintf('  Mean NMB: %.1f ± %.1f%%\n', mean(cbvStats.NMB), std(cbvStats.NMB));
 
     % Compare across box sizes
     fprintf('\nPerformance by box size:\n');
-    for boxSize = unique(cbcvStats.BoxSize)'
-        idx = cbcvStats.BoxSize == boxSize;
+    for boxSize = unique(cbvStats.BoxSize)'
+        idx = cbvStats.BoxSize == boxSize;
         fprintf('  %.0f degrees: R²=%.3f, RMSE=%.2f ppbv (n=%d folds)\n', ...
-            boxSize, mean(cbcvStats.R2(idx)), mean(cbcvStats.RMSE(idx)), sum(idx));
+            boxSize, mean(cbvStats.R2(idx)), mean(cbvStats.RMSE(idx)), sum(idx));
     end
 else
     warning('No statistics available');
@@ -96,11 +96,11 @@ end
 %
 % valParam2 = valParam;
 % valParam2.BMEmethod = '11000142-01';  % Hard + MERRA2-GMI soft data
-% [cbcvResults2, cbcvStats2] = run_TOARvalidation(valParam2);
+% [cbvResults2, cbvStats2] = run_TOARvalidation(valParam2);
 %
 % fprintf('\nComparison:\n');
-% fprintf('  Hard only:     R²=%.3f, RMSE=%.2f\n', mean(cbcvStats.R2), mean(cbcvStats.RMSE));
-% fprintf('  Hard + Soft:   R²=%.3f, RMSE=%.2f\n', mean(cbcvStats2.R2), mean(cbcvStats2.RMSE));
+% fprintf('  Hard only:     R²=%.3f, RMSE=%.2f\n', mean(cbvStats.R2), mean(cbvStats.RMSE));
+% fprintf('  Hard + Soft:   R²=%.3f, RMSE=%.2f\n', mean(cbvStats2.R2), mean(cbvStats2.RMSE));
 
 fprintf('\n========================================\n');
 fprintf('  EXAMPLE COMPLETED\n');
@@ -108,10 +108,10 @@ fprintf('========================================\n\n');
 
 %% Notes
 %
-% Output files are saved in: 7validation/CBCV/
+% Output files are saved in: 7validation/CBV/
 %
 % File naming convention:
-%   CBCV_BME[method]_go[scenario]_box[size]_fold[1or2]_y[years].mat
+%   CBV_BME[method]_go[scenario]_box[size]_fold[1or2]_y[years].mat
 %
 % Each file contains:
 %   - foldResults: Detailed prediction results
@@ -119,5 +119,5 @@ fprintf('========================================\n\n');
 %   - valParam: Configuration used
 %
 % Summary table:
-%   CBCV_summary_BME[method]_go[scenario].csv
+%   CBV_summary_BME[method]_go[scenario].csv
 %
