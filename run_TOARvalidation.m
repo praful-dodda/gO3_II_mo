@@ -29,8 +29,8 @@ switch validationMethod
         [valOut, valPairOut] = validateTOAR_loocv(obs, go, cov, BMEparam, valParam);
 
     case 'cbv'
-        % Checker-Board Cross-Validation
-        fprintf('\nUsing checker-board cross-validation (CBV) approach...\n');
+        % Checker-Board Validation
+        fprintf('\nUsing checker-board validation (CBV) approach...\n');
         % Note: runCBV_toar handles data loading internally
         [valPairOut, valOut] = runCBV_toar(valParam);
         

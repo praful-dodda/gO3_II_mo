@@ -339,7 +339,7 @@ switch analysisScenario
         % valParam.nFolds = 5;  % only used if method='kfold'
 
         % ------------ Specific to CBV ------------------- %
-        valParam.method = 'cbcv'; % 'cbcv' = checker-board validation
+        valParam.method = 'cbv'; % 'cbv' = checker-board validation
         valParam.boxSizes = 5; % valid for [5, 10, 15]
         
         % plot settings

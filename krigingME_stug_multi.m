@@ -109,7 +109,7 @@ if nargin<15
 end
 
 % ---- soft neighbor selection mode for multi-dataset case ----
-softNeighborMode = 0;  % 0 = aggregate (default), 1 = per-dataset
+softNeighborMode = 1;  % 0 = aggregate (default), 1 = per-dataset
 
 %%%%%% Detect if we have multiple soft datasets
 hasMultipleSoftDatasets = iscell(soft_data) && ~isempty(soft_data);
