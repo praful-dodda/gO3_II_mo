@@ -1,4 +1,4 @@
-function [trainMask, valMask] = getCheckerBoard(sMS, boxSize, fold)
+function [trainMask, valMask] = getCheckerBoard(sMS, boxSize, fold, plotFlag)
 % getCheckerBoard - Generate checkerboard spatial pattern for cross-validation
 %
 % Creates a checkerboard pattern dividing spatial locations into training
@@ -6,7 +6,7 @@ function [trainMask, valMask] = getCheckerBoard(sMS, boxSize, fold)
 % squares, with the fold parameter determining which squares are for training.
 %
 % SYNTAX:
-%   [trainMask, valMask] = getCheckerBoard(sMS, boxSize, fold)
+%   [trainMask, valMask] = getCheckerBoard(sMS, boxSize, fold, plotFlag)
 %
 % INPUTS:
 %   sMS      - nPoints × 2 matrix of spatial coordinates [lon, lat]
@@ -16,6 +16,7 @@ function [trainMask, valMask] = getCheckerBoard(sMS, boxSize, fold)
 %   fold     - Which fold to use:
 %              1 = "black" squares for training, "white" for validation
 %              2 = "white" squares for training, "black" for validation
+%   plotFlag - Optional: 1 to plot checkerboard pattern, 0 to skip (default: 0)
 %
 % OUTPUTS:
 %   trainMask - nPoints × 1 logical array (true = training set)
@@ -40,6 +41,10 @@ function [trainMask, valMask] = getCheckerBoard(sMS, boxSize, fold)
 %   valData = obs.Z(valMask, :);
 
 %% Input Validation
+if nargin < 4 || isempty(plotFlag)
+    plotFlag = 0;  % Default: no plotting
+end
+
 if nargin < 3
     fold = 1;
 end
@@ -109,5 +114,66 @@ fprintf('  Training points: %d (%.1f%%)\n', sum(trainMask), 100*sum(trainMask)/n
 fprintf('  Validation points: %d (%.1f%%)\n', sum(valMask), 100*sum(valMask)/nPoints);
 fprintf('  Spatial extent: [%.1f, %.1f] lon × [%.1f, %.1f] lat\n', ...
     lonMin, lonMax, latMin, latMax);
+
+%% Plot Checkerboard Pattern (Optional)
+if plotFlag
+    figure('Position', [100 100 900 700]);
+
+    % Calculate grid lines for box boundaries
+    lonGridMin = lonRef;
+    lonGridMax = ceil((lonMax - lonRef) / boxSizeLon) * boxSizeLon + lonRef;
+    latGridMin = latRef;
+    latGridMax = ceil((latMax - latRef) / boxSizeLat) * boxSizeLat + latRef;
+
+    lonGridLines = lonGridMin:boxSizeLon:lonGridMax;
+    latGridLines = latGridMin:boxSizeLat:latGridMax;
+
+    % Draw checkerboard boxes
+    for iLon = 1:length(lonGridLines)-1
+        for iLat = 1:length(latGridLines)-1
+            % Determine box color based on grid indices
+            boxIsBlack = mod(iLon + iLat, 2) == 0;
+
+            % Set fill color based on fold
+            if (fold == 1 && boxIsBlack) || (fold == 2 && ~boxIsBlack)
+                % Training box
+                faceColor = [0.8 0.9 1.0];  % Light blue
+                faceAlpha = 0.3;
+            else
+                % Validation box
+                faceColor = [1.0 0.9 0.8];  % Light orange
+                faceAlpha = 0.3;
+            end
+
+            % Draw rectangle
+            rectangle('Position', [lonGridLines(iLon), latGridLines(iLat), ...
+                boxSizeLon, boxSizeLat], ...
+                'FaceColor', faceColor, 'EdgeColor', [0.3 0.3 0.3], ...
+                'LineWidth', 0.5, 'FaceAlpha', faceAlpha);
+            hold on;
+        end
+    end
+
+    % Plot stations
+    scatter(lon(trainMask), lat(trainMask), 30, 'b', 'filled', ...
+        'MarkerFaceAlpha', 0.6, 'DisplayName', 'Training stations');
+    scatter(lon(valMask), lat(valMask), 30, 'r', 'filled', ...
+        'MarkerFaceAlpha', 0.6, 'DisplayName', 'Validation stations');
+
+    % Formatting
+    xlabel('Longitude (°)');
+    ylabel('Latitude (°)');
+    title(sprintf('Checkerboard Pattern: Box=%.1f°, Fold=%d', boxSizeLon, fold));
+    legend('Location', 'best');
+    grid on;
+    axis equal tight;
+
+    % Add summary text
+    text(0.02, 0.98, sprintf('Training: %d (%.1f%%)\nValidation: %d (%.1f%%)', ...
+        sum(trainMask), 100*sum(trainMask)/nPoints, ...
+        sum(valMask), 100*sum(valMask)/nPoints), ...
+        'Units', 'normalized', 'VerticalAlignment', 'top', ...
+        'BackgroundColor', 'white', 'EdgeColor', 'black', 'FontSize', 9);
+end
 
 end
