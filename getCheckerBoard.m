@@ -19,6 +19,7 @@ function [trainMask, valMask] = getCheckerBoard(sMS, boxSize, fold, plotCheckerB
 %              (default: 1)
 %   plotCheckerBoard - (Optional) Boolean to plot the checkerboard pattern with
 %                      the legend (default: false)
+%                    - 1 to plot, 0 to not plot
 %
 % OUTPUTS:
 %   trainMask - nPoints × 1 logical array (true = training set)
@@ -43,11 +44,11 @@ function [trainMask, valMask] = getCheckerBoard(sMS, boxSize, fold, plotCheckerB
 %   valData = obs.Z(valMask, :);
 
 %% Input Validation
-if nargin < 3
+if nargin < 3 || isempty(fold)
     fold = 1;
 end
 
-if nargin < 4
+if nargin < 4 || isempty(plotCheckerBoard)
     plotCheckerBoard = false;
 end
 

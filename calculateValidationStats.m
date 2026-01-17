@@ -12,6 +12,10 @@ function stats = calculateValidationStats(Y_obs, Y_est, sigma_i)
 % OUTPUTS:
 %   stats - Structure with validation statistics
 
+if nargin < 3 || isempty(sigma_i)
+    sigma_i = nan(size(Y_obs));
+end
+
 % Remove NaN pairs
 valid = ~isnan(Y_obs) & ~isnan(Y_est) & isfinite(Y_obs) & isfinite(Y_est);
 Y_obs = Y_obs(valid);
