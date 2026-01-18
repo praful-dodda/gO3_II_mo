@@ -146,7 +146,7 @@ for iBox = 1:nBoxSizes
 
         % Generate Checkerboard Pattern
         fprintf('  Generating checkerboard pattern...\n');
-        [trainMask, valMask] = getCheckerBoard(obs.sMS, boxSize, iFold, 0);
+        [trainMask, valMask] = getCheckerBoard(obs.sMS, boxSize, iFold, valParam.plotResults);
 
         for iYear = 1:nYears
             valYear = valParam.valYears(iYear);
@@ -200,7 +200,7 @@ for iBox = 1:nBoxSizes
                     Y_est_all = [Y_est_all; monthResults.Y_est];
                     Y_estNoGo_all = [Y_estNoGo_all; monthResults.Y_estNoGo];
                     sk_all = [sk_all; monthResults.sk];
-                    tk_all = [tk_all; monthResults.tk];
+                    tk_all = [tk_all; monthResults.tk'];
                     XkBMEv_all = [XkBMEv_all; monthResults.XkBMEv];
                     gok_all = [gok_all; monthResults.gok];
                 end

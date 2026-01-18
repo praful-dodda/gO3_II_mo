@@ -70,6 +70,31 @@ sMS = stg_data.sMS;      % [N×2] grid point locations
 tME = stg_data.tME;      % [1×T] or [T×1] time values
 Xms = stg_data.Xms;      % [N×T] data values
 
+%% Check if fields are empty
+empty_fields = {};
+if isempty(sMS)
+    empty_fields{end+1} = 'sMS';
+end
+if isempty(tME)
+    empty_fields{end+1} = 'tME';
+end
+if isempty(Xms)
+    empty_fields{end+1} = 'Xms';
+end
+
+if ~isempty(empty_fields)
+    fprintf('\n⚠️  WARNING: Input structure contains empty fields:\n');
+    for i = 1:length(empty_fields)
+        fprintf('   - %s is empty\n', empty_fields{i});
+    end
+    fprintf('Returning empty structure.\n\n');
+    
+    % Return empty structure
+    grid_data = struct('x', [], 'y', [], 'time', [], 'Lon', [], 'Lat', [], ...
+                       'Z', [], 'Zvar', [], 'metadata', struct());
+    return;
+end
+
 [n_points, n_times] = size(Xms);
 
 if opts.verbose

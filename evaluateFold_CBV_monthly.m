@@ -155,7 +155,7 @@ if isempty(sk)
 end
 
 % Create estimation points
-pk = [sk, tk];
+pk = [sk, tk'];
 
 fprintf('    Validation locations:\n');
 fprintf('      Stations: %d\n', nValStations);

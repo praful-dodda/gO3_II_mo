@@ -324,7 +324,7 @@ switch analysisScenario
         valParam.logTransf = 0;  % 0=no, 1=yes
         valParam.goScenario = 3;
         valParam.temporalModel = 'holecos';
-        valParam.BMEmethod = '10000132';
+        valParam.BMEmethod = '11000133-01';
         valParam.areaCode = 5;
         valParam.mapResolution = 1.0;
         valParam.tkVec = 2016:1/12:2017;  % Monthly 2016
