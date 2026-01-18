@@ -153,12 +153,12 @@ if plotCheckerBoard
     scatter(lon(valMask), lat(valMask), 30, 'r', 'filled', ...
         'DisplayName', sprintf('Validation (%d)', sum(valMask)));
 
-    % Add grid lines
+    % Add grid lines (without adding to legend)
     for lonLine = lonGridEdges
-        plot([lonLine lonLine], [latMin latMax], 'k-', 'LineWidth', 0.3);
+        plot([lonLine lonLine], [latMin latMax], 'k-', 'LineWidth', 0.3, 'HandleVisibility', 'off');
     end
     for latLine = latGridEdges
-        plot([lonMin lonMax], [latLine latLine], 'k-', 'LineWidth', 0.3);
+        plot([lonMin lonMax], [latLine latLine], 'k-', 'LineWidth', 0.3, 'HandleVisibility', 'off');
     end
 
     xlabel('Longitude (°)');

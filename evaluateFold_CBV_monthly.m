@@ -1,5 +1,5 @@
 function monthResults = evaluateFold_CBV_monthly(obs, go, cov, BMEparam, ...
-    trainMask, valMask, valYear, valMonth)
+    trainMask, valMask, valYear, valMonth, softData)
 % evaluateFold_CBV_monthly - Evaluate checker-board validation for single month
 %
 % Performs CBV for one month using ±1 year temporal window. Follows LOOCV
@@ -7,7 +7,7 @@ function monthResults = evaluateFold_CBV_monthly(obs, go, cov, BMEparam, ...
 %
 % SYNTAX:
 %   monthResults = evaluateFold_CBV_monthly(obs, go, cov, BMEparam, ...
-%                                           trainMask, valMask, valYear, valMonth)
+%                                           trainMask, valMask, valYear, valMonth, softData)
 %
 % INPUTS:
 %   obs       - Observational data structure from getTOARobservationalData
@@ -18,6 +18,7 @@ function monthResults = evaluateFold_CBV_monthly(obs, go, cov, BMEparam, ...
 %   valMask   - nStations × 1 logical array (true = use for validation)
 %   valYear   - Year to validate (e.g., 2017)
 %   valMonth  - Month to validate (1-12)
+%   softData  - (Optional) Soft data structure or cell array of structures
 %
 % OUTPUTS:
 %   monthResults - Structure with monthly validation results:
@@ -47,7 +48,10 @@ function monthResults = evaluateFold_CBV_monthly(obs, go, cov, BMEparam, ...
 
 %% Input Validation
 if nargin < 8
-    error('All 8 inputs required');
+    error('At least 8 inputs required');
+end
+if nargin < 9 || isempty(softData)
+    softData = [];  % No soft data
 end
 
 % Ensure masks are logical column vectors
@@ -100,9 +104,28 @@ fprintf('      Time periods: %d\n', length(trainObs.tME));
 fprintf('      Valid observations: %d / %d (%.1f%%)\n', ...
     nTrainValid, nTrainTotal, 100*nTrainValid/nTrainTotal);
 
+%% Filter Soft Data to Training Window (if provided)
+softDataFiltered = [];
+
+if ~isempty(softData)
+    fprintf('    Filtering soft data to training window...\n');
+
+    % Handle cell array (multi-soft datasets) or single dataset
+    if iscell(softData)
+        softDataFiltered = cell(size(softData));
+        for iData = 1:length(softData)
+            softDataFiltered{iData} = filterSoftDataToWindow(softData{iData}, windowStart, windowEnd);
+        end
+        fprintf('      Filtered %d soft datasets\n', length(softDataFiltered));
+    else
+        softDataFiltered = filterSoftDataToWindow(softData, windowStart, windowEnd);
+        fprintf('      Soft data filtered\n');
+    end
+end
+
 %% Prepare BME Knowledge Base from Training Data
 fprintf('    Preparing BME knowledge base from training data...\n');
-[KG, KS, ~] = getTOARknowledgeBase(trainObs, go, cov, [], BMEparam.BMEmethod8digits);
+[KG, KS, ~] = getTOARknowledgeBase(trainObs, go, cov, softDataFiltered, BMEparam.BMEmethod8digits);
 
 % Check sufficient training data
 if isempty(KS.harddata.z) || length(KS.harddata.z) < 10
@@ -289,6 +312,49 @@ if nValid > 0
         min(monthResults.Y_est), max(monthResults.Y_est), obs.Zunit);
 else
     warning('No valid validation pairs found for this month');
+end
+
+end
+
+%% Helper Function: Filter Soft Data to Time Window
+function filteredData = filterSoftDataToWindow(softData, windowStart, windowEnd)
+% filterSoftDataToWindow - Filter soft data to specified time window
+%
+% INPUTS:
+%   softData    - Soft data structure with fields .sMS, .tME, .Z, .Zv
+%   windowStart - Start time (decimal years)
+%   windowEnd   - End time (decimal years)
+%
+% OUTPUTS:
+%   filteredData - Filtered soft data structure
+
+if isempty(softData)
+    filteredData = [];
+    return;
+end
+
+% Find indices in time window
+inWindow = (softData.tME >= windowStart) & (softData.tME < windowEnd);
+
+if sum(inWindow) == 0
+    warning('No soft data in time window [%.2f, %.2f]', windowStart, windowEnd);
+    filteredData = [];
+    return;
+end
+
+% Create filtered structure
+filteredData = struct();
+filteredData.sMS = softData.sMS;
+filteredData.tME = softData.tME(inWindow);
+filteredData.Z = softData.Z(:, inWindow);
+filteredData.Zv = softData.Zv(:, inWindow);
+
+% Copy other fields if they exist
+if isfield(softData, 'Zunit')
+    filteredData.Zunit = softData.Zunit;
+end
+if isfield(softData, 'modelName')
+    filteredData.modelName = softData.modelName;
 end
 
 end

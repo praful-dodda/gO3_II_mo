@@ -176,7 +176,68 @@ if height(cbvStats) > 0
         valParam.BMEmethod, valParam.goScenario)));
 end
 
-%% Plot 3: Multi-Method Comparison (if multiple methods provided)
+%% Plot 3: Performance by Year (if multiple years)
+
+if height(cbvStats) > 0 && isfield(cbvStats, 'Year')
+    uniqueYears = unique(cbvStats.Year);
+
+    if length(uniqueYears) > 1
+        fprintf('  Creating year-by-year performance plots...\n');
+
+        figure('Position', [175 175 1400 900]);
+
+        % Metrics to plot
+        metrics = {'R2', 'RMSE', 'MAE', 'NMB'};
+        metricLabels = {'R²', 'RMSE (ppbv)', 'MAE (ppbv)', 'NMB (%)'};
+
+        % Define colors for years
+        yearColors = lines(length(uniqueYears));
+
+        for iMetric = 1:length(metrics)
+            subplot(2, 2, iMetric);
+            hold on;
+
+            for iYear = 1:length(uniqueYears)
+                year = uniqueYears(iYear);
+
+                % Get data for this year (averaged across folds)
+                yearIdx = cbvStats.Year == year;
+                uniqueBoxSizes = unique(cbvStats.BoxSize(yearIdx));
+                avgMetric = zeros(size(uniqueBoxSizes));
+
+                for iBox = 1:length(uniqueBoxSizes)
+                    boxSize = uniqueBoxSizes(iBox);
+                    boxIdx = cbvStats.BoxSize == boxSize & cbvStats.Year == year;
+                    avgMetric(iBox) = mean(cbvStats.(metrics{iMetric})(boxIdx));
+                end
+
+                % Plot
+                plot(uniqueBoxSizes, avgMetric, 'o-', ...
+                    'Color', yearColors(iYear, :), ...
+                    'LineWidth', 2, 'MarkerSize', 8, ...
+                    'DisplayName', sprintf('%d', year));
+            end
+
+            xlabel('Box Size (degrees)');
+            ylabel(metricLabels{iMetric});
+            title(sprintf('%s vs Box Size by Year', metricLabels{iMetric}));
+            legend('Location', 'best');
+            grid on;
+
+            % Add reference line for NMB
+            if strcmp(metrics{iMetric}, 'NMB')
+                yline(0, 'k--', 'LineWidth', 1, 'HandleVisibility', 'off');
+            end
+        end
+
+        sgtitle(sprintf('CBV Performance by Year - BME%s, GO%d', ...
+            valParam.BMEmethod, valParam.goScenario));
+        saveas(gcf, fullfile(figDir, sprintf('CBV_by_year_BME%s_go%d.png', ...
+            valParam.BMEmethod, valParam.goScenario)));
+    end
+end
+
+%% Plot 4: Multi-Method Comparison (if multiple methods provided)
 
 if multiMethod
     fprintf('  Creating multi-method comparison...\n');
@@ -245,7 +306,7 @@ if multiMethod
     sgtitle('Multi-Method CBV Comparison');
     saveas(gcf, fullfile(figDir, 'CBV_multimethod_comparison.png'));
 
-    %% Plot 4: Method Comparison by Fold
+    %% Plot 5: Method Comparison by Fold
     figure('Position', [250 250 1400 600]);
 
     for iMetric = 1:2  % Just R2 and RMSE for fold comparison

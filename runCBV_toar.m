@@ -113,6 +113,57 @@ fprintf('    nsmax: %d\n', BMEparam.nsmax);
 fprintf('    dmax: [%.1f, %.1f, %.1f]\n', BMEparam.dmax);
 fprintf('    Data format: %s\n', BMEparam.dataFormat);
 
+%% Load Soft Data (if needed)
+CTMtype = str2double(valParam.BMEmethod(2));  % 2nd digit indicates CTM usage
+softData = [];
+
+if CTMtype >= 1
+    fprintf('\nCTM data required (BMEmethod digit 2 = %d)\n', CTMtype);
+
+    if isfield(valParam, 'softData') && ~isempty(valParam.softData)
+        fprintf('Loading soft data...\n');
+
+        % Use setData_val logic but simpler for CBV
+        try
+            if ~isfield(valParam.softData, 'years')
+                valParam.softData.years = valParam.timeRange(1):valParam.timeRange(2);
+            end
+            if ~isfield(valParam.softData, 'dataDir')
+                valParam.softData.dataDir = fullfile('1data', 'CTM', 'ramp_data');
+            end
+            if ~isfield(valParam.softData, 'forceReload')
+                valParam.softData.forceReload = 0;
+            end
+
+            % Handle multiple models (CTMtype=3) or single model
+            if iscell(valParam.softData.modelName)
+                % Multiple models
+                softData = cell(1, length(valParam.softData.modelName));
+                for iModel = 1:length(valParam.softData.modelName)
+                    softData{iModel} = loadRAMPdata(valParam.softData.modelName{iModel}, ...
+                        valParam.softData.years, valParam.softData.dataDir, ...
+                        valParam.softData.forceReload);
+                end
+                fprintf('  Loaded %d soft datasets\n', length(softData));
+            else
+                % Single model
+                softData = loadRAMPdata(valParam.softData.modelName, ...
+                    valParam.softData.years, valParam.softData.dataDir, ...
+                    valParam.softData.forceReload);
+                fprintf('  Loaded soft data: %s\n', softData.modelName);
+            end
+        catch ME
+            warning('Failed to load soft data: %s', ME.message);
+            softData = [];
+        end
+    else
+        warning('BMEmethod requires CTM data but no softData configuration provided');
+        fprintf('  Proceeding without soft data\n');
+    end
+else
+    fprintf('\nNo CTM data required (BMEmethod digit 2 = %d)\n', CTMtype);
+end
+
 %% Setup Output Directory
 cbvDir = fullfile('7validation', 'CBV');
 monthlyDir = fullfile(cbvDir, 'monthly');
@@ -184,7 +235,7 @@ for iBox = 1:nBoxSizes
                     % Evaluate this month
                     tic;
                     monthResults = evaluateFold_CBV_monthly(obs, go, cov, BMEparam, ...
-                        trainMask, valMask, valYear, valMonth);
+                        trainMask, valMask, valYear, valMonth, softData);
                     evalTime = toc;
 
                     fprintf('    Month evaluation completed in %.1f seconds\n', evalTime);
