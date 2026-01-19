@@ -189,7 +189,8 @@ if CTMtype >= 1
             end
 
         catch ME
-            warning('Failed to load soft data: %s', ME.message);
+            warning(ME.identifier, 'Failed to load soft data: %s', ME.message);
+            
             fprintf('  Proceeding without soft data.\n');
             softDataForKB = [];
         end

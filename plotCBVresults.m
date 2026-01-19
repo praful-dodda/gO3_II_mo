@@ -178,7 +178,7 @@ end
 
 %% Plot 3: Performance by Year (if multiple years)
 
-if height(cbvStats) > 0 && isfield(cbvStats, 'Year')
+if height(cbvStats) > 0 && ismember('Year', cbvStats.Properties.VariableNames)
     uniqueYears = unique(cbvStats.Year);
 
     if length(uniqueYears) > 1

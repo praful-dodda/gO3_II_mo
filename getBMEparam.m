@@ -57,9 +57,13 @@ end
 
 % Set order
 switch BMEprobaType
-    case 1, BMEparam.order = NaN;  % Zero mean
-    case 2, BMEparam.order = 0;    % Constant mean
-    case 3, BMEparam.order = 0;    % Constant mean with multiple softdatasets
+    case 1 
+        BMEparam.order = NaN;  % Zero mean
+    case 2 
+        BMEparam.order = 0;    % Constant mean
+    case 3
+        dataFormat = 'stug';
+        BMEparam.order = 0;    % Constant mean with multiple softdatasets
     otherwise, error('BMEprobaType (digit 8) must be 1 or 2');
 end
 

@@ -16,7 +16,6 @@ if nargin < 1
 end
 
 valParam.softData = [];
-[obs, go, cov, KG, KS, BMEparam] = setData_val(valParam);
 
 validationMethod = valParam.method;
 % change the string to lower case to avoid case sensitivity issues
@@ -25,6 +24,9 @@ validationMethod = lower(validationMethod);
 switch validationMethod
     case 'loocv'
         % Leave-One-Out Cross-Validation (Monthly approach)
+        
+        [obs, go, cov, ~, ~, BMEparam] = setData_val(valParam);
+
         fprintf('\nUsing monthly LOOCV validation approach...\n');
         [valOut, valPairOut] = validateTOAR_loocv(obs, go, cov, BMEparam, valParam);
 
@@ -39,13 +41,13 @@ switch validationMethod
         if ~exist('validateTOAR_kFold', 'file')
             error('K-Fold validation not implemented yet');
         end
-        [valOut, valPairOut] = validateTOAR_kFold(obs, go, cov, KG, KS, BMEparam, valParam);
+        [valOut, valPairOut] = validateTOAR_kFold(valParam);
     case 'rcv'
         % Random Cross-Validation
         if ~exist('validateTOAR_RCV', 'file')
             error('Random cross-validation not implemented yet');
         end
-        [valOut, valPairOut] = validateTOAR_RCV(obs, go, cov, KG, KS, BMEparam, valParam);
+        [valOut, valPairOut] = validateTOAR_RCV(valParam);
     otherwise
         error('Unknown validation method: %s. Valid options: loocv, cbv, kfold, rcv', valParam.method);
 end

@@ -120,19 +120,33 @@ softData = [];
 if CTMtype >= 1
     fprintf('\nCTM data required (BMEmethod digit 2 = %d)\n', CTMtype);
 
-    if isfield(valParam, 'softData') && ~isempty(valParam.softData)
+    if isfield(valParam, 'softData') && isempty(valParam.softData)
         fprintf('Loading soft data...\n');
 
         % Use setData_val logic but simpler for CBV
         try
             if ~isfield(valParam.softData, 'years')
-                valParam.softData.years = valParam.timeRange(1):valParam.timeRange(2);
+                % set years to be +- 1 of validation years
+                valParam.softData.years = [];
+                for y = valParam.valYears
+                    valParam.softData.years = [valParam.softData.years, (y-1):(y+1)];
+                end
+                valParam.softData.years = unique(valParam.softData.years);
             end
             if ~isfield(valParam.softData, 'dataDir')
-                valParam.softData.dataDir = fullfile('1data', 'CTM', 'ramp_data');
+                valParam.softData.dataDir =  fullfile('d:\Users\praful\Documents\Data\ramp_data\');  % Parquet directory
             end
             if ~isfield(valParam.softData, 'forceReload')
                 valParam.softData.forceReload = 0;
+            end
+
+            if ~isfield(valParam.softData, 'ctm')
+                valParam.softData.ctm = 1;
+            end
+
+            % get model names based on the bme-method
+            if ~isfield(valParam.softData, 'modelName')
+                [~, ~, ~, ~, ~, ~, valParam.softData.modelName] = parseBMEcode(valParam.BMEmethod);
             end
 
             % Handle multiple models (CTMtype=3) or single model
@@ -153,7 +167,7 @@ if CTMtype >= 1
                 fprintf('  Loaded soft data: %s\n', softData.modelName);
             end
         catch ME
-            warning('Failed to load soft data: %s', ME.message);
+            warning(ME.identifier, '\n Failed to load soft data: %s', ME.message);
             softData = [];
         end
     else
