@@ -86,19 +86,25 @@ fprintf('  Months: %s\n', mat2str(valParam.valMonths));
 fprintf('  Box sizes: %s degrees\n', mat2str(valParam.boxSizes));
 fprintf('  Station types: %s\n', valParam.stationTypes);
 
-%% Load Data
-fprintf('\nLoading observational data...\n');
-obs = getTOARobservationalData(valParam.stationTypes, valParam.timeRange, valParam.logTransf);
+%% Load Full Observational Data
+% Load all data first, then filter to ±1 year per validation year
+fprintf('\nLoading full observational data for all years...\n');
+obsAll = getTOARobservationalData(valParam.stationTypes, valParam.timeRange, valParam.logTransf);
 
-fprintf('  Loaded %d stations, %d time periods\n', size(obs.Z, 1), size(obs.Z, 2));
-fprintf('  Valid data: %.1f%%\n', 100*sum(~isnan(obs.Z(:)))/numel(obs.Z));
+fprintf('  Loaded %d stations, %d time periods (full range)\n', size(obsAll.Z, 1), size(obsAll.Z, 2));
+fprintf('  Full time range: [%.2f, %.2f]\n', min(obsAll.tME), max(obsAll.tME));
+fprintf('  Valid data: %.1f%%\n', 100*sum(~isnan(obsAll.Z(:)))/numel(obsAll.Z));
 
-%% NOTE: Global Offset and Covariance will be computed PER FOLD
-% This prevents data leakage by ensuring validation stations don't
-% influence GO and covariance parameter estimation
-fprintf('\nGlobal offset and covariance will be computed per fold (no data leakage)\n');
-fprintf('  GO scenario: %d\n', valParam.goScenario);
-fprintf('  Temporal model: %s\n', valParam.temporalModel);
+%% NOTE: Data Leakage Prevention Strategy
+% For each validation year:
+%   1. Filter obs to ±1 year around validation year
+%   2. Compute GO and Cov per fold using ONLY training stations from that time window
+%   3. This ensures no temporal or spatial leakage
+fprintf('\nData leakage prevention:\n');
+fprintf('  - Each validation year uses obs from ±1 year window only\n');
+fprintf('  - GO and Cov computed per fold using training stations only\n');
+fprintf('  - GO scenario: %d\n', valParam.goScenario);
+fprintf('  - Temporal model: %s\n', valParam.temporalModel);
 
 %% Get BME Parameters
 BMEparam = getBMEparam(valParam.BMEmethod);
@@ -190,57 +196,102 @@ nYears = length(valParam.valYears);
 cbvResults = cell(nBoxSizes, nFolds, nYears);
 statsData = [];
 
-%% Main CBV Loop
+%% Main CBV Loop: Year → BoxSize → Fold
+% Process each validation year independently with ±1 year data window
 fprintf('\n========================================\n');
 fprintf('  RUNNING CBV (MONTHLY PROCESSING)\n');
+fprintf('  Loop: Year → BoxSize → Fold → Month\n');
 fprintf('========================================\n');
 
-totalRuns = nBoxSizes * nFolds * nYears;
+totalRuns = nYears * nBoxSizes * nFolds;
 currentRun = 0;
 
-for iBox = 1:nBoxSizes
-    boxSize = valParam.boxSizes(iBox);
+for iYear = 1:nYears
+    valYear = valParam.valYears(iYear);
 
-    fprintf('\n=== Box Size: %.1f degrees ===\n', boxSize);
+    fprintf('\n########################################\n');
+    fprintf('# VALIDATION YEAR: %d\n', valYear);
+    fprintf('########################################\n');
 
-    for iFold = 1:nFolds
-        fprintf('\n--- Fold %d/%d ---\n', iFold, nFolds);
+    %% Filter observations to ±1 year window
+    yearRange = [valYear - 1, valYear + 1];
+    timeWindow = (obsAll.tME >= yearRange(1)) & (obsAll.tME < yearRange(2) + 1);
 
-        % Generate Checkerboard Pattern
-        fprintf('  Generating checkerboard pattern...\n');
-        [trainMask, valMask] = getCheckerBoard(obs.sMS, boxSize, iFold, valParam.plotResults);
+    obs = obsAll;
+    obs.tME = obsAll.tME(timeWindow);
+    obs.Z = obsAll.Z(:, timeWindow);
+    obs.Y = obsAll.Y(:, timeWindow);
 
-        %% Compute Fold-Specific Global Offset and Covariance
-        % Create training-only observational dataset
-        fprintf('\n  Creating training-only dataset for fold %d...\n', iFold);
-        trainObs = obs;
-        trainObs.sMS = obs.sMS(trainMask, :);
-        trainObs.Z = obs.Z(trainMask, :);
-        trainObs.Y = obs.Y(trainMask, :);
-        % Keep same time vector (all times used, but only training stations)
+    fprintf('\n  Data window for validation year %d: [%d, %d]\n', ...
+        valYear, yearRange(1), yearRange(2));
+    fprintf('    Time periods: %d\n', length(obs.tME));
+    fprintf('    Valid obs: %.1f%%\n', 100*sum(~isnan(obs.Z(:)))/numel(obs.Z));
 
-        fprintf('    Training stations: %d (%.1f%%)\n', ...
-            sum(trainMask), 100*sum(trainMask)/length(trainMask));
-        fprintf('    Validation stations: %d (%.1f%%)\n', ...
-            sum(valMask), 100*sum(valMask)/length(valMask));
+    %% Filter soft data to this year range (if applicable)
+    softData_year = [];
+    if ~isempty(softData)
+        fprintf('    Filtering soft data to year range...\n');
+        if iscell(softData)
+            softData_year = cell(size(softData));
+            for iModel = 1:length(softData)
+                timeIdx = (softData{iModel}.tME >= yearRange(1)) & ...
+                         (softData{iModel}.tME < yearRange(2) + 1);
+                softData_year{iModel}.sMS = softData{iModel}.sMS;
+                softData_year{iModel}.tME = softData{iModel}.tME(timeIdx);
+                softData_year{iModel}.Z = softData{iModel}.Z(:, timeIdx);
+                softData_year{iModel}.Zv = softData{iModel}.Zv(:, timeIdx);
+                softData_year{iModel}.modelName = softData{iModel}.modelName;
+            end
+        else
+            timeIdx = (softData.tME >= yearRange(1)) & (softData.tME < yearRange(2) + 1);
+            softData_year.sMS = softData.sMS;
+            softData_year.tME = softData.tME(timeIdx);
+            softData_year.Z = softData.Z(:, timeIdx);
+            softData_year.Zv = softData.Zv(:, timeIdx);
+            if isfield(softData, 'modelName')
+                softData_year.modelName = softData.modelName;
+            end
+        end
+    end
 
-        % Compute fold-specific GO using ONLY training stations
-        fprintf('\n  Computing fold-specific Global Offset and Covariance...\n');
-        go_fold = getTOARglobalOffset_CBV(trainObs, valParam.goScenario, ...
-            boxSize, iFold, valParam.forceGO, 0);
+    %% Loop through box sizes and folds for this year
+    for iBox = 1:nBoxSizes
+        boxSize = valParam.boxSizes(iBox);
 
-        % Compute fold-specific covariance using ONLY training stations
-        cov_fold = getTOARautoCov_CBV(trainObs, go_fold, ...
-            valParam.temporalModel, boxSize, iFold, valParam.forceCov);
+        fprintf('\n=== Box Size: %.1f degrees ===\n', boxSize);
 
-        fprintf('    Fold-specific GO/Cov ready for validation.\n');
-
-        for iYear = 1:nYears
-            valYear = valParam.valYears(iYear);
+        for iFold = 1:nFolds
+            fprintf('\n--- Fold %d/%d ---\n', iFold, nFolds);
             currentRun = currentRun + 1;
 
-            fprintf('\n>>> Run %d/%d: Box=%.1f°, Fold=%d, Year=%d <<<\n', ...
-                currentRun, totalRuns, boxSize, iFold, valYear);
+            % Generate Checkerboard Pattern
+            fprintf('  Generating checkerboard pattern...\n');
+            [trainMask, valMask] = getCheckerBoard(obs.sMS, boxSize, iFold, 0);
+
+            %% Compute Fold-Specific Global Offset and Covariance
+            % Create training-only observational dataset
+            fprintf('\n  Creating training-only dataset for fold %d...\n', iFold);
+            trainObs = obs;
+            trainObs.sMS = obs.sMS(trainMask, :);
+            trainObs.Z = obs.Z(trainMask, :);
+            trainObs.Y = obs.Y(trainMask, :);
+            % Keep same time vector (all times used, but only training stations)
+
+            fprintf('    Training stations: %d (%.1f%%)\n', ...
+                sum(trainMask), 100*sum(trainMask)/length(trainMask));
+            fprintf('    Validation stations: %d (%.1f%%)\n', ...
+                sum(valMask), 100*sum(valMask)/length(valMask));
+
+            % Compute fold-specific GO using ONLY training stations
+            fprintf('\n  Computing fold-specific Global Offset and Covariance...\n');
+            go_fold = getTOARglobalOffset_CBV(trainObs, valParam.goScenario, ...
+                boxSize, iFold, yearRange, valParam.forceGO, 0);
+
+            % Compute fold-specific covariance using ONLY training stations
+            cov_fold = getTOARautoCov_CBV(trainObs, go_fold, ...
+                valParam.temporalModel, boxSize, iFold, yearRange, valParam.forceCov);
+
+            fprintf('    Fold-specific GO/Cov ready for validation.\n');
 
             % Initialize annual accumulators
             Y_obs_all = [];
@@ -269,9 +320,10 @@ for iBox = 1:nBoxSizes
                     load(monthPath, 'monthResults');
                 else
                     % Evaluate this month using fold-specific GO and Cov
+                    % Use year-filtered soft data
                     tic;
                     monthResults = evaluateFold_CBV_monthly(obs, go_fold, cov_fold, BMEparam, ...
-                        trainMask, valMask, valYear, valMonth, softData);
+                        trainMask, valMask, valYear, valMonth, softData_year);
                     evalTime = toc;
 
                     fprintf('    Month evaluation completed in %.1f seconds\n', evalTime);

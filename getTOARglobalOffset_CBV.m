@@ -1,4 +1,4 @@
-function go = getTOARglobalOffset_CBV(obs, goScenario, boxSize, foldIdx, forceGO, goPlot)
+function go = getTOARglobalOffset_CBV(obs, goScenario, boxSize, foldIdx, yearRange, forceGO, goPlot)
 % getTOARglobalOffset_CBV - Compute fold-specific global offset for CBV
 %
 % Wrapper around getTOARglobalOffset that caches results per fold to avoid
@@ -7,13 +7,14 @@ function go = getTOARglobalOffset_CBV(obs, goScenario, boxSize, foldIdx, forceGO
 % global offset estimation.
 %
 % SYNTAX:
-%   go = getTOARglobalOffset_CBV(obs, goScenario, boxSize, foldIdx, forceGO, goPlot)
+%   go = getTOARglobalOffset_CBV(obs, goScenario, boxSize, foldIdx, yearRange, forceGO, goPlot)
 %
 % INPUTS:
 %   obs        - Observational data structure (should contain ONLY training stations)
 %   goScenario - Global offset scenario (0-10)
 %   boxSize    - Checker box size in degrees (used for cache naming)
 %   foldIdx    - Fold index (1 or 2)
+%   yearRange  - [startYear endYear] of obs data (e.g., [2016 2018] for val year 2017)
 %   forceGO    - Force recomputation (default: 0)
 %   goPlot     - Plotting level (default: 0)
 %
@@ -22,22 +23,22 @@ function go = getTOARglobalOffset_CBV(obs, goScenario, boxSize, foldIdx, forceGO
 %
 % CACHING:
 %   Cached files stored in: ./2globalOffset/CBV/
-%   Filename format: {Zname}go_go{scenario}_CBV_box{size}_fold{fold}.mat
+%   Filename format: {Zname}go_go{scenario}_CBV_box{size}_fold{fold}_{startYr}-{endYr}.mat
 %
 % EXAMPLE:
-%   % For fold 1 with 3-degree boxes
+%   % For fold 1 with 3-degree boxes, validation year 2017 (uses 2016-2018 data)
 %   trainObs = getTrainingObservations(obs, trainMask);
-%   go_fold1 = getTOARglobalOffset_CBV(trainObs, 3, 3.0, 1, 0, 0);
+%   go_fold1 = getTOARglobalOffset_CBV(trainObs, 3, 3.0, 1, [2016 2018], 0, 0);
 %
 % SEE ALSO:
 %   getTOARglobalOffset, getTOARautoCov_CBV, runCBV_toar
 
 %% Input validation
-if nargin < 4
-    error('At least 4 inputs required: obs, goScenario, boxSize, foldIdx');
+if nargin < 5
+    error('At least 5 inputs required: obs, goScenario, boxSize, foldIdx, yearRange');
 end
-if nargin < 5, forceGO = 0; end
-if nargin < 6, goPlot = 0; end
+if nargin < 6, forceGO = 0; end
+if nargin < 7, goPlot = 0; end
 
 %% Setup caching directory
 goDir = './2globalOffset/CBV';
@@ -51,9 +52,9 @@ if ~exist(goDir, 'dir')
     fclose(fid);
 end
 
-%% Create cache filename
-goFile = sprintf('%sgo_go%d_CBV_box%.1f_fold%d.mat', ...
-    obs.Zname, goScenario, boxSize, foldIdx);
+%% Create cache filename with year range
+goFile = sprintf('%sgo_go%d_CBV_box%.1f_fold%d_%d-%d.mat', ...
+    obs.Zname, goScenario, boxSize, foldIdx, yearRange(1), yearRange(2));
 goPath = fullfile(goDir, goFile);
 
 %% Check cache
@@ -64,8 +65,8 @@ if exist(goPath, 'file') && ~forceGO
 end
 
 %% Compute fold-specific global offset
-fprintf('      Computing fold-specific GO (scenario %d, box %.1f, fold %d)...\n', ...
-    goScenario, boxSize, foldIdx);
+fprintf('      Computing fold-specific GO (scenario %d, box %.1f, fold %d, years %d-%d)...\n', ...
+    goScenario, boxSize, foldIdx, yearRange(1), yearRange(2));
 fprintf('        Training stations: %d\n', size(obs.sMS, 1));
 
 % Call standard getTOARglobalOffset with training-only data
