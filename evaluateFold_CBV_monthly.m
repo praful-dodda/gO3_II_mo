@@ -2,7 +2,7 @@ function monthResults = evaluateFold_CBV_monthly(obs, go, cov, BMEparam, ...
     trainMask, valMask, valYear, valMonth, softData)
 % evaluateFold_CBV_monthly - Evaluate checker-board validation for single month
 %
-% Performs CBV for one month using ±1 year temporal window. Follows LOOCV
+% Performs CBV for one month using all available temporal data. Follows LOOCV
 % monthly pattern and uses krigingME_stug_multi for multi-soft datasets.
 %
 % SYNTAX:
@@ -68,31 +68,13 @@ monthEnd = valYear + valMonth / 12;
 fprintf('    Target month: %.4f - %.4f (Year %d, Month %d)\n', ...
     monthStart, monthEnd, valYear, valMonth);
 
-%% Define Training Window (±1 year around target month)
-% User requirement: use ±1 year temporal window
-temporalWindow = 1.0;  % ±1 year in decimal years
-windowStart = valYear - temporalWindow;
-windowEnd = valYear + temporalWindow + 1;  % Add one month to include end
-
-fprintf('    Training window: %.4f - %.4f (±%.1f years)\n', ...
-    windowStart, windowEnd, temporalWindow);
-
-%% Filter Observations to Training Window AND Training Stations
-% Time indices within training window
-inWindow = (obs.tME >= windowStart) & (obs.tME < windowEnd);
-
-if sum(inWindow) == 0
-    warning('No time periods in training window');
-    monthResults = struct('nValid', 0);
-    return;
-end
-
-% Create training dataset: training stations + training time window
+%% Filter Observations to Training Stations (use all time periods)
+% Create training dataset: training stations only, all time periods
 trainObs = obs;
 trainObs.sMS = obs.sMS(trainMask, :);
-trainObs.Z = obs.Z(trainMask, inWindow);
-trainObs.Y = obs.Y(trainMask, inWindow);
-trainObs.tME = obs.tME(inWindow);
+trainObs.Z = obs.Z(trainMask, :);
+trainObs.Y = obs.Y(trainMask, :);
+trainObs.tME = obs.tME;
 
 % Count valid training data
 nTrainTotal = numel(trainObs.Z);
@@ -104,28 +86,9 @@ fprintf('      Time periods: %d\n', length(trainObs.tME));
 fprintf('      Valid observations: %d / %d (%.1f%%)\n', ...
     nTrainValid, nTrainTotal, 100*nTrainValid/nTrainTotal);
 
-%% Filter Soft Data to Training Window (if provided)
-softDataFiltered = [];
-
-if ~isempty(softData)
-    fprintf('    Filtering soft data to training window...\n');
-
-    % Handle cell array (multi-soft datasets) or single dataset
-    if iscell(softData)
-        softDataFiltered = cell(size(softData));
-        for iData = 1:length(softData)
-            softDataFiltered{iData} = filterSoftDataToWindow(softData{iData}, windowStart, windowEnd);
-        end
-        fprintf('      Filtered %d soft datasets\n', length(softDataFiltered));
-    else
-        softDataFiltered = filterSoftDataToWindow(softData, windowStart, windowEnd);
-        fprintf('      Soft data filtered\n');
-    end
-end
-
 %% Prepare BME Knowledge Base from Training Data
 fprintf('    Preparing BME knowledge base from training data...\n');
-[KG, KS, ~] = getTOARknowledgeBase(trainObs, go, cov, softDataFiltered, BMEparam.BMEmethod8digits);
+[KG, KS, ~] = getTOARknowledgeBase(trainObs, go, cov, softData, BMEparam.BMEmethod8digits);
 
 % Check sufficient training data
 if isempty(KS.harddata.z) || length(KS.harddata.z) < 10

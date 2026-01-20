@@ -213,46 +213,13 @@ for iYear = 1:nYears
     fprintf('# VALIDATION YEAR: %d\n', valYear);
     fprintf('########################################\n');
 
-    %% Filter observations to ±1 year window
-    yearRange = [valYear - 1, valYear + 1];
-    timeWindow = (obsAll.tME >= yearRange(1)) & (obsAll.tME < yearRange(2) + 1);
-
+    %% Use all available observational data (no year filtering)
     obs = obsAll;
-    obs.tME = obsAll.tME(timeWindow);
-    obs.Z = obsAll.Z(:, timeWindow);
-    obs.Y = obsAll.Y(:, timeWindow);
+    yearRange = [valYear - 1, valYear + 1];  % Keep for GO/Cov cache naming only
 
-    fprintf('\n  Data window for validation year %d: [%d, %d]\n', ...
-        valYear, yearRange(1), yearRange(2));
+    fprintf('\n  Using all available data for validation year %d\n', valYear);
     fprintf('    Time periods: %d\n', length(obs.tME));
     fprintf('    Valid obs: %.1f%%\n', 100*sum(~isnan(obs.Z(:)))/numel(obs.Z));
-
-    %% Filter soft data to this year range (if applicable)
-    softData_year = [];
-    if ~isempty(softData)
-        fprintf('    Filtering soft data to year range...\n');
-        if iscell(softData)
-            softData_year = cell(size(softData));
-            for iModel = 1:length(softData)
-                timeIdx = (softData{iModel}.tME >= yearRange(1)) & ...
-                         (softData{iModel}.tME < yearRange(2) + 1);
-                softData_year{iModel}.sMS = softData{iModel}.sMS;
-                softData_year{iModel}.tME = softData{iModel}.tME(timeIdx);
-                softData_year{iModel}.Z = softData{iModel}.Z(:, timeIdx);
-                softData_year{iModel}.Zv = softData{iModel}.Zv(:, timeIdx);
-                softData_year{iModel}.modelName = softData{iModel}.modelName;
-            end
-        else
-            timeIdx = (softData.tME >= yearRange(1)) & (softData.tME < yearRange(2) + 1);
-            softData_year.sMS = softData.sMS;
-            softData_year.tME = softData.tME(timeIdx);
-            softData_year.Z = softData.Z(:, timeIdx);
-            softData_year.Zv = softData.Zv(:, timeIdx);
-            if isfield(softData, 'modelName')
-                softData_year.modelName = softData.modelName;
-            end
-        end
-    end
 
     %% Loop through box sizes and folds for this year
     for iBox = 1:nBoxSizes
@@ -325,10 +292,9 @@ for iYear = 1:nYears
                     load(monthPath, 'monthResults');
                 else
                     % Evaluate this month using fold-specific GO and Cov
-                    % Use year-filtered soft data
                     tic;
                     monthResults = evaluateFold_CBV_monthly(obs, go_fold, cov_fold, BMEparam, ...
-                        trainMask, valMask, valYear, valMonth, softData_year);
+                        trainMask, valMask, valYear, valMonth, softData);
                     evalTime = toc;
 
                     fprintf('    Month evaluation completed in %.1f seconds\n', evalTime);
