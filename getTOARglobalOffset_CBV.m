@@ -71,7 +71,7 @@ fprintf('        Training stations: %d\n', size(obs.sMS, 1));
 
 % Call standard getTOARglobalOffset with training-only data
 % Use inValidation=1 to suppress plotting and avoid confusion with main GO
-go = getTOARglobalOffset(obs, goScenario, goPlot, 1, 0);
+go = getTOARglobalOffset(obs, goScenario, goPlot, 1, 1);
 
 %% Save to cache
 fprintf('        Saving fold-specific GO to cache...\n');

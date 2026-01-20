@@ -123,8 +123,8 @@ if nhmax < 1 || nhmax > 3
     warning('nhmax out of expected range [1-3]: %d', nhmax);
 end
 
-if BMEtype < 1 || BMEtype > 2
-    warning('BMEtype out of expected range [1-2]: %d', BMEtype);
+if BMEtype < 1 || BMEtype > 3
+    warning('BMEtype out of expected range [1-3]: %d', BMEtype);
 end
 
 % Consistency check: if CTMmodels specified but CTMtype=0

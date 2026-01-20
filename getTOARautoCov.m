@@ -1,4 +1,4 @@
-function cov = getTOARautoCov(obs, go, temporalModelType, forceEstCov)
+function cov = getTOARautoCov(obs, go, temporalModelType, forceEstCov, inValidation)
 % getTOARautoCov - Estimates covariance structure from TOAR residuals
 %
 % Computes residuals by removing global offset, then fits spatial and temporal
@@ -14,6 +14,8 @@ function cov = getTOARautoCov(obs, go, temporalModelType, forceEstCov)
 %                       default: 'holecos'
 %   forceEstCov - Force re-estimation (1) or use saved (0)
 %                 default: 0
+%   inValidation - Flag indicating if this is for validation (1) or training (0)
+%                  default: 0
 %
 % OUTPUT:
 %   cov - Structure with fields:
@@ -31,10 +33,17 @@ function cov = getTOARautoCov(obs, go, temporalModelType, forceEstCov)
 
 if nargin < 3, temporalModelType = 'holecos'; end
 if nargin < 4, forceEstCov = 0; end
+if nargin < 5, inValidation = 0; end
 
 % Create covariance directories if needed
 covDir = '3covariance';
 figDir = fullfile(covDir, 'figs');
+
+if inValidation
+    covDir = fullfile(covDir, 'validation');
+    figDir = fullfile(covDir, 'figs');
+end
+
 if ~exist(covDir, 'dir')
     mkdir(covDir);
     fid = fopen(fullfile(covDir, '0readme.txt'), 'w');
@@ -82,7 +91,7 @@ D = coord2dist(sMS, sMS);
 d = D(D > 0 & isfinite(D));
 if isempty(d)
     warning('Could not compute valid distances. Returning pure nugget.');
-    cov.covmodel = {'nuggetC'}; cov.covparam = {nanmean(var(Zh,0,1,'omitnan'))}; cov.var = cov.covparam{1}; cov.stmetric = 1000;
+    cov.covmodel = {'nuggetC'}; cov.covparam = {mean(var(Zh,0,1,'omitnan'), "omitmissing")}; cov.var = cov.covparam{1}; cov.stmetric = 1000;
     return;
 end
 edges = [0, quantest(d, [0.05, 0.10, 0.15, 0.20, 0.30, 0.50, 0.75])];
@@ -92,7 +101,7 @@ rLag = [0, 0.5*(edges(1:end-1) + edges(2:end))];
 rLagTol = [0, diff(edges)/2.01];
 [Cr, ~] = stcov(Zh, sMS, tME, Zh, sMS, tME, rLag, rLagTol, 0, 0);
 varSpatial = Cr(1);
-if isnan(varSpatial) || varSpatial <= 1e-6, varSpatial = nanmean(var(Zh,0,1,'omitnan')); end
+if isnan(varSpatial) || varSpatial <= 1e-6, varSpatial = mean(var(Zh,0,1,'omitnan'), "omitmissing"); end
 
 spatialModel = @(params, r) params(1)*exp(-3*r/params(2)) + (varSpatial - params(1))*exp(-3*r/params(3));
 initParams_spatial = [0.5*varSpatial, rLag(2), rLag(end)];
@@ -207,7 +216,7 @@ try
     exportgraphics(fig, figPath, 'Resolution', 150);
     fprintf('  Saved covariance plot to: %s\n', figPath);
 catch ME_plot
-    warning('Could not generate or save covariance figure: %s', ME_plot.message);
+    fprintf(1, 'Could not generate or save covariance figure: %s', ME_plot.message);
 end
 if ishandle(fig); close(fig); end
 

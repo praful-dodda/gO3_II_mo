@@ -276,6 +276,11 @@ for iYear = 1:nYears
             trainObs.Z = obs.Z(trainMask, :);
             trainObs.Y = obs.Y(trainMask, :);
             % Keep same time vector (all times used, but only training stations)
+            
+            % get the idMS for the training stations
+            trainObs.stationID = obs.stationID(trainMask);
+            trainObs.stationType = obs.stationType(trainMask);
+
 
             fprintf('    Training stations: %d (%.1f%%)\n', ...
                 sum(trainMask), 100*sum(trainMask)/length(trainMask));

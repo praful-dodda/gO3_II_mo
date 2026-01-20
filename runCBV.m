@@ -43,13 +43,13 @@ valParam.logTransf = 0;  % 0=no, 1=yes (use 0 for regular concentrations)
 % ====================================================================
 
 % Years to validate
-valParam.valYears = 2017;  % e.g., 2017 or [2016 2017 2018]
+valParam.valYears = [2016 2017];  % e.g., 2017 or [2016 2017 2018]
 
 % Months to validate (within each year)
 valParam.valMonths = 1:12;  % All months, or specific: [6 7 8] for JJA
 
 % Checker box sizes to test (degrees)
-valParam.boxSizes = [3.0];  % e.g., [2.0, 3.0, 4.0, 5.0]
+valParam.boxSizes = 5.0;  % e.g., [2.0, 3.0, 4.0, 5.0]
 
 %% ====================================================================
 %                    GLOBAL OFFSET CONFIGURATION
@@ -74,7 +74,7 @@ valParam.goPlot = 0;  % 0=no plots, 1=basic (not recommended during CBV)
 % ====================================================================
 
 % Temporal covariance model
-valParam.temporalModel = 'exponentialC';  % 'exponentialC' or 'holecos'
+valParam.temporalModel = 'holecos';  % 'exponential' or 'holecos'
 
 % Force re-estimation
 valParam.forceCov = 0;  % 0=use cached, 1=force new estimation
@@ -122,7 +122,7 @@ valParam.BMEmethod = '10000133';
 % ====================================================================
 
 % Force re-estimation of monthly results (ignore cache)
-valParam.forceEstimation = 0;  % 0=use cached monthly results, 1=recompute
+valParam.forceEstimation = 1;  % 0=use cached monthly results, 1=recompute
 
 % Create plots after validation
 valParam.plotResults = 1;  % 0=no plots, 1=create plots

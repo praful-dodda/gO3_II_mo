@@ -72,7 +72,7 @@ fprintf('    Target month: %.4f - %.4f (Year %d, Month %d)\n', ...
 % User requirement: use ±1 year temporal window
 temporalWindow = 1.0;  % ±1 year in decimal years
 windowStart = valYear - temporalWindow;
-windowEnd = valYear + temporalWindow + 1/12;  % Add one month to include end
+windowEnd = valYear + temporalWindow + 1;  % Add one month to include end
 
 fprintf('    Training window: %.4f - %.4f (±%.1f years)\n', ...
     windowStart, windowEnd, temporalWindow);
