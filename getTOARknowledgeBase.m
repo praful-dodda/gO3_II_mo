@@ -61,10 +61,21 @@ if isnumeric(BMEmethod8digits)
 end
 
 fprintf('--- Preparing BME Knowledge Bases ---\n');
-% Parse BME method code
-% [obsType, CTMtype, RAMPnonLinearity, RAMPnonHomoscedasticity, ...
-%  RAMPnonStationary, BMEnsmax, BMEnhmax, BMEprobaType] = parseTOARBMEmethod(BMEmethod8digits);
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% BME Parameters (get order from here)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+fprintf('  Setting up BME parameters...\n');
+
+% Get BME parameters first - this is the ONLY place where order is determined
+BMEparam = getBMEparam(BMEmethod8digits, cov.stmetric, dataFormat);
+
+fprintf('  Search parameters: spatial=%.1f deg, temporal=%.1f yr, metric=%.2f\n', ...
+    BMEparam.dmax(1), BMEparam.dmax(2), BMEparam.dmax(3));
+fprintf('  nhmax=%d, nsmax=%d, order=%s\n', BMEparam.nhmax, BMEparam.nsmax, mat2str(BMEparam.order));
+
+% Parse BME method code for data processing
 [obsType, CTMtype, ~, ~, ~, BMEprobaType, ctm_models] = parseBMEcode(BMEmethod8digits);
 
 fprintf('  BME Method: %s\n', BMEmethod8digits);
@@ -85,17 +96,8 @@ end
 
 fprintf('  Setting up General Knowledge (covariance)...\n');
 
-% % Local mean trend type
-% switch BMEprobaType
-%     case 1  % BMEprobaMoments
-%         KG.order = NaN;  % Zero mean (residuals should have zero mean)
-%     case 2  % KrigingME
-%         KG.order = NaN;    % Constant mean
-%     case 3
-%         KG.order = NaN;
-%     otherwise
-%         error('BMEprobaType must be 1 (BMEprobaMoments) or 2 (KrigingME) or 3 (for multiple soft-datasets');
-% end
+% Get order from BMEparam (ONLY source of order parameter)
+KG.order = BMEparam.order;
 
 % Covariance model from fitted covariance
 KG.covmodel = cov.covmodel;
@@ -300,19 +302,6 @@ else
     KS.limi = [];
     KS.probdens = [];
 end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% BME Parameters
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-fprintf('  Setting up BME parameters...\n');
-
-% Get BME parameters using separate function
-BMEparam = getBMEparam(BMEmethod8digits, cov.stmetric, dataFormat);
-
-fprintf('  Search parameters: spatial=%.1f deg, temporal=%.1f yr, metric=%.2f\n', ...
-    BMEparam.dmax(1), BMEparam.dmax(2), BMEparam.dmax(3));
-fprintf('  nhmax=%d, nsmax=%d\n', BMEparam.nhmax, BMEparam.nsmax);
 
 fprintf('--- Knowledge bases prepared ---\n\n');
 
