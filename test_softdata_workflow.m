@@ -163,7 +163,7 @@ for i = 1:nTest
     tic;
     [xk_mean, xk_var] = krigingME(pk, ch_train, KS.softdata.p, zh_train, ...
         KS.softdata.z, KS.softdata.vs, KG.covmodel, KG.covparam, ...
-        BMEparam.nhmax, BMEparam.nsmax, BMEparam.dmax, KG.order);
+        BMEparam.nhmax, BMEparam.nsmax, BMEparam.dmax, BMEparam.order);
     tElapsed = toc;
 
     % True value (for comparison)

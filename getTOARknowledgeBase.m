@@ -65,12 +65,19 @@ fprintf('--- Preparing BME Knowledge Bases ---\n');
 % [obsType, CTMtype, RAMPnonLinearity, RAMPnonHomoscedasticity, ...
 %  RAMPnonStationary, BMEnsmax, BMEnhmax, BMEprobaType] = parseTOARBMEmethod(BMEmethod8digits);
 
-[obsType, CTMtype, ~, ~, ~, BMEprobaType] = parseBMEcode(BMEmethod8digits);
+[obsType, CTMtype, ~, ~, ~, BMEprobaType, ctm_models] = parseBMEcode(BMEmethod8digits);
 
 fprintf('  BME Method: %s\n', BMEmethod8digits);
 fprintf('    Observation type: %d (1=hard, 2=hard/soft)\n', obsType);
 fprintf('    CTM type: %d (0=none)\n', CTMtype);
 fprintf('    BME proba type: %d (1=moments, 2=kriging)\n', BMEprobaType);
+
+if ~isempty(ctm_models)
+    fprintf('    CTM models used:\n');
+    for m = 1:length(ctm_models)
+        fprintf('      %s\n', ctm_models{m});
+    end
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% General Knowledge (KG) - Covariance Structure
@@ -78,17 +85,17 @@ fprintf('    BME proba type: %d (1=moments, 2=kriging)\n', BMEprobaType);
 
 fprintf('  Setting up General Knowledge (covariance)...\n');
 
-% Local mean trend type
-switch BMEprobaType
-    case 1  % BMEprobaMoments
-        KG.order = NaN;  % Zero mean (residuals should have zero mean)
-    case 2  % KrigingME
-        KG.order = 0;    % Constant mean
-    case 3
-        KG.order = 0;
-    otherwise
-        error('BMEprobaType must be 1 (BMEprobaMoments) or 2 (KrigingME) or 3 (for multiple soft-datasets');
-end
+% % Local mean trend type
+% switch BMEprobaType
+%     case 1  % BMEprobaMoments
+%         KG.order = NaN;  % Zero mean (residuals should have zero mean)
+%     case 2  % KrigingME
+%         KG.order = NaN;    % Constant mean
+%     case 3
+%         KG.order = NaN;
+%     otherwise
+%         error('BMEprobaType must be 1 (BMEprobaMoments) or 2 (KrigingME) or 3 (for multiple soft-datasets');
+% end
 
 % Covariance model from fitted covariance
 KG.covmodel = cov.covmodel;

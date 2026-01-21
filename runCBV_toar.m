@@ -119,6 +119,7 @@ fprintf('    Data format: %s\n', BMEparam.dataFormat);
 %% Load Soft Data (if needed)
 CTMtype = str2double(valParam.BMEmethod(2));  % 2nd digit indicates CTM usage
 softData = [];
+valParam.softData = [];
 
 if CTMtype >= 1
     fprintf('\nCTM data required (BMEmethod digit 2 = %d)\n', CTMtype);

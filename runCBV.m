@@ -94,10 +94,10 @@ valParam.forceCov = 0;  % 0=use cached, 1=force new estimation
 %
 % Common configurations:
 %   '10000133' = Hard data only, nhmax=200, nsmax=5, krigingME multi-soft format (DEFAULT)
-%   '11000101' = Hard + MERRA2GMI, nhmax=50, nsmax=0, krigingME
-%   '11000102' = Hard + M3fusion, nhmax=50, nsmax=0, krigingME
-%   '11000133' = Hard + multi-CTM, nhmax=200, nsmax=5, krigingME multi-soft format
-valParam.BMEmethod = '10000133';
+%   '13000133-01' = Hard + MERRA2GMI, nhmax=50, nsmax=0, krigingME
+%   '13000133-02' = Hard + M3fusion, nhmax=50, nsmax=0, krigingME
+%   '13000133-xx' = Hard + multi-CTM, nhmax=200, nsmax=5, krigingME multi-soft format
+valParam.BMEmethod = '13000133-01';
 
 %% ====================================================================
 %                    SOFT DATA CONFIGURATION (if using CTM)
