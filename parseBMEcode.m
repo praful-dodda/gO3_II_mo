@@ -119,8 +119,8 @@ if nsmax < 0 || nsmax > 6
     warning('nsmax out of expected range [0-6]: %d', nsmax);
 end
 
-if nhmax < 1 || nhmax > 3
-    warning('nhmax out of expected range [1-3]: %d', nhmax);
+if nhmax < 1 || nhmax > 5
+    warning('nhmax out of expected range [1-5]: %d', nhmax);
 end
 
 if BMEtype < 1 || BMEtype > 3
