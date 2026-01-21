@@ -266,6 +266,52 @@ for iYear = 1:nYears
 
             fprintf('    Fold-specific GO/Cov ready for validation.\n');
 
+            %% Prepare Knowledge Base ONCE per fold (not per month)
+            fprintf('\n  Preparing knowledge base for fold %d (once for all months)...\n', iFold);
+            [KG_fold, KS_fold, ~] = getTOARknowledgeBase(trainObs, go_fold, cov_fold, ...
+                softData, BMEparam.BMEmethod8digits);
+
+            % Check sufficient training data
+            if isempty(KS_fold.harddata.z) || length(KS_fold.harddata.z) < 10
+                warning('Insufficient training data points (%d) for fold %d', ...
+                    length(KS_fold.harddata.z), iFold);
+                continue;  % Skip this fold
+            end
+
+            %% Reformat soft data ONCE per fold (expensive operation)
+            BMEmethod8digits = BMEparam.BMEmethod8digits;
+            BMEprobaType = str2double(BMEmethod8digits(8));
+            soft_data_stug = [];
+            p_soft_stug = [];
+            z_soft_stug = [];
+            vs_soft_stug = [];
+
+            if BMEprobaType == 3 && iscell(KS_fold.softdata)
+                % Multi-soft datasets - reformat all
+                fprintf('  Reformatting %d soft datasets to STUG format (once per fold)...\n', ...
+                    length(KS_fold.softdata));
+                soft_data_stug = cell(size(KS_fold.softdata));
+                p_soft_stug = cell(size(KS_fold.softdata));
+                z_soft_stug = cell(size(KS_fold.softdata));
+                vs_soft_stug = cell(size(KS_fold.softdata));
+
+                for ii = 1:length(KS_fold.softdata)
+                    soft_data_stug{ii} = reformat_stg_to_stug(KS_fold.softdata{ii}, 'verbose', false);
+                    p_soft_stug{ii} = KS_fold.softdata{ii}.p;
+                    z_soft_stug{ii} = KS_fold.softdata{ii}.z;
+                    vs_soft_stug{ii} = KS_fold.softdata{ii}.vs;
+                end
+                fprintf('    Soft data reformatting complete.\n');
+            elseif BMEprobaType == 2 && ~isempty(KS_fold.softdata.z)
+                % Single soft dataset
+                fprintf('  Reformatting soft data to STUG format (once per fold)...\n');
+                soft_data_stug = reformat_stg_to_stug(KS_fold.softdata, 'verbose', false);
+                p_soft_stug = KS_fold.softdata.p;
+                z_soft_stug = KS_fold.softdata.z;
+                vs_soft_stug = KS_fold.softdata.vs;
+                fprintf('    Soft data reformatting complete.\n');
+            end
+
             % Initialize annual accumulators
             Y_obs_all = [];
             Y_est_all = [];
@@ -292,10 +338,11 @@ for iYear = 1:nYears
                     fprintf('    Loading cached monthly results...\n');
                     load(monthPath, 'monthResults');
                 else
-                    % Evaluate this month using fold-specific GO and Cov
+                    % Evaluate this month using pre-formatted knowledge bases
                     tic;
-                    monthResults = evaluateFold_CBV_monthly(obs, go_fold, cov_fold, BMEparam, ...
-                        trainMask, valMask, valYear, valMonth, softData);
+                    monthResults = evaluateFold_CBV_monthly(obs, go_fold, BMEparam, ...
+                        trainMask, valMask, valYear, valMonth, ...
+                        KG_fold, KS_fold, soft_data_stug, p_soft_stug, z_soft_stug, vs_soft_stug);
                     evalTime = toc;
 
                     fprintf('    Month evaluation completed in %.1f seconds\n', evalTime);

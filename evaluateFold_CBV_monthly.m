@@ -1,24 +1,29 @@
-function monthResults = evaluateFold_CBV_monthly(obs, go, cov, BMEparam, ...
-    trainMask, valMask, valYear, valMonth, softData)
+function monthResults = evaluateFold_CBV_monthly(obs, go, BMEparam, ...
+    trainMask, valMask, valYear, valMonth, KG, KS, soft_data_stug, p_soft, z_soft, vs_soft)
 % evaluateFold_CBV_monthly - Evaluate checker-board validation for single month
 %
-% Performs CBV for one month using all available temporal data. Follows LOOCV
-% monthly pattern and uses krigingME_stug_multi for multi-soft datasets.
+% Performs CBV for one month using pre-formatted knowledge bases.
+% This function is optimized to accept pre-formatted KG/KS structures to avoid
+% redundant knowledge base creation and soft data reformatting across months.
 %
 % SYNTAX:
-%   monthResults = evaluateFold_CBV_monthly(obs, go, cov, BMEparam, ...
-%                                           trainMask, valMask, valYear, valMonth, softData)
+%   monthResults = evaluateFold_CBV_monthly(obs, go, BMEparam, ...
+%       trainMask, valMask, valYear, valMonth, KG, KS, soft_data_stug, p_soft, z_soft, vs_soft)
 %
 % INPUTS:
-%   obs       - Observational data structure from getTOARobservationalData
-%   go        - Global offset structure from getTOARglobalOffset
-%   cov       - Covariance structure from getTOARautoCov
-%   BMEparam  - BME parameters from getBMEparam
-%   trainMask - nStations × 1 logical array (true = use for training)
-%   valMask   - nStations × 1 logical array (true = use for validation)
-%   valYear   - Year to validate (e.g., 2017)
-%   valMonth  - Month to validate (1-12)
-%   softData  - (Optional) Soft data structure or cell array of structures
+%   obs            - Observational data structure from getTOARobservationalData
+%   go             - Global offset structure from getTOARglobalOffset (fold-specific)
+%   BMEparam       - BME parameters from getBMEparam
+%   trainMask      - nStations × 1 logical array (true = use for training)
+%   valMask        - nStations × 1 logical array (true = use for validation)
+%   valYear        - Year to validate (e.g., 2017)
+%   valMonth       - Month to validate (1-12)
+%   KG             - General Knowledge structure (pre-formatted, fold-specific)
+%   KS             - Site-specific Knowledge structure (pre-formatted, fold-specific)
+%   soft_data_stug - STUG-formatted soft data (pre-reformatted) or []
+%   p_soft         - Soft data coordinates (pre-extracted) or []
+%   z_soft         - Soft data values (pre-extracted) or []
+%   vs_soft        - Soft data variances (pre-extracted) or []
 %
 % OUTPUTS:
 %   monthResults - Structure with monthly validation results:
@@ -67,37 +72,7 @@ monthEnd = valYear + valMonth / 12;
 
 fprintf('    Target month: %.4f - %.4f (Year %d, Month %d)\n', ...
     monthStart, monthEnd, valYear, valMonth);
-
-%% Filter Observations to Training Stations (use all time periods)
-% Create training dataset: training stations only, all time periods
-trainObs = obs;
-trainObs.sMS = obs.sMS(trainMask, :);
-trainObs.Z = obs.Z(trainMask, :);
-trainObs.Y = obs.Y(trainMask, :);
-trainObs.tME = obs.tME;
-
-% Count valid training data
-nTrainTotal = numel(trainObs.Z);
-nTrainValid = sum(~isnan(trainObs.Z(:)));
-
-fprintf('    Training data:\n');
-fprintf('      Stations: %d\n', size(trainObs.sMS, 1));
-fprintf('      Time periods: %d\n', length(trainObs.tME));
-fprintf('      Valid observations: %d / %d (%.1f%%)\n', ...
-    nTrainValid, nTrainTotal, 100*nTrainValid/nTrainTotal);
-
-%% Prepare BME Knowledge Base from Training Data
-fprintf('    Preparing BME knowledge base from training data...\n');
-[KG, KS, ~] = getTOARknowledgeBase(trainObs, go, cov, softData, BMEparam.BMEmethod8digits);
-
-% Check sufficient training data
-if isempty(KS.harddata.z) || length(KS.harddata.z) < 10
-    warning('Insufficient training data points (%d)', length(KS.harddata.z));
-    monthResults = struct('nValid', 0);
-    return;
-end
-
-fprintf('      Training points in knowledge base: %d\n', length(KS.harddata.z));
+fprintf('    Using pre-formatted knowledge base: %d training points\n', length(KS.harddata.z));
 
 %% Create Validation Locations (Only Target Month)
 % Get validation stations
@@ -156,58 +131,40 @@ tic;
 BMEmethod8digits = BMEparam.BMEmethod8digits;
 BMEprobaType = str2double(BMEmethod8digits(8));
 
-% Use krigingME_stug_multi for multi-soft datasets (following estTOARsBME.m pattern)
+% Use pre-formatted soft data (already reformatted once per fold)
 switch BMEprobaType
     case 3  % KrigingME with multi-soft data support (STUG format)
-        % STUG format: fastest for large uniform grids
-        % Reformat soft data for all datasets if it's a cell array
-        if iscell(KS.softdata)
-            soft_data = cell(size(KS.softdata));
-            p_soft = cell(size(KS.softdata));
-            z_soft = cell(size(KS.softdata));
-            vs_soft = cell(size(KS.softdata));
-
-            fprintf('      Multi-soft datasets detected: %d models\n', length(KS.softdata));
-            for ii = 1:length(KS.softdata)
-                soft_data{ii} = reformat_stg_to_stug(KS.softdata{ii});
-                p_soft{ii} = KS.softdata{ii}.p;
-                z_soft{ii} = KS.softdata{ii}.z;
-                vs_soft{ii} = KS.softdata{ii}.vs;
-            end
-        else
-            % Single soft dataset
-            fprintf('      Single soft dataset\n');
-            soft_data = reformat_stg_to_stug(KS.softdata);
-            p_soft = KS.softdata.p;
-            z_soft = KS.softdata.z;
-            vs_soft = KS.softdata.vs;
-        end
-
-        fprintf('      Using krigingME_stug_multi (STUG format)...\n');
+        fprintf('      Using krigingME_stug_multi with %d soft datasets (pre-formatted)...\n', ...
+            length(soft_data_stug));
         [XkBMEm, XkBMEv] = krigingME_stug_multi(pk, KS.harddata.p, p_soft, ...
             KS.harddata.z, z_soft, vs_soft, ...
             KG.covmodel, KG.covparam, BMEparam.nhmax, BMEparam.nsmax, ...
-            BMEparam.dmax, BMEparam.order, BMEparam.options, KS.harddata, soft_data);
+            BMEparam.dmax, KG.order, BMEparam.options, KS.harddata, soft_data_stug);
 
     case 2  % KrigingME (standard format based on dataFormat)
         switch BMEparam.dataFormat
             case 'stug'
-                fprintf('      Using krigingME_stug (STUG format - single soft dataset)...\n');
-                soft_data = reformat_stg_to_stug(KS.softdata);
-
-                [XkBMEm, XkBMEv] = krigingME_stug(pk, KS.harddata.p, KS.softdata.p, ...
-                    KS.harddata.z, KS.softdata.z, KS.softdata.vs, ...
+                fprintf('      Using krigingME_stug (STUG format, pre-formatted)...\n');
+                [XkBMEm, XkBMEv] = krigingME_stug(pk, KS.harddata.p, p_soft, ...
+                    KS.harddata.z, z_soft, vs_soft, ...
                     KG.covmodel, KG.covparam, BMEparam.nhmax, BMEparam.nsmax, ...
-                    BMEparam.dmax, BMEparam.order, 0, KS.harddata, soft_data);
+                    BMEparam.dmax, KG.order, 0, KS.harddata, soft_data_stug);
 
             otherwise
                 % Use standard krigingME for other formats
                 fprintf('      Using krigingME (standard format)...\n');
-                [XkBMEm, XkBMEv] = krigingME(pk, KS.harddata.p, KS.softdata.p, ...
-                    KS.harddata.z, KS.softdata.z, KS.softdata.vs, ...
+                [XkBMEm, XkBMEv] = krigingME(pk, KS.harddata.p, p_soft, ...
+                    KS.harddata.z, z_soft, vs_soft, ...
                     KG.covmodel, KG.covparam, BMEparam.nhmax, BMEparam.nsmax, ...
-                    BMEparam.dmax, BMEparam.order, BMEparam.options);
+                    BMEparam.dmax, KG.order, BMEparam.options);
         end
+
+    case 1  % Hard data only
+        fprintf('      Using hard data only...\n');
+        [XkBMEm, XkBMEv] = krigingME(pk, KS.harddata.p, [], ...
+            KS.harddata.z, [], [], ...
+            KG.covmodel, KG.covparam, BMEparam.nhmax, 0, ...
+            BMEparam.dmax, KG.order, BMEparam.options);
 
     otherwise
         error('Unsupported BME method type: %d', BMEprobaType);
