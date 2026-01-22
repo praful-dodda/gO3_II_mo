@@ -257,12 +257,20 @@ for iYear = 1:nYears
 
             % Compute fold-specific GO using ONLY training stations
             fprintf('\n  Computing fold-specific Global Offset and Covariance...\n');
+            % Plot diagnostic figures for first fold and first box only (to avoid clutter)
+            goPlotLevel = 0;  % Default: save but don't display
+            if iBox == 1 && iFold == 1 && isfield(valParam, 'plotDiagnostics') && valParam.plotDiagnostics
+                goPlotLevel = 1;  % Display for first fold/box if diagnostics requested
+            end
+
             go_fold = getTOARglobalOffset_CBV(trainObs, valParam.goScenario, ...
-                boxSize, iFold, yearRange, valParam.forceGO, 0);
+                boxSize, iFold, yearRange, valParam.forceGO, goPlotLevel, ...
+                obs, trainMask, valMask);
 
             % Compute fold-specific covariance using ONLY training stations
             cov_fold = getTOARautoCov_CBV(trainObs, go_fold, ...
-                valParam.temporalModel, boxSize, iFold, yearRange, valParam.forceCov);
+                valParam.temporalModel, boxSize, iFold, yearRange, valParam.forceCov, ...
+                goPlotLevel, obs, trainMask, valMask);
 
             fprintf('    Fold-specific GO/Cov ready for validation.\n');
 

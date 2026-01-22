@@ -1,4 +1,4 @@
-function go = getTOARglobalOffset_CBV(obs, goScenario, boxSize, foldIdx, yearRange, forceGO, goPlot)
+function go = getTOARglobalOffset_CBV(obs, goScenario, boxSize, foldIdx, yearRange, forceGO, goPlot, obsAll, trainMask, valMask)
 % getTOARglobalOffset_CBV - Compute fold-specific global offset for CBV
 %
 % Wrapper around getTOARglobalOffset that caches results per fold to avoid
@@ -8,6 +8,8 @@ function go = getTOARglobalOffset_CBV(obs, goScenario, boxSize, foldIdx, yearRan
 %
 % SYNTAX:
 %   go = getTOARglobalOffset_CBV(obs, goScenario, boxSize, foldIdx, yearRange, forceGO, goPlot)
+%   go = getTOARglobalOffset_CBV(obs, goScenario, boxSize, foldIdx, yearRange, forceGO, goPlot, ...
+%                                 obsAll, trainMask, valMask)
 %
 % INPUTS:
 %   obs        - Observational data structure (should contain ONLY training stations)
@@ -17,6 +19,12 @@ function go = getTOARglobalOffset_CBV(obs, goScenario, boxSize, foldIdx, yearRan
 %   yearRange  - [startYear endYear] of obs data (e.g., [2016 2018] for val year 2017)
 %   forceGO    - Force recomputation (default: 0)
 %   goPlot     - Plotting level (default: 0)
+%                -1 = no plotting, no saving
+%                 0 = save figures, don't display
+%                 1 = save figures and display
+%   obsAll     - (Optional) Full obs structure with all stations (for diagnostic plots)
+%   trainMask  - (Optional) Logical mask for training stations
+%   valMask    - (Optional) Logical mask for validation stations
 %
 % OUTPUTS:
 %   go - Global offset structure
@@ -24,14 +32,16 @@ function go = getTOARglobalOffset_CBV(obs, goScenario, boxSize, foldIdx, yearRan
 % CACHING:
 %   Cached files stored in: ./2globalOffset/CBV/
 %   Filename format: {Zname}go_go{scenario}_CBV_box{size}_fold{fold}_{startYr}-{endYr}.mat
+%   Figures stored in: ./2globalOffset/CBV/figs/box{size}/
 %
 % EXAMPLE:
 %   % For fold 1 with 3-degree boxes, validation year 2017 (uses 2016-2018 data)
 %   trainObs = getTrainingObservations(obs, trainMask);
-%   go_fold1 = getTOARglobalOffset_CBV(trainObs, 3, 3.0, 1, [2016 2018], 0, 0);
+%   go_fold1 = getTOARglobalOffset_CBV(trainObs, 3, 3.0, 1, [2016 2018], 0, 0, ...
+%                                      obs, trainMask, valMask);
 %
 % SEE ALSO:
-%   getTOARglobalOffset, getTOARautoCov_CBV, runCBV_toar
+%   getTOARglobalOffset, getTOARautoCov_CBV, runCBV_toar, plotTOARglobalOffset_CBV
 
 %% Input validation
 if nargin < 5
@@ -39,6 +49,9 @@ if nargin < 5
 end
 if nargin < 6, forceGO = 0; end
 if nargin < 7, goPlot = 0; end
+if nargin < 8, obsAll = []; end
+if nargin < 9, trainMask = []; end
+if nargin < 10, valMask = []; end
 
 %% Setup caching directory
 goDir = './2globalOffset/CBV';
@@ -78,5 +91,22 @@ fprintf('        Saving fold-specific GO to cache...\n');
 save(goPath, 'go', '-v7.3');
 
 fprintf('        Fold-specific GO computed and cached.\n');
+
+%% Create diagnostic plots if requested
+if goPlot >= 0 && ~isempty(obsAll) && ~isempty(trainMask) && ~isempty(valMask)
+    fprintf('        Creating diagnostic plots for fold %d...\n', foldIdx);
+    try
+        visible = 'off';
+        if goPlot >= 1
+            visible = 'on';
+        end
+
+        figPaths = plotTOARglobalOffset_CBV(obsAll, go, boxSize, foldIdx, yearRange, ...
+            trainMask, valMask, 'visible', visible);
+        fprintf('        Created %d diagnostic plots\n', length(figPaths));
+    catch ME
+        warning('Failed to create diagnostic plots: %s', ME.message);
+    end
+end
 
 end

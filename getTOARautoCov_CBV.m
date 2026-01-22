@@ -1,4 +1,4 @@
-function cov = getTOARautoCov_CBV(obs, go, temporalModelType, boxSize, foldIdx, yearRange, forceCov)
+function cov = getTOARautoCov_CBV(obs, go, temporalModelType, boxSize, foldIdx, yearRange, forceCov, covPlot, obsAll, trainMask, valMask)
 % getTOARautoCov_CBV - Compute fold-specific covariance for CBV
 %
 % Wrapper around getTOARautoCov that caches results per fold to avoid data
@@ -8,6 +8,8 @@ function cov = getTOARautoCov_CBV(obs, go, temporalModelType, boxSize, foldIdx, 
 %
 % SYNTAX:
 %   cov = getTOARautoCov_CBV(obs, go, temporalModelType, boxSize, foldIdx, yearRange, forceCov)
+%   cov = getTOARautoCov_CBV(obs, go, temporalModelType, boxSize, foldIdx, yearRange, forceCov, ...
+%                            covPlot, obsAll, trainMask, valMask)
 %
 % INPUTS:
 %   obs               - Observational data structure (should contain ONLY training stations)
@@ -17,6 +19,13 @@ function cov = getTOARautoCov_CBV(obs, go, temporalModelType, boxSize, foldIdx, 
 %   foldIdx           - Fold index (1 or 2)
 %   yearRange         - [startYear endYear] of obs data (e.g., [2016 2018] for val year 2017)
 %   forceCov          - Force recomputation (default: 0)
+%   covPlot           - Plotting level (default: 0)
+%                       -1 = no plotting, no saving
+%                        0 = save figures, don't display
+%                        1 = save figures and display
+%   obsAll            - (Optional) Full obs structure with all stations (for diagnostic plots)
+%   trainMask         - (Optional) Logical mask for training stations
+%   valMask           - (Optional) Logical mask for validation stations
 %
 % OUTPUTS:
 %   cov - Covariance structure
@@ -24,15 +33,17 @@ function cov = getTOARautoCov_CBV(obs, go, temporalModelType, boxSize, foldIdx, 
 % CACHING:
 %   Cached files stored in: ./3covariance/CBV/
 %   Filename format: Cov_go{scenario}_lt{logTransf}_{tempModel}_CBV_box{size}_fold{fold}_{startYr}-{endYr}.mat
+%   Figures stored in: ./3covariance/CBV/figs/box{size}/
 %
 % EXAMPLE:
 %   % For fold 1 with 3-degree boxes, validation year 2017 (uses 2016-2018 data)
 %   trainObs = getTrainingObservations(obs, trainMask);
 %   go_fold = getTOARglobalOffset_CBV(trainObs, 3, 3.0, 1, [2016 2018]);
-%   cov_fold = getTOARautoCov_CBV(trainObs, go_fold, 'exponentialC', 3.0, 1, [2016 2018]);
+%   cov_fold = getTOARautoCov_CBV(trainObs, go_fold, 'exponentialC', 3.0, 1, [2016 2018], 0, 0, ...
+%                                  obs, trainMask, valMask);
 %
 % SEE ALSO:
-%   getTOARautoCov, getTOARglobalOffset_CBV, runCBV_toar
+%   getTOARautoCov, getTOARglobalOffset_CBV, runCBV_toar, plotTOARautoCov_CBV
 
 %% Input validation
 if nargin < 6
@@ -40,6 +51,10 @@ if nargin < 6
 end
 if nargin < 3 || isempty(temporalModelType), temporalModelType = 'exponentialC'; end
 if nargin < 7, forceCov = 0; end
+if nargin < 8, covPlot = 0; end
+if nargin < 9, obsAll = []; end
+if nargin < 10, trainMask = []; end
+if nargin < 11, valMask = []; end
 
 %% Setup caching directory
 covDir = './3covariance/CBV';
@@ -80,5 +95,22 @@ fprintf('        Saving fold-specific Cov to cache...\n');
 save(covPath, 'cov', '-v7.3');
 
 fprintf('        Fold-specific Cov computed and cached.\n');
+
+%% Create diagnostic plots if requested
+if covPlot >= 0 && ~isempty(obsAll) && ~isempty(trainMask) && ~isempty(valMask)
+    fprintf('        Creating diagnostic plots for fold %d covariance...\n', foldIdx);
+    try
+        visible = 'off';
+        if covPlot >= 1
+            visible = 'on';
+        end
+
+        figPaths = plotTOARautoCov_CBV(obsAll, go, cov, boxSize, foldIdx, yearRange, ...
+            trainMask, valMask, 'visible', visible);
+        fprintf('        Created %d diagnostic plots\n', length(figPaths));
+    catch ME
+        warning('Failed to create diagnostic plots: %s', ME.message);
+    end
+end
 
 end
