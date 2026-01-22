@@ -72,7 +72,8 @@ fprintf('      Computing fold-specific Cov (go %d, %s, box %.1f, fold %d, years 
 fprintf('        Training stations: %d\n', size(obs.sMS, 1));
 
 % Call standard getTOARautoCov with training-only data
-cov = getTOARautoCov(obs, go, temporalModelType, 1, 1);
+% cov = getTOARautoCov(obs, go, temporalModelType, 1, 1);
+cov = getTOARautoCov_updated(obs, go, temporalModelType, 1, 1);
 
 %% Save to cache
 fprintf('        Saving fold-specific Cov to cache...\n');

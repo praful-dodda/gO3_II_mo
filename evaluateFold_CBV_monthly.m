@@ -55,9 +55,6 @@ function monthResults = evaluateFold_CBV_monthly(obs, go, BMEparam, ...
 if nargin < 8
     error('At least 8 inputs required');
 end
-if nargin < 9 || isempty(softData)
-    softData = [];  % No soft data
-end
 
 % Ensure masks are logical column vectors
 if ~islogical(trainMask), trainMask = logical(trainMask); end

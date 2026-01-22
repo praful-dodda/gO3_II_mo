@@ -77,7 +77,7 @@ valParam.goPlot = 0;  % 0=no plots, 1=basic (not recommended during CBV)
 valParam.temporalModel = 'holecos';  % 'exponential' or 'holecos'
 
 % Force re-estimation
-valParam.forceCov = 0;  % 0=use cached, 1=force new estimation
+valParam.forceCov = 1;  % 0=use cached, 1=force new estimation
 
 %% ====================================================================
 %                    BME METHOD CONFIGURATION
@@ -88,7 +88,7 @@ valParam.forceCov = 0;  % 0=use cached, 1=force new estimation
 % Digit 1 (obsType): 0=none, 1=hard only, 2=hard+soft obs
 % Digit 2 (CTMtype): 0=none, 1=single CTM, 3=multi-CTM
 % Digits 3-5 (RAMP): Correction parameters (0=none, 01=MERRA2GMI, 02=M3fusion, etc.)
-% Digit 6 (nsmax): 0=0, 1=3, 2=4, 3=5, 4=50, 5=100, 6=200 soft data neighbors
+% Digit 6 (nsmax): 0=0, 1=3, 2=4, 3=10, 4=50, 5=100, 6=200 soft data neighbors
 % Digit 7 (nhmax): 1=50, 2=100, 3=200 hard data neighbors
 % Digit 8 (BMEtype): 2=krigingME, 3=krigingME with multi-soft support
 %
@@ -97,7 +97,7 @@ valParam.forceCov = 0;  % 0=use cached, 1=force new estimation
 %   '13000133-01' = Hard + MERRA2GMI, nhmax=50, nsmax=0, krigingME
 %   '13000133-02' = Hard + M3fusion, nhmax=50, nsmax=0, krigingME
 %   '13000133-xx' = Hard + multi-CTM, nhmax=200, nsmax=5, krigingME multi-soft format
-valParam.BMEmethod = '13000133-01';
+valParam.BMEmethod = '13000313-01';
 
 %% ====================================================================
 %                    SOFT DATA CONFIGURATION (if using CTM)
@@ -160,7 +160,7 @@ fprintf('=======================================================================
 fprintf('\n');
 
 tic;
-[cbvResults, cbvStats] = runCBV_toar(valParam);
+    [cbvResults, cbvStats] = runCBV_toar(valParam);
 totalTime = toc;
 
 %% Display Results
