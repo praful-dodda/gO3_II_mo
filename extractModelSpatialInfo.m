@@ -133,8 +133,31 @@ models(18).folder = 'nanjing university ML/yearlyFiles';
 models(18).pattern = 'NJML-monthly-dma8-%d.csv';
 models(18).years = 2004;
 
+% OMI-MLS
+models(19).name = 'OMI_MLS';
+models(19).folder = 'BME corrected satellite data 2005-2022/';
+models(19).pattern = 'correct_omi_mls_%d.csv';
+models(19).years = 2005:2022;
+
+% IASI-GOME2
+models(20).name = 'IASI_GOME2';
+models(20).folder = 'BME corrected satellite data 2005-2022/';
+models(20).pattern = 'correct_IASI_GOME2_%d.csv';
+models(20).years = 2017:2020;
+
+% CrIS
+models(21).name = 'CrIS';
+models(21).folder = 'BME corrected satellite data 2005-2022/';
+models(21).pattern = 'correct_CrIS_%d.csv';
+models(21).years = 2022:2022;
+
 % Process all models - comment out to process only specific models
-% models = models(17:18);  % UKML and NJML only
+
+% process machine learning models only
+models = models(17:18);  % UKML and NJML only
+
+% process satellite-bme corrected models only
+% models = models(19:21);  % OMI-MLS, IASI-GOME2, CrIS only
 
 %% Process Each Model
 nModels = length(models);

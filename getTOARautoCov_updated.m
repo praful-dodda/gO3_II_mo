@@ -1,4 +1,4 @@
-function cov = getTOARautoCov(obs, go, temporalModelType, forceEstCov, inValidation)
+function cov = getTOARautoCov_updated(obs, go, temporalModelType, forceEstCov, inValidation)
 % getTOARautoCov - Estimates covariance structure from TOAR residuals
 %
 % Computes residuals by removing global offset, then fits spatial and temporal
@@ -136,42 +136,108 @@ fprintf('  Fitting temporal model using ''%s'' model...\n', temporalModelType);
 tLag_col = tLag(:); Ct_col = Ct(:);
 valid_idx_t = ~isnan(Ct_col) & ~isnan(tLag_col);
 
+% Add small nugget for numerical stability (2% of variance)
+nuggetFrac = 0.02;
+nuggetVar = nuggetFrac * varTemporal;
+effectiveVar = varTemporal - nuggetVar;  % Variance available for structured components
+
 switch lower(temporalModelType)
     case 'holecos'
-        temporalModel = @(params, t) params(1)*exp(-3*t/params(2)) + (varTemporal - params(1))*cos(pi*t/params(3));
-        initParams_temporal = [0.5*varTemporal, 0.2, 0.5];
-        lb_temporal = [0, 0, 0];
-        ub_temporal = [varTemporal, 2, 2];
+        % CORRECTED: Proper damped holecos model
+        % holecosC(t) = sigma^2 * exp(-3*t/a) * cos(pi*t/a)
+        % We fit: c3*exp(-3*t/at1) + c4*exp(-3*t/at2)*cos(pi*t/at2)
+        %         ^-- exponentialC     ^-- holecosC (damped!)
+        
+        temporalModel = @(params, t) params(1)*exp(-3*t/params(2)) + ...
+                                     (effectiveVar - params(1))*exp(-3*t/params(3)).*cos(pi*t/params(3));
+        
+        % Initial parameters: [c3, at1 (exp range), at2 (holecos range)]
+        % at2 controls BOTH damping and period - for annual cycle, at2 ≈ 0.5 years
+        initParams_temporal = [0.3*effectiveVar, 0.15, 0.5];
+        
+        % Bounds - constrain holecos range to give reasonable seasonal behavior
+        lb_temporal = [0, 0.01, 0.3];      % at2 >= 0.3 ensures damping before full oscillation
+        ub_temporal = [effectiveVar, 1, 1]; % at2 <= 1 keeps period reasonable
+        
         covmodel_t = {'exponentialC', 'holecosC'};
         
         try
-            bestParams_temporal = lsqcurvefit(temporalModel, initParams_temporal, tLag_col(valid_idx_t), Ct_col(valid_idx_t), lb_temporal, ub_temporal, opts);
-            c3 = bestParams_temporal(1); c4 = varTemporal - c3; at1 = bestParams_temporal(2); at2 = bestParams_temporal(3);
-        catch
-             warning('Temporal model fitting failed. Using simplified model.');
-             c3 = varTemporal; c4 = 0; at1 = 2; at2 = 2;
+            bestParams_temporal = lsqcurvefit(temporalModel, initParams_temporal, ...
+                tLag_col(valid_idx_t), Ct_col(valid_idx_t), lb_temporal, ub_temporal, opts);
+            c3 = bestParams_temporal(1); 
+            c4 = effectiveVar - c3; 
+            at1 = bestParams_temporal(2); 
+            at2 = bestParams_temporal(3);
+            
+            % CRITICAL CHECK: Ensure holecos coefficient is stable
+            % If c4 is too large relative to c3, the model can still be ill-conditioned
+            if c4 > 0.7 * effectiveVar
+                warning('Holecos component dominates (%.1f%%). Rebalancing for stability.', 100*c4/effectiveVar);
+                c4 = 0.7 * effectiveVar;
+                c3 = effectiveVar - c4;
+            end
+            
+        catch ME
+            warning('Temporal model fitting failed: %s. Using simplified model.', ME.message);
+            c3 = 0.7*effectiveVar; c4 = 0.3*effectiveVar; at1 = 0.2; at2 = 0.5;
         end
 
     case 'exponential'
+        % Your existing exponential code is fine
         at2_fixed = 1000; 
-        temporalModel = @(params, t) params(1)*exp(-3*t/params(2)) + (varTemporal - params(1))*exp(-3*t/at2_fixed);
-        initParams_temporal = [0.5*varTemporal, 0.5]; 
+        temporalModel = @(params, t) params(1)*exp(-3*t/params(2)) + ...
+                                     (effectiveVar - params(1))*exp(-3*t/at2_fixed);
+        initParams_temporal = [0.5*effectiveVar, 0.5]; 
         lb_temporal = [0, 1/24]; 
-        ub_temporal = [varTemporal, 2]; 
+        ub_temporal = [effectiveVar, 2]; 
         covmodel_t = {'exponentialC', 'exponentialC'};
         
         try
-            bestParams_temporal = lsqcurvefit(temporalModel, initParams_temporal, tLag_col(valid_idx_t), Ct_col(valid_idx_t), lb_temporal, ub_temporal, opts);
+            bestParams_temporal = lsqcurvefit(temporalModel, initParams_temporal, ...
+                tLag_col(valid_idx_t), Ct_col(valid_idx_t), lb_temporal, ub_temporal, opts);
             c3 = bestParams_temporal(1);
             at1 = bestParams_temporal(2);
-            c4 = varTemporal - c3; 
+            c4 = effectiveVar - c3; 
             at2 = at2_fixed;
         catch
-             warning('Temporal model fitting failed. Using simplified model.');
-             c3 = varTemporal; c4 = 0; at1 = 2; at2 = at2_fixed;
+            warning('Temporal model fitting failed. Using simplified model.');
+            c3 = effectiveVar; c4 = 0; at1 = 2; at2 = at2_fixed;
         end
+        
     otherwise
         error('Unknown temporalModelType: %s', temporalModelType);
+end
+
+%% --- Assemble Final Covariance Structure (WITH NUGGET) ---
+fprintf('  Assembling final covariance structure...\n');
+v = varSpatial;
+
+% Include nugget in the model
+c1n = c1/v; c2n = c2/v; c3n = c3/v; c4n = c4/v;
+c01 = max(0, c1n*c3n*v); 
+c02 = max(0, c1n*c4n*v);
+c03 = max(0, c2n*c3n*v); 
+c04 = max(0, c2n*c4n*v);
+
+% Add nugget as first component
+cov.covmodel = {'nuggetC/nuggetC', ...  % NUGGET FOR STABILITY
+                ['exponentialC/' covmodel_t{1}], ['exponentialC/' covmodel_t{2}], ...
+                ['exponentialC/' covmodel_t{1}], ['exponentialC/' covmodel_t{2}]};
+
+cov.covparam = {nuggetVar, ...  % Nugget variance
+                [c01, ar1, at1], [c02, ar1, at2], ...
+                [c03, ar2, at1], [c04, ar2, at2]};
+
+cov.rLag = rLag; cov.Cr = Cr;
+cov.tLag = tLag; cov.Ct = Ct;
+cov.var = v;
+
+% Adjust stmetric calculation to account for nugget
+totalCov = c01+c02+c03+c04;
+if totalCov > 0
+    cov.stmetric = (c01*ar1/at1 + c02*ar1/at2 + c03*ar2/at1 + c04*ar2/at2) / totalCov;
+else
+    cov.stmetric = 1000; 
 end
 
 %% --- Assemble Final Covariance Structure ---

@@ -17,6 +17,11 @@ function go = getTOARglobalOffset(obs, goScenario, goPlot, forceGOestimation, in
 % goPlot      scalar indicating plotting level
 %             0 no plots, 1 basic plots, 2 detailed plots, 3 comprehensive plots
 %             default: 1
+% forceGOestimation scalar indicating whether to force re-estimation of global offset
+%                   0 use existing if available, 1 force new estimation
+%                   default: 0
+% inValidation    scalar indicating if this is for validation (1) or training (0)
+%                  default: 0
 %
 % OUTPUT:
 % go   structure containing global offset:

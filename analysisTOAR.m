@@ -322,9 +322,9 @@ switch analysisScenario
         valParam.stationTypes = 'all';  % 'all', 'urban', 'rural', or {'urban','rural'}
         valParam.timeRange = [2015 2020];  % [startYear endYear]
         valParam.logTransf = 0;  % 0=no, 1=yes
-        valParam.goScenario = 3;
+        valParam.goScenario = 0;
         valParam.temporalModel = 'holecos';
-        valParam.BMEmethod = '10000132';
+        valParam.BMEmethod = '10000133';
         valParam.areaCode = 5;
         valParam.mapResolution = 1.0;
         valParam.tkVec = 2016:1/12:2017;  % Monthly 2016
@@ -352,7 +352,7 @@ switch analysisScenario
         % force re-calculation of each step
         valParam.forceGO = 0;
         valParam.forceCov = 0;
-        valParam.forceEstimation = 1; % this can't be 0 for validation
+        valParam.forceEstimation = 0; % this can't be 0 for validation
 
         % run validation
         run_TOARvalidation(valParam);

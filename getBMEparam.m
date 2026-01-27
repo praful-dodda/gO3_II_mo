@@ -21,7 +21,6 @@ if nargin < 3
     dataFormat = 'stg';  % Default to space-time grid
 end
 
-% Parse method code
 % if the input is numeric, convert to string
 if isnumeric(BMEmethod8digits)
     BMEmethodStr = num2str(BMEmethod8digits);
@@ -31,9 +30,12 @@ else
     error('BMEmethod8digits must be a numeric or string input');
 end
 
-BMEnsmax = str2double(BMEmethodStr(6));
-BMEnhmax = str2double(BMEmethodStr(7));
-BMEprobaType = str2double(BMEmethodStr(8));
+% Parse method code
+[~, ~, ~, BMEnsmax, BMEnhmax, BMEprobaType, CTMmodels] = parseBMEcode(BMEmethodStr);
+
+% BMEnsmax = str2double(BMEmethodStr(6));
+% BMEnhmax = str2double(BMEmethodStr(7));
+% BMEprobaType = str2double(BMEmethodStr(8));
 
 % Set nhmax
 switch BMEnhmax
@@ -57,9 +59,13 @@ end
 
 % Set order
 switch BMEprobaType
-    case 1, BMEparam.order = NaN;  % Zero mean
-    case 2, BMEparam.order = 0;    % Constant mean
-    case 3, BMEparam.order = 0;    % Constant mean with multiple softdatasets
+    case 1 
+        BMEparam.order = NaN;  % Zero mean
+    case 2 
+        BMEparam.order = NaN;    % Zero mean
+    case 3
+        BMEparam.order = NaN;    % Zero mean with multiple softdatasets
+        dataFormat = 'stug';
     otherwise, error('BMEprobaType (digit 8) must be 1 or 2');
 end
 
@@ -84,5 +90,9 @@ BMEparam.options(8) = nMom;
 
 BMEparam.BMEmethod8digits = BMEmethod8digits;
 BMEparam.dataFormat = dataFormat;
+
+if ~isempty(CTMmodels)
+    BMEparam.CTMmodels = CTMmodels;
+end
 
 end

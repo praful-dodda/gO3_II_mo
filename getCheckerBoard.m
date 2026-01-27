@@ -17,9 +17,9 @@ function [trainMask, valMask] = getCheckerBoard(sMS, boxSize, fold, plotCheckerB
 %              1 = "black" squares for training, "white" for validation
 %              2 = "white" squares for training, "black" for validation
 %              (default: 1)
-%   plotCheckerBoard - (Optional) Boolean to plot the checkerboard pattern with
-%                      the legend (default: false)
-%                    - 1 to plot, 0 to not plot
+%   plotCheckerBoard - (Optional) Boolean to plot the checkerboard pattern
+%                      0 = no plot (default)
+%                      1 = plot with boxes and points
 %
 % OUTPUTS:
 %   trainMask - nPoints × 1 logical array (true = training set)
@@ -36,12 +36,11 @@ function [trainMask, valMask] = getCheckerBoard(sMS, boxSize, fold, plotCheckerB
 %   % Create 5-degree checkerboard
 %   [trainMask, valMask] = getCheckerBoard(obs.sMS, 5, 1);
 %
-%   % Create rectangular checkerboard (10° lon × 5° lat)
-%   [trainMask, valMask] = getCheckerBoard(obs.sMS, [10, 5], 2);
+%   % Create with visualization
+%   [trainMask, valMask] = getCheckerBoard(obs.sMS, 3, 1, 1);
 %
-%   % Use for cross-validation
-%   trainData = obs.Z(trainMask, :);
-%   valData = obs.Z(valMask, :);
+%   % Create rectangular checkerboard (10° lon × 5° lat)
+%   [trainMask, valMask] = getCheckerBoard(obs.sMS, [10, 5], 2, 1);
 
 %% Input Validation
 if nargin < 3 || isempty(fold)
@@ -118,17 +117,70 @@ fprintf('  Validation points: %d (%.1f%%)\n', sum(valMask), 100*sum(valMask)/nPo
 fprintf('  Spatial extent: [%.1f, %.1f] lon × [%.1f, %.1f] lat\n', ...
     lonMin, lonMax, latMin, latMax);
 
-%% Optional Plotting
+%% Optional Plotting with Boxes
 if plotCheckerBoard
-    figure;
+    figure('Position', [100, 100, 1200, 600]);
     hold on;
-    scatter(lon(trainMask), lat(trainMask), 20, 'b', 'filled', 'DisplayName', 'Training');
-    scatter(lon(valMask), lat(valMask), 20, 'r', 'filled', 'DisplayName', 'Validation');
-    xlabel('Longitude');
-    ylabel('Latitude');
-    title(sprintf('Checkerboard Pattern (Box: %.1f°×%.1f°, Fold: %d)', boxSizeLon, boxSizeLat, fold));
+
+    % Create grid lines for boxes
+    lonGridEdges = lonRef:boxSizeLon:(lonMax + boxSizeLon);
+    latGridEdges = latRef:boxSizeLat:(latMax + boxSizeLat);
+
+    % Draw checkerboard boxes
+    for iLon = 1:(length(lonGridEdges)-1)
+        for iLat = 1:(length(latGridEdges)-1)
+            % Determine box color based on checkerboard pattern
+            boxIsBlack = mod(iLon + iLat, 2) == 0;
+
+            % Assign color based on fold
+            if (fold == 1 && boxIsBlack) || (fold == 2 && ~boxIsBlack)
+                faceColor = [0.7 0.85 1.0];  % Light blue for training
+            else
+                faceColor = [1.0 0.85 0.7];  % Light orange for validation
+            end
+
+            % Draw rectangle for this box
+            rectangle('Position', [lonGridEdges(iLon), latGridEdges(iLat), ...
+                boxSizeLon, boxSizeLat], ...
+                'FaceColor', faceColor, 'EdgeColor', [0.5 0.5 0.5], ...
+                'LineWidth', 0.5);
+        end
+    end
+
+    % Plot station points on top of boxes
+    scatter(lon(trainMask), lat(trainMask), 30, 'b', 'filled', ...
+        'DisplayName', sprintf('Training (%d)', sum(trainMask)));
+    scatter(lon(valMask), lat(valMask), 30, 'r', 'filled', ...
+        'DisplayName', sprintf('Validation (%d)', sum(valMask)));
+
+    % Add grid lines (without adding to legend)
+    for lonLine = lonGridEdges
+        plot([lonLine lonLine], [latMin latMax], 'k-', 'LineWidth', 0.3, 'HandleVisibility', 'off');
+    end
+    for latLine = latGridEdges
+        plot([lonMin lonMax], [latLine latLine], 'k-', 'LineWidth', 0.3, 'HandleVisibility', 'off');
+    end
+
+    xlabel('Longitude (°)');
+    ylabel('Latitude (°)');
+    title(sprintf('Checkerboard Pattern: Box=%.1f°×%.1f°, Fold=%d', ...
+        boxSizeLon, boxSizeLat, fold));
     legend('Location', 'best');
     grid on;
+    axis equal tight;
+
+    % Add text annotation with statistics
+    annotationStr = sprintf(['Training: %d stations (%.1f%%)\n' ...
+                            'Validation: %d stations (%.1f%%)'], ...
+        sum(trainMask), 100*sum(trainMask)/nPoints, ...
+        sum(valMask), 100*sum(valMask)/nPoints);
+    annotation('textbox', [0.15, 0.82, 0.3, 0.1], ...
+        'String', annotationStr, ...
+        'FitBoxToText', 'on', ...
+        'BackgroundColor', 'white', ...
+        'EdgeColor', 'black');
+
     hold off;
+end
 
 end
