@@ -366,12 +366,19 @@ function [grid_data, stats] = hybrid_regrid_internal(grid_data, sMS, Xms, Xvs, .
                                                      valid_mask, opts, ...
                                                      nx, ny, nt, resolution)
 % Internal function implementing hybrid bin-average + bilinear method
+% FIXED: Properly combines fRAMP variance with spatial variance
+
+has_framp_variance = ~isempty(Xvs);
 
 if opts.verbose
     fprintf('\n--- STEP 1/3: Bin-Average for data-rich cells ---\n');
+    if has_framp_variance
+        fprintf('    Using fRAMP variances from input\n');
+    end
     tic_bin = tic;
 end
 
+%% Create bin edges and assign stations to cells
 % Create bin edges
 lon_edges = [grid_data.x(1) - resolution/2; ...
              grid_data.x(1:end-1) + diff(grid_data.x)/2; ...
@@ -397,15 +404,15 @@ if opts.includeVariance
 end
 valid_mask_cells = valid_mask(valid_cells, :);
 
-% Initialize bin statistics arrays
+%% Accumulate statistics
 bin_count = zeros(nx, ny, nt);
 bin_sum = zeros(nx, ny, nt);
-bin_sum_sq = zeros(nx, ny, nt);  % For variance calculation
-if opts.includeVariance
-    bin_var_sum = zeros(nx, ny, nt);
+bin_sum_sq = zeros(nx, ny, nt);
+
+if has_framp_variance
+    bin_framp_var_sum = zeros(nx, ny, nt);  % Sum of fRAMP variances
 end
 
-% Accumulate statistics for each cell (vectorized over time)
 for t = 1:nt
     valid_t = valid_mask_cells(:, t);
     
@@ -413,66 +420,90 @@ for t = 1:nt
         continue;
     end
     
-    % Get valid cell IDs and values for this time
     cells_t = cell_ids(valid_t);
     values_t = Xms_valid(valid_t, t);
     
-    % Accumulate using accumarray
+    % Accumulate for mean and spatial variance
     bin_count(:, :, t) = reshape(accumarray(cells_t, 1, [nx*ny, 1]), nx, ny);
     bin_sum(:, :, t) = reshape(accumarray(cells_t, double(values_t), [nx*ny, 1]), nx, ny);
     bin_sum_sq(:, :, t) = reshape(accumarray(cells_t, double(values_t).^2, [nx*ny, 1]), nx, ny);
     
-    if opts.includeVariance
-        var_t = Xvs_valid(valid_t, t);
-        bin_var_sum(:, :, t) = reshape(accumarray(cells_t, double(var_t), [nx*ny, 1]), nx, ny);
+    % Accumulate fRAMP variances
+    if has_framp_variance
+        framp_var_t = Xvs_valid(valid_t, t);
+        bin_framp_var_sum(:, :, t) = reshape(accumarray(cells_t, double(framp_var_t), [nx*ny, 1]), nx, ny);
     end
     
-    % Progress
     if opts.verbose && mod(t, max(1, floor(nt/10))) == 0
         fprintf('  Binning time %d/%d (%.1f%%)\n', t, nt, 100*t/nt);
     end
 end
 
-% Calculate bin-average means and standard deviations
+%% Calculate bin-average statistics
 bin_mean = bin_sum ./ bin_count;
 bin_mean(bin_count == 0) = NaN;
 
-% Within-cell standard deviation (real uncertainty for bin cells)
-bin_std = sqrt((bin_sum_sq - (bin_sum.^2 ./ bin_count)) ./ max(bin_count - 1, 1));
-bin_std(bin_count < 2) = 0;  % Can't calculate std with < 2 points
+% Spatial variance (within-cell heterogeneity)
+bin_var_spatial = (bin_sum_sq - (bin_sum.^2 ./ bin_count)) ./ max(bin_count - 1, 1);
+bin_var_spatial(bin_count < 2) = 0;
 
-if opts.includeVariance
-    % Average of individual variances
-    bin_var_mean = bin_var_sum ./ bin_count;
-    bin_var_mean(bin_count == 0) = NaN;
+if has_framp_variance
+    % fRAMP variance (model uncertainty)
+    bin_var_framp = bin_framp_var_sum ./ bin_count;
+    bin_var_framp(bin_count == 0) = NaN;
+    
+    % COMBINE: Total variance = fRAMP variance + Spatial variance
+    bin_var_total = bin_var_framp + bin_var_spatial;
+    bin_std_total = sqrt(bin_var_total);
+    
+    if opts.verbose
+        % Report first time step statistics
+        fprintf('\n  Uncertainty Composition (time step 1):\n');
+        fprintf('    Mean fRAMP variance:   %.3f ppb²\n', nanmean(bin_var_framp(:,:,1), 'all'));
+        fprintf('    Mean spatial variance: %.3f ppb²\n', nanmean(bin_var_spatial(:,:,1), 'all'));
+        fprintf('    Mean total variance:   %.3f ppb²\n', nanmean(bin_var_total(:,:,1), 'all'));
+        fprintf('    Mean fRAMP std:        %.3f ppb\n', sqrt(nanmean(bin_var_framp(:,:,1), 'all')));
+        fprintf('    Mean spatial std:      %.3f ppb\n', sqrt(nanmean(bin_var_spatial(:,:,1), 'all')));
+        fprintf('    Mean total std:        %.3f ppb\n', nanmean(bin_std_total(:,:,1), 'all'));
+        
+        % Component analysis
+        framp_contribution = nanmean(bin_var_framp(:,:,1), 'all') / nanmean(bin_var_total(:,:,1), 'all');
+        spatial_contribution = nanmean(bin_var_spatial(:,:,1), 'all') / nanmean(bin_var_total(:,:,1), 'all');
+        fprintf('    fRAMP contribution:    %.1f%%\n', 100 * framp_contribution);
+        fprintf('    Spatial contribution:  %.1f%%\n', 100 * spatial_contribution);
+    end
+else
+    % No fRAMP variance - use only spatial
+    bin_std_total = sqrt(bin_var_spatial);
+    
+    if opts.verbose
+        fprintf('\n  Using spatial variance only (no fRAMP variances provided)\n');
+        fprintf('    Mean spatial std: %.3f ppb\n', nanmean(bin_std_total(:,:,1), 'all'));
+    end
 end
 
-% Create mask for cells with bin-averaged data
 has_bin_data = (bin_count > 0);
 
 if opts.verbose
     n_bin_cells = sum(has_bin_data(:, :, 1) > 0, 'all');
-    fprintf('  Bin-average complete: %d cells with data (%.1f%%)\n', ...
+    fprintf('  Bin-average complete: %d cells (%.1f%%)\n', ...
             n_bin_cells, 100 * n_bin_cells / (nx*ny));
     fprintf('  Time: %.2f seconds\n', toc(tic_bin));
 end
 
-%% STEP 2: Bilinear interpolation for full coverage
+%% STEP 2: Bilinear interpolation with fRAMP variance
 if opts.verbose
     fprintf('\n--- STEP 2/3: Bilinear interpolation for gap-filling ---\n');
     tic_interp = tic;
 end
 
-% Pre-allocate interpolated arrays
 interp_values = NaN(nx, ny, nt, 'single');
-interp_var = NaN(nx, ny, nt, 'single');
+interp_std = NaN(nx, ny, nt, 'single');
 
-% Flatten grid coordinates
 grid_lon_flat = grid_data.Lon(:);
 grid_lat_flat = grid_data.Lat(:);
 
 for t = 1:nt
-    % Get valid stations at this time
     valid_idx = valid_mask(:, t);
     n_valid = sum(valid_idx);
     
@@ -480,34 +511,48 @@ for t = 1:nt
         continue;
     end
     
-    % Extract valid data
     lon_valid = sMS(valid_idx, 1);
     lat_valid = sMS(valid_idx, 2);
     z_valid = double(Xms(valid_idx, t));
     
-    % Bilinear interpolation via Delaunay triangulation
+    % Interpolate values
     F = scatteredInterpolant(lon_valid, lat_valid, z_valid, 'linear', 'none');
     z_grid_flat = F(grid_lon_flat, grid_lat_flat);
     interp_values(:, :, t) = single(reshape(z_grid_flat, nx, ny));
     
-    % Estimate uncertainty from nearest neighbors
-    if opts.includeVariance
-        % Build KD-tree for nearest neighbor search
+    % Interpolate and combine uncertainties
+    if has_framp_variance
+        % Interpolate fRAMP variance
+        framp_var_valid = double(Xvs(valid_idx, t));
+        F_framp = scatteredInterpolant(lon_valid, lat_valid, framp_var_valid, 'linear', 'none');
+        framp_var_flat = F_framp(grid_lon_flat, grid_lat_flat);
+        framp_var_grid = reshape(framp_var_flat, nx, ny);
+        
+        % Estimate spatial variance from nearest neighbors
         station_tree = createns(sMS(valid_idx, :), 'NSMethod', 'kdtree');
-        
-        % For each grid point, find k nearest neighbors
-        k_neighbors = min(4, n_valid);  % Use up to 4 neighbors
+        k_neighbors = min(4, n_valid);
         grid_coords = [grid_lon_flat, grid_lat_flat];
-        [idx_nearest, dist_nearest] = knnsearch(station_tree, grid_coords, 'K', k_neighbors);
+        [idx_nearest, ~] = knnsearch(station_tree, grid_coords, 'K', k_neighbors);
         
-        % Calculate std from nearest neighbors
         neighbor_values = z_valid(idx_nearest);
-        interp_std_flat = std(neighbor_values, 0, 2);  % Std across neighbors
+        spatial_std_flat = std(neighbor_values, 0, 2);
+        spatial_var_grid = reshape(spatial_std_flat.^2, nx, ny);
         
-        interp_var(:, :, t) = single(reshape(interp_std_flat, nx, ny));
+        % COMBINE: Total variance = fRAMP variance + spatial variance
+        total_var_grid = framp_var_grid + spatial_var_grid;
+        interp_std(:, :, t) = single(sqrt(total_var_grid));
+    else
+        % No fRAMP variance - use only spatial
+        station_tree = createns(sMS(valid_idx, :), 'NSMethod', 'kdtree');
+        k_neighbors = min(4, n_valid);
+        grid_coords = [grid_lon_flat, grid_lat_flat];
+        [idx_nearest, ~] = knnsearch(station_tree, grid_coords, 'K', k_neighbors);
+        
+        neighbor_values = z_valid(idx_nearest);
+        spatial_std_flat = std(neighbor_values, 0, 2);
+        interp_std(:, :, t) = single(reshape(spatial_std_flat, nx, ny));
     end
     
-    % Progress
     if opts.verbose && mod(t, max(1, floor(nt/10))) == 0
         fprintf('  Interpolating time %d/%d (%.1f%%)\n', t, nt, 100*t/nt);
     end
@@ -520,90 +565,68 @@ if opts.verbose
     fprintf('  Time: %.2f seconds\n', toc(tic_interp));
 end
 
-%% STEP 3: Merge and adjust uncertainties
+%% STEP 3: Merge and apply distance-based inflation
 if opts.verbose
     fprintf('\n--- STEP 3/3: Merging and uncertainty adjustment ---\n');
     tic_merge = tic;
 end
 
-% Initialize final arrays
+% Initialize with NaN
 grid_data.Z = NaN(nx, ny, nt, 'single');
-if opts.includeVariance
-    grid_data.Zvar = NaN(nx, ny, nt, 'single');
-end
-
-% Data source tracking (1 = bin, 2 = interpolated)
+grid_data.Zvar = NaN(nx, ny, nt, 'single');
 data_source_2d = zeros(nx, ny, 'uint8');
 
-% Fill with bin-average data first (higher priority)
+% Fill bin-average cells first (higher priority)
 bin_mask = has_bin_data;
 grid_data.Z(bin_mask) = bin_mean(bin_mask);
-if opts.includeVariance
-    grid_data.Zvar(bin_mask) = bin_std(bin_mask);
-end
-
-% Mark bin cells
+grid_data.Zvar(bin_mask) = bin_std_total(bin_mask);  % ✓ Uses combined uncertainty
 data_source_2d(any(bin_mask, 3)) = 1;
 
-% Identify interpolated-only cells (not in bin)
+% Identify interpolated-only cells
 interp_only_mask = ~has_bin_data & ~isnan(interp_values);
 
-% Distance-based uncertainty inflation
-if opts.distanceBasedInflation && opts.includeVariance
+% Apply distance-based inflation to interpolated cells
+if opts.distanceBasedInflation
     fprintf('  Computing distance-based uncertainty inflation...\n');
     
-    % Build KD-tree from all original stations
     all_station_tree = createns(sMS, 'NSMethod', 'kdtree');
-    
-    % For each grid cell, find distance to nearest station
     grid_coords = [grid_data.Lon(:), grid_data.Lat(:)];
     [~, min_dist_to_station] = knnsearch(all_station_tree, grid_coords, 'K', 1);
     min_dist_grid = reshape(min_dist_to_station, nx, ny);
     
-    % Inflation factor: base * (1 + distance/2)
-    % At 0°: opts.uncertaintyInflation
-    % At 2°: 2 * opts.uncertaintyInflation
-    % At 4°: 3 * opts.uncertaintyInflation
+    % Inflation: α × (1 + d/β), capped at 5×
     inflation_factor = opts.uncertaintyInflation * (1.0 + min_dist_grid / 2.0);
-    
-    % Cap maximum inflation at 5x
     inflation_factor = min(inflation_factor, 5.0);
     
-    % Apply inflation to interpolated cells
+    % Apply inflation
     for t = 1:nt
         interp_mask_t = interp_only_mask(:, :, t);
         if any(interp_mask_t(:))
-            % Inflate uncertainty
-            inflated_var = interp_var(:, :, t) .* inflation_factor;
-            grid_data.Zvar(interp_mask_t) = inflated_var(interp_mask_t);
+            inflated_std = interp_std(:, :, t) .* inflation_factor;
+            grid_data.Zvar(interp_mask_t) = inflated_std(interp_mask_t);
         end
     end
     
     if opts.verbose
-        fprintf('  Inflation range: %.2fx to %.2fx\n', ...
+        fprintf('    Inflation range: %.2fx to %.2fx\n', ...
                 min(inflation_factor(:)), max(inflation_factor(:)));
-        fprintf('  Mean inflation: %.2fx\n', mean(inflation_factor(:)));
+        fprintf('    Mean inflation: %.2fx\n', mean(inflation_factor(:)));
     end
 else
-    % Fixed inflation factor
-    if opts.includeVariance
-        for t = 1:nt
-            interp_mask_t = interp_only_mask(:, :, t);
-            if any(interp_mask_t(:))
-                inflated_var = interp_var(:, :, t) * opts.uncertaintyInflation;
-                grid_data.Zvar(interp_mask_t) = inflated_var(interp_mask_t);
-            end
+    % Fixed inflation
+    for t = 1:nt
+        interp_mask_t = interp_only_mask(:, :, t);
+        if any(interp_mask_t(:))
+            inflated_std = interp_std(:, :, t) * opts.uncertaintyInflation;
+            grid_data.Zvar(interp_mask_t) = inflated_std(interp_mask_t);
         end
     end
 end
 
 % Fill interpolated values
 grid_data.Z(interp_only_mask) = interp_values(interp_only_mask);
-
-% Mark interpolated cells
 data_source_2d(any(interp_only_mask, 3)) = 2;
 
-% Store data source map
 grid_data.data_source = data_source_2d;
 
 if opts.verbose
@@ -620,17 +643,23 @@ stats.n_interp = n_interp;
 stats.n_total = n_bin + n_interp;
 stats.bin_fraction = n_bin / (n_bin + n_interp);
 
-if opts.includeVariance
-    % Calculate mean uncertainties for comparison
-    bin_cells = (data_source_2d == 1);
-    interp_cells = (data_source_2d == 2);
-    
-    % Get first time slice for statistics
-    var_slice = grid_data.Zvar(:, :, 1);
-    
-    stats.mean_std_bin = mean(var_slice(bin_cells), 'omitnan');
-    stats.mean_std_interp = mean(var_slice(interp_cells), 'omitnan');
-    stats.std_ratio = stats.mean_std_interp / stats.mean_std_bin;
+% Uncertainty statistics
+bin_cells = (data_source_2d == 1);
+interp_cells = (data_source_2d == 2);
+var_slice = grid_data.Zvar(:, :, 1);
+
+stats.mean_std_bin = mean(var_slice(bin_cells), 'omitnan');
+stats.mean_std_interp = mean(var_slice(interp_cells), 'omitnan');
+stats.std_ratio = stats.mean_std_interp / stats.mean_std_bin;
+
+if has_framp_variance
+    % Additional stats on uncertainty components
+    stats.has_framp_variance = true;
+    stats.mean_framp_var = nanmean(bin_var_framp(:,:,1), 'all');
+    stats.mean_spatial_var = nanmean(bin_var_spatial(:,:,1), 'all');
+    stats.framp_contribution = stats.mean_framp_var / (stats.mean_framp_var + stats.mean_spatial_var);
+else
+    stats.has_framp_variance = false;
 end
 
 end
