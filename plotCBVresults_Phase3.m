@@ -18,6 +18,7 @@ function figPaths = plotCBVresults_Phase3(configDirs, configNames, varargin)
 % OPTIONAL PARAMETERS:
 %   'baselineConfig' - Index of baseline configuration (default: 1)
 %   'metrics'        - Metrics to compare (default: {'R2','RMSE','MAE','NMB'})
+%   'years'          - Years to include in analysis (default: [] = all years)
 %   'saveDir'        - Directory to save figures (default: './figs_phase3')
 %   'dpi'            - Figure resolution (default: 300)
 %   'visible'        - 'on' or 'off' for figure visibility (default: 'off')
@@ -49,6 +50,7 @@ addRequired(p, 'configDirs', @iscell);
 addRequired(p, 'configNames', @iscell);
 addParameter(p, 'baselineConfig', 1, @isnumeric);
 addParameter(p, 'metrics', {'R2','RMSE','MAE','NMB'}, @iscell);
+addParameter(p, 'years', [], @isnumeric);  % [] = all years
 addParameter(p, 'saveDir', './7figs_phase3', @ischar);
 addParameter(p, 'dpi', 300, @isnumeric);
 addParameter(p, 'visible', 'off', @(x) ismember(x, {'on', 'off'}));
@@ -75,6 +77,11 @@ end
 fprintf('\n=== Phase 3: Configuration Comparison Analysis ===\n');
 fprintf('Number of configurations: %d\n', length(configDirs));
 fprintf('Baseline configuration: %s\n', configNames{opts.baselineConfig});
+if ~isempty(opts.years)
+    fprintf('Years to analyze: %s\n', mat2str(opts.years));
+else
+    fprintf('Years to analyze: all\n');
+end
 fprintf('Save directory: %s\n\n', opts.saveDir);
 
 %% Load data for all configurations
@@ -96,6 +103,20 @@ for iConfig = 1:length(configDirs)
     configData = [];
     for i = 1:length(resultFiles)
         filePath = fullfile(resultFiles(i).folder, resultFiles(i).name);
+
+        % Extract year from filename (e.g., CBV_...._2016.mat -> 2016)
+        [~, fname, ~] = fileparts(resultFiles(i).name);
+        yearMatch = regexp(fname, '_(\d{4})$', 'tokens');
+        fileYear = NaN;
+        if ~isempty(yearMatch)
+            fileYear = str2double(yearMatch{1}{1});
+        end
+
+        % Skip if years specified and this file doesn't match
+        if ~isempty(opts.years) && ~isnan(fileYear) && ~ismember(fileYear, opts.years)
+            continue;
+        end
+
         try
             data = load(filePath);
 
@@ -110,6 +131,11 @@ for iConfig = 1:length(configDirs)
                 entry.Fold = data.annualStats.Fold;
                 entry.Year = data.annualStats.Year;
                 entry.stats = data.annualStats;
+
+                % Use year from filename if not in stats
+                if isempty(entry.Year) || entry.Year == 0
+                    entry.Year = fileYear;
+                end
 
                 % Extract soft data info from valParam if available
                 if isfield(data, 'valParam') && isfield(data.valParam, 'softData')

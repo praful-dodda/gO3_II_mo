@@ -13,8 +13,19 @@ if nConfigs < 2
     return;
 end
 
-%% Compute aggregate statistics for each configuration
+%% Get unique years across all configurations
+allYears = [];
+for iConfig = 1:nConfigs
+    if ~isempty(configs(iConfig).data)
+        allYears = [allYears, [configs(iConfig).data.Year]];
+    end
+end
+uniqueYears = unique(allYears);
+uniqueYears = uniqueYears(~isnan(uniqueYears));
+
+%% Compute statistics for each configuration (overall and by year)
 configStats = struct();
+configStatsByYear = struct();
 
 for iConfig = 1:nConfigs
     data = configs(iConfig).data;
@@ -23,7 +34,7 @@ for iConfig = 1:nConfigs
         continue;
     end
 
-    % Aggregate all observations and estimates
+    % OVERALL statistics (all years combined)
     Y_obs_all = [];
     Y_est_all = [];
     for i = 1:length(data)
@@ -31,7 +42,6 @@ for iConfig = 1:nConfigs
         Y_est_all = [Y_est_all; data(i).Y_est(:)];
     end
 
-    % Compute overall metrics
     configStats(iConfig).name = configs(iConfig).name;
     configStats(iConfig).N = length(Y_obs_all);
     configStats(iConfig).R2 = calculateR2(Y_obs_all, Y_est_all);
@@ -40,6 +50,33 @@ for iConfig = 1:nConfigs
     configStats(iConfig).NMB = 100 * mean(Y_est_all - Y_obs_all) / mean(Y_obs_all);
     configStats(iConfig).MeanObs = mean(Y_obs_all);
     configStats(iConfig).MeanEst = mean(Y_est_all);
+
+    % BY-YEAR statistics
+    for iYear = 1:length(uniqueYears)
+        year = uniqueYears(iYear);
+
+        % Collect data for this year
+        Y_obs_year = [];
+        Y_est_year = [];
+        for i = 1:length(data)
+            if data(i).Year == year
+                Y_obs_year = [Y_obs_year; data(i).Y_obs(:)];
+                Y_est_year = [Y_est_year; data(i).Y_est(:)];
+            end
+        end
+
+        if ~isempty(Y_obs_year)
+            idx = (iYear-1)*nConfigs + iConfig;
+            configStatsByYear(idx).config = iConfig;
+            configStatsByYear(idx).configName = configs(iConfig).name;
+            configStatsByYear(idx).year = year;
+            configStatsByYear(idx).N = length(Y_obs_year);
+            configStatsByYear(idx).R2 = calculateR2(Y_obs_year, Y_est_year);
+            configStatsByYear(idx).RMSE = sqrt(mean((Y_obs_year - Y_est_year).^2));
+            configStatsByYear(idx).MAE = mean(abs(Y_obs_year - Y_est_year));
+            configStatsByYear(idx).NMB = 100 * mean(Y_est_year - Y_obs_year) / mean(Y_obs_year);
+        end
+    end
 
     % Compute regional breakdown
     regionNames = unique(vertcat(data.regions));
@@ -63,11 +100,10 @@ for iConfig = 1:nConfigs
     end
 end
 
-%% Save summary table
+%% Save summary tables
 if opts.saveTables
+    % Overall summary
     summaryFile = fullfile(opts.saveDir, 'config_comparison_summary.csv');
-
-    % Create table
     T = table();
     for iConfig = 1:nConfigs
         if ~isfield(configStats, 'name') || iConfig > length(configStats)
@@ -82,64 +118,89 @@ if opts.saveTables
         T.MeanObs(iConfig) = configStats(iConfig).MeanObs;
         T.MeanEst(iConfig) = configStats(iConfig).MeanEst;
     end
-
     writetable(T, summaryFile);
     tablePaths{end+1} = summaryFile;
-    fprintf('  Saved summary table: %s\n', summaryFile);
+    fprintf('  Saved overall summary table: %s\n', summaryFile);
+
+    % By-year summary
+    if ~isempty(configStatsByYear)
+        byYearFile = fullfile(opts.saveDir, 'config_comparison_by_year.csv');
+        T_year = struct2table(configStatsByYear);
+        writetable(T_year, byYearFile);
+        tablePaths{end+1} = byYearFile;
+        fprintf('  Saved by-year summary table: %s\n', byYearFile);
+    end
 end
 
-%% Figure 1: Bar chart comparison of metrics
-fig = figure('Visible', opts.visible, 'Position', [100, 100, 1400, 600]);
-
+%% Figure 1: Bar chart comparison by year (separate panels for each year)
 metrics = opts.metrics;
 nMetrics = length(metrics);
+nYears = length(uniqueYears);
+
+fig = figure('Visible', opts.visible, 'Position', [100, 100, 400*nYears, 300*nMetrics]);
 
 for iMetric = 1:nMetrics
-    subplot(1, nMetrics, iMetric);
-
     metric = metrics{iMetric};
-    values = [];
-    labels = {};
 
-    for iConfig = 1:nConfigs
-        if isfield(configStats, metric)
-            values(end+1) = configStats(iConfig).(metric);
-            labels{end+1} = configStats(iConfig).name;
+    for iYear = 1:nYears
+        year = uniqueYears(iYear);
+        subplot(nMetrics, nYears, (iMetric-1)*nYears + iYear);
+
+        % Get values for this year
+        values = [];
+        labels = {};
+        for iConfig = 1:nConfigs
+            % Find stats for this config and year
+            idx = find([configStatsByYear.config] == iConfig & [configStatsByYear.year] == year, 1);
+            if ~isempty(idx) && isfield(configStatsByYear(idx), metric)
+                values(end+1) = configStatsByYear(idx).(metric);
+                labels{end+1} = configStats(iConfig).name;
+            else
+                values(end+1) = NaN;
+                labels{end+1} = configStats(iConfig).name;
+            end
         end
-    end
 
-    % Create bar plot
-    bar(values, 'FaceColor', [0.3, 0.6, 0.8]);
-    set(gca, 'XTickLabel', labels, 'XTickLabelRotation', 45);
-    ylabel(metric);
-    title(sprintf('%s Comparison', metric));
-    grid on;
+        % Create bar plot
+        validIdx = ~isnan(values);
+        if any(validIdx)
+            b = bar(values, 'FaceColor', [0.3, 0.6, 0.8]);
+            set(gca, 'XTickLabel', labels, 'XTickLabelRotation', 45);
+            ylabel(metric);
+            title(sprintf('%d', year));
+            grid on;
 
-    % Highlight best performer
-    if strcmp(metric, 'R2')
-        [~, bestIdx] = max(values);
-    elseif ismember(metric, {'RMSE', 'MAE'})
-        [~, bestIdx] = min(abs(values));
-    else  % NMB
-        [~, bestIdx] = min(abs(values));
-    end
+            % Highlight best performer
+            if strcmp(metric, 'R2')
+                [~, bestIdx] = max(values);
+            elseif ismember(metric, {'RMSE', 'MAE'})
+                [~, bestIdx] = min(abs(values));
+            else  % NMB
+                [~, bestIdx] = min(abs(values));
+            end
 
-    hold on;
-    bar(bestIdx, values(bestIdx), 'FaceColor', [0.2, 0.8, 0.3]);
-    hold off;
+            if ~isnan(values(bestIdx))
+                hold on;
+                bar(bestIdx, values(bestIdx), 'FaceColor', [0.2, 0.8, 0.3]);
+                hold off;
+            end
 
-    % Add value labels
-    for i = 1:length(values)
-        text(i, values(i), sprintf('%.3f', values(i)), ...
-            'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', ...
-            'FontSize', 8);
+            % Add value labels
+            for i = 1:length(values)
+                if ~isnan(values(i))
+                    text(i, values(i), sprintf('%.2f', values(i)), ...
+                        'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', ...
+                        'FontSize', 7);
+                end
+            end
+        end
     end
 end
 
-sgtitle('Configuration Performance Comparison', 'FontSize', 14, 'FontWeight', 'bold');
+sgtitle('Configuration Performance Comparison by Year', 'FontSize', 14, 'FontWeight', 'bold');
 
 % Save figure
-figFile = fullfile(opts.saveDir, 'config_comparison_metrics.png');
+figFile = fullfile(opts.saveDir, 'config_comparison_by_year.png');
 print(fig, figFile, '-dpng', sprintf('-r%d', opts.dpi));
 figPaths{end+1} = figFile;
 if strcmp(opts.visible, 'off')

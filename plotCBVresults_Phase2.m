@@ -16,6 +16,7 @@ function figPaths = plotCBVresults_Phase2(cbvResultsDir, varargin)
 %   'dpi'         - Figure resolution (default: 300)
 %   'visible'     - 'on' or 'off' for figure visibility (default: 'off')
 %   'filePattern' - Pattern to match result files (default: 'CBV_*.mat')
+%   'years'       - Years to include in analysis (default: [] = all years)
 %   'analysisTypes' - Cell array of analyses to run (default: {'residuals', 'uncertainty', 'regional'})
 %   'aggregate'   - Aggregate across all files or process separately (default: true)
 %
@@ -42,6 +43,7 @@ addParameter(p, 'saveDir', '', @ischar);
 addParameter(p, 'dpi', 300, @isnumeric);
 addParameter(p, 'visible', 'off', @(x) ismember(x, {'on', 'off'}));
 addParameter(p, 'filePattern', 'CBV_*.mat', @ischar);
+addParameter(p, 'years', [], @isnumeric);
 addParameter(p, 'analysisTypes', {'residuals', 'uncertainty', 'regional'}, @iscell);
 addParameter(p, 'aggregate', true, @islogical);
 
@@ -74,6 +76,20 @@ fprintf('Found %d CBV result files\n', length(resultFiles));
 allData = [];
 for i = 1:length(resultFiles)
     filePath = fullfile(resultFiles(i).folder, resultFiles(i).name);
+
+    % Extract year from filename (e.g., CBV_...._2016.mat -> 2016)
+    [~, fname, ~] = fileparts(resultFiles(i).name);
+    yearMatch = regexp(fname, '_(\d{4})$', 'tokens');
+    fileYear = NaN;
+    if ~isempty(yearMatch)
+        fileYear = str2double(yearMatch{1}{1});
+    end
+
+    % Skip if years specified and this file doesn't match
+    if ~isempty(opts.years) && ~isnan(fileYear) && ~ismember(fileYear, opts.years)
+        continue;
+    end
+
     try
         data = load(filePath);
 
@@ -103,6 +119,11 @@ for i = 1:length(resultFiles)
             end
             if isfield(data, 'valParam')
                 entry.valParam = data.valParam;
+            end
+
+            % Use year from filename if not in stats
+            if ~isfield(entry, 'Year') || isempty(entry.Year) || entry.Year == 0
+                entry.Year = fileYear;
             end
 
             % Assign regions
