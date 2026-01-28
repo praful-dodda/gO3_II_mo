@@ -144,9 +144,10 @@ end
 
 %% Generate cache file name based on data characteristics
 % Extract year range from time data
+allYears = floor(tME(:));
 if ~isempty(tME)
-    year_start = year(datetime(min(tME(:)), 'ConvertFrom', 'datenum'));
-    year_end = year(datetime(max(tME(:)), 'ConvertFrom', 'datenum'));
+    year_start = min(allYears);
+    year_end = max(allYears);
 else
     year_start = 0;
     year_end = 0;

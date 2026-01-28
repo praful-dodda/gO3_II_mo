@@ -97,7 +97,7 @@ valParam.forceCov = 0;  % 0=use cached, 1=force new estimation
 %   '13000133-01' = Hard + MERRA2GMI, nhmax=50, nsmax=0, krigingME
 %   '13000133-02' = Hard + M3fusion, nhmax=50, nsmax=0, krigingME
 %   '13000133-xx' = Hard + multi-CTM, nhmax=200, nsmax=5, krigingME multi-soft format
-valParam.BMEmethod = '13000313-10';
+valParam.BMEmethod = '13000313-20';
 
 %% ====================================================================
 %                    SOFT DATA CONFIGURATION (if using CTM)
