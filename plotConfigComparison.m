@@ -235,29 +235,27 @@ for iMetric = 1:nMetrics
     end
 end
 
-% Create spider plot
+% Create polar plot
+ax = polaraxes;
 theta = linspace(0, 2*pi, nMetrics+1);
 colors = lines(nConfigs);
 
 hold on;
 for iConfig = 1:nConfigs
     dataPoint = [normalizedData(iConfig, :), normalizedData(iConfig, 1)];
-    plot(theta, dataPoint, 'o-', 'LineWidth', 2, 'Color', colors(iConfig, :), ...
+    polarplot(theta, dataPoint, 'o-', 'LineWidth', 2, 'Color', colors(iConfig, :), ...
         'MarkerFaceColor', colors(iConfig, :), 'MarkerSize', 8, ...
         'DisplayName', configStats(iConfig).name);
 end
+hold off;
 
-% Add metric labels
-ax = gca;
+% Customize polar axes
 ax.ThetaTick = rad2deg(theta(1:end-1));
 ax.ThetaTickLabel = metrics;
 ax.RLim = [0, 1];
-ax.RGrid = 'on';
-ax.ThetaGrid = 'on';
 
 title('Multi-Metric Performance (Normalized)', 'FontSize', 14, 'FontWeight', 'bold');
-legend('Location', 'best');
-polarplot(ax);
+legend('Location', 'bestoutside');
 
 % Save figure
 figFile = fullfile(opts.saveDir, 'config_comparison_spider.png');
