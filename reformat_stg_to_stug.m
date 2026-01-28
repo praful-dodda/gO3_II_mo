@@ -41,6 +41,9 @@ function grid_data = reformat_stg_to_stug(stg_data, varargin)
 %               .Lat  [nx×ny double]  - Latitude mesh
 %               .Z    [nx×ny×nt single] - Data array
 %               .Zvar [nx×ny×nt single] - Variance array (if Xvs provided)
+%               .p    [N×3 double]    - BME coordinates [lon, lat, time]
+%               .z    [N×1 double]    - BME data values (vector form)
+%               .vs   [N×1 double]    - BME variances (vector form, if available)
 %               .metadata - Reformatting information
 %
 % EXAMPLES:
@@ -130,7 +133,8 @@ if ~isempty(empty_fields)
 
     % Return empty structure
     grid_data = struct('x', [], 'y', [], 'time', [], 'Lon', [], 'Lat', [], ...
-                       'Z', [], 'Zvar', [], 'metadata', struct());
+                       'Z', [], 'Zvar', [], 'p', [], 'z', [], 'vs', [], ...
+                       'metadata', struct());
     return;
 end
 
@@ -183,6 +187,21 @@ if ~opts.forceReformat && exist(cache_filepath, 'file')
             fprintf('✓ Loaded from cache successfully\n');
             fprintf('  Grid: %d × %d × %d\n', length(grid_data.x), ...
                     length(grid_data.y), length(grid_data.time));
+        end
+
+        % Ensure BME-compatible fields exist (backward compatibility)
+        if ~isfield(grid_data, 'p') || ~isfield(grid_data, 'z')
+            nx = length(grid_data.x);
+            ny = length(grid_data.y);
+            nt = length(grid_data.time);
+            [LON, LAT, TIME] = ndgrid(grid_data.x, grid_data.y, grid_data.time);
+            grid_data.p = [LON(:), LAT(:), TIME(:)];
+            grid_data.z = grid_data.Z(:);
+            if isfield(grid_data, 'Zvar') && ~isempty(grid_data.Zvar)
+                grid_data.vs = grid_data.Zvar(:);
+            else
+                grid_data.vs = [];
+            end
         end
 
         % Update metadata to indicate it was loaded from cache
@@ -396,6 +415,28 @@ grid_data.metadata.model_name = opts.modelName;
 grid_data.metadata.area_code = opts.areaCode;
 grid_data.metadata.data_format = opts.dataFormat;
 grid_data.metadata.year_range = [year_start, year_end];
+
+%% Add BME-compatible fields (p, z, vs)
+% Create coordinate arrays for all grid points and times
+nx = length(grid_data.x);
+ny = length(grid_data.y);
+nt = length(grid_data.time);
+
+% Generate meshgrid for all space-time points
+[LON, LAT, TIME] = ndgrid(grid_data.x, grid_data.y, grid_data.time);
+
+% Reshape to vector form: p = [lon, lat, time]
+grid_data.p = [LON(:), LAT(:), TIME(:)];
+
+% Reshape data values to vector form
+grid_data.z = grid_data.Z(:);
+
+% Reshape variance values to vector form (if available)
+if isfield(grid_data, 'Zvar') && ~isempty(grid_data.Zvar)
+    grid_data.vs = grid_data.Zvar(:);
+else
+    grid_data.vs = [];
+end
 
 %% Save to cache if requested
 if opts.saveCache
