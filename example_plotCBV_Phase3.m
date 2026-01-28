@@ -6,20 +6,20 @@
 % for different soft data configurations
 
 configDirs = {
-    './7validation/CBV_baseline',           % No soft data (hard data only)
-    './7validation/CBV_M3fusion',           % M3fusion only
-    './7validation/CBV_OMI_MLS',            % M3fusion + OMI-MLS
-    './7validation/CBV_OMI_MLS_NJML',       % M3fusion + OMI-MLS + NJML
-    './7validation/CBV_OMI_MLS_UKML',       % M3fusion + OMI-MLS + UKML
+    './7validation/CBV_baseline', ...           % No soft data (hard data only)
+    './7validation/CBV_M3fusion', ...           % M3fusion only
+    './7validation/CBV_OMI_MLS', ...            % M3fusion + OMI-MLS
+    './7validation/CBV_OMI_MLS_NJML', ...       % M3fusion + OMI-MLS + NJML
+    './7validation/CBV_OMI_MLS_UKML', ...       % M3fusion + OMI-MLS + UKML
     './7validation/CBV_all'                 % All sources: M3fusion + OMI-MLS + IASI-GOME2 + NJML + UKML
 };
 
 configNames = {
-    'Baseline (no soft)',
-    'M3fusion only',
-    'M3fusion + OMI-MLS',
-    'M3fusion + OMI-MLS + NJML',
-    'M3fusion + OMI-MLS + UKML',
+    'Baseline (no soft)', ...
+    'M3fusion only', ...
+    'M3fusion + OMI-MLS', ...
+    'M3fusion + OMI-MLS + NJML', ...
+    'M3fusion + OMI-MLS + UKML', ...
     'All sources'
 };
 
@@ -50,18 +50,22 @@ fprintf('\n=== Example 2: Custom Settings ===\n');
 fprintf('\n=== Example 3: Two Configurations ===\n');
 
 % Compare just baseline vs best configuration
-% configDirs_minimal = {
-%     './7validation/CBV_baseline',
-%     './7validation/CBV_all'
-% };
-%
-% configNames_minimal = {
-%     'Baseline',
-%     'Full Data Fusion'
-% };
-%
-% figPaths = plotCBVresults_Phase3(configDirs_minimal, configNames_minimal, ...
-%     'baselineConfig', 1);
+configDirs_minimal = {
+    './7validation/CBV', ...
+    './7validation/CBV'
+};
+
+configPatterns_minimal = {
+    'CBV_BME10000133_go0*.mat', ...
+    'CBV_BME13000313-01_go3*.mat'};
+
+configNames_minimal = {
+    'Obs. only', ...
+    'Obs. + MERRA2-GMI'
+};
+
+figPaths = plotCBVresults_Phase3(configDirs_minimal, configNames_minimal, 'filePattern', configPatterns_minimal, ...
+    'baselineConfig', 1);
 
 %% Example 4: Focus on specific metrics
 fprintf('\n=== Example 4: Custom Metrics ===\n');

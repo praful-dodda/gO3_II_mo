@@ -305,18 +305,18 @@ for iYear = 1:nYears
 
                 for ii = 1:length(KS_fold.softdata)
                     soft_data_stug{ii} = reformat_stg_to_stug(KS_fold.softdata{ii}, 'modelName', softData{ii}.modelName, 'resolution', 0.5);
-                    p_soft_stug{ii} = KS_fold.softdata{ii}.p;
-                    z_soft_stug{ii} = KS_fold.softdata{ii}.z;
-                    vs_soft_stug{ii} = KS_fold.softdata{ii}.vs;
+                    p_soft_stug{ii} = soft_data_stug{ii}.p;
+                    z_soft_stug{ii} = soft_data_stug{ii}.z;
+                    vs_soft_stug{ii} = soft_data_stug{ii}.vs;
                 end
                 fprintf('    Soft data reformatting complete.\n');
             elseif BMEprobaType == 2 && ~isempty(KS_fold.softdata.z)
                 % Single soft dataset
                 fprintf('  Reformatting soft data to STUG format (once per fold)...\n');
                 soft_data_stug = reformat_stg_to_stug(KS_fold.softdata, 'modelName', softData.modelName);
-                p_soft_stug = KS_fold.softdata.p;
-                z_soft_stug = KS_fold.softdata.z;
-                vs_soft_stug = KS_fold.softdata.vs;
+                p_soft_stug = soft_data_stug.p;
+                z_soft_stug = soft_data_stug.z;
+                vs_soft_stug = soft_data_stug.vs;
                 fprintf('    Soft data reformatting complete.\n');
             end
 

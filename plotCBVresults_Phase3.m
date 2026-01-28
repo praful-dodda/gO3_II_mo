@@ -49,10 +49,10 @@ addRequired(p, 'configDirs', @iscell);
 addRequired(p, 'configNames', @iscell);
 addParameter(p, 'baselineConfig', 1, @isnumeric);
 addParameter(p, 'metrics', {'R2','RMSE','MAE','NMB'}, @iscell);
-addParameter(p, 'saveDir', './figs_phase3', @ischar);
+addParameter(p, 'saveDir', './7figs_phase3', @ischar);
 addParameter(p, 'dpi', 300, @isnumeric);
 addParameter(p, 'visible', 'off', @(x) ismember(x, {'on', 'off'}));
-addParameter(p, 'filePattern', 'CBV_*.mat', @ischar);
+addParameter(p, 'filePattern', 'CBV_*.mat', @iscell);
 addParameter(p, 'saveTables', true, @islogical);
 
 parse(p, configDirs, configNames, varargin{:});
@@ -83,7 +83,7 @@ for iConfig = 1:length(configDirs)
     fprintf('Loading config %d/%d: %s\n', iConfig, length(configDirs), configNames{iConfig});
 
     % Load all CBV result files for this configuration
-    resultFiles = dir(fullfile(configDirs{iConfig}, opts.filePattern));
+    resultFiles = dir(fullfile(configDirs{iConfig}, opts.filePattern{iConfig}));
 
     if isempty(resultFiles)
         warning('No result files found for config: %s', configNames{iConfig});

@@ -66,5 +66,7 @@ end
 % Convert to column cell array if needed for consistency
 if ~isempty(models) && size(models, 1) == 1
     models = models';
+else
+    models = {'obs. only'};
 end
 end
