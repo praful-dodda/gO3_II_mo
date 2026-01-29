@@ -178,6 +178,10 @@ if CTMtype >= 1
         warning('BMEmethod requires CTM data but no softData configuration provided');
         fprintf('  Proceeding without soft data\n');
     end
+
+    if isempty(softData)
+        error('Soft data is not loaded!!!')
+    end
 else
     fprintf('\nNo CTM data required (BMEmethod digit 2 = %d)\n', CTMtype);
 end

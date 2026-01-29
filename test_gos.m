@@ -16,7 +16,6 @@ timeRange = [2015 2020];        % [startYear endYear]
 logTransf = 0;                  % 0 = no log transform, 1 = log transform
 
 % Global offset scenarios to test
-goScenarioVec = [0 1 2 3 4 5 6 7];    % 0=zero, 1=flat, 2=domain, 3=regional, 4=local
 goScenarioVec = 0:11;    % 0=zero, 1=flat, 2=domain, 3=regional, 4=local
 
 % Processing flags
@@ -56,11 +55,21 @@ for i = 1:length(goScenarioVec)
         case 5, fprintf('Regional Spatio-Temporal ---\n');
         case 6, fprintf('Local Spatio-Temporal ---\n');
         case 7, fprintf('Super-Local Spatio-Temporal ---\n');
+        case 8, fprintf('Regional (Balanced) ---\n');
+        case 9, fprintf('Sub-Regional ---\n');
+        case 10, fprintf('Local (with Seasonal) ---\n');
+        case 11, fprintf('Fine-Scale ---\n');
         otherwise, fprintf('Unknown Scenario ---\n');
     end
     
     % Compute global offset
-    go = getTOARglobalOffset(obs, goScenario, goPlot, forceGOestimation, inValidation);
+    go = getTOARglobalOffset(obs, goScenario, 0, forceGOestimation, inValidation);
+    
+    goPlots = [1, 3];
+
+    for goPlot = goPlots
+        plotTOARglobalOffset(obs, go, goPlot)
+    end
     
     % Compute covariance
     cov = getTOARautoCov(obs, go, temporalModelType, forceEstCov);

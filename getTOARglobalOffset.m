@@ -1,4 +1,4 @@
-function go = getTOARglobalOffset(obs, goScenario, goPlot, forceGOestimation, inValidation)
+function go = getTOARglobalOffset(obs, goScenario, goPlot, forceGOestimation, inValidation, verbose)
 % getTOARglobalOffset - Estimates global offset for TOAR ozone data
 %
 % Models the space/time global offset for TOAR-II ozone data following
@@ -22,6 +22,8 @@ function go = getTOARglobalOffset(obs, goScenario, goPlot, forceGOestimation, in
 %                   default: 0
 % inValidation    scalar indicating if this is for validation (1) or training (0)
 %                  default: 0
+% verbose       scalar indicating verbosity level (0=quiet, 1=verbose)
+%               default: 1
 %
 % OUTPUT:
 % go   structure containing global offset:
@@ -43,6 +45,7 @@ if nargin < 2, goScenario = 3; end
 if nargin < 3, goPlot = 1; end
 if nargin < 4, forceGOestimation = 0; end
 if nargin < 5, inValidation = 0; end
+if nargin < 6, verbose = 1; end
 
 if isnumeric(obs)
     error('obs must be a structure from getTOARobservationalData');
@@ -140,6 +143,15 @@ else
     % Save results
     save(fullfile(goDir, goFile), 'go');
     fprintf('Global offset saved to %s\n', goFile);
+end
+
+if verbose
+    fprintf('Global offset scenario %d. \n', go.scenario);
+    fprintf('  Radius of spatial neighborhood dNeib (deg.): %.2f\n', go.goParam(1));
+    fprintf('  Spatial range of exponential smoothing function ar (deg): %.2f\n', go.goParam(2));
+    fprintf('  Radius of temporal neighborhood tNeib (months): %.2f\n', go.goParam(3));
+    fprintf('  Temporal range of exponential function smoothing at (months): %.2f\n', go.goParam(4));
+    fprintf('  tloop, if tloop>0, the measured events are looped in a cycle of duration tloop (months): %d\n', go.goParam(5));
 end
 
 % Generate plots if requested
