@@ -86,15 +86,17 @@ end
 % Determine RAMP version from first file
 sampleFile = dir(fullfile(dataDir, sprintf('lambda1_%s_%d_v3-parallel.parquet', modelName, years(1))));
 if isempty(sampleFile)
-    error('No parquet files found for %s year %d in %s', modelName, years(1), dataDir);
+    warning('No parquet files found for %s year %d in %s', modelName, years(1), dataDir);
+    tokens = [];
+else
+    % Extract version from filename (e.g., "v3" from "..._v3-parallel.parquet")
+    tokens = regexp(sampleFile(1).name, '_v(\d+)-parallel', 'tokens');
 end
 
-% Extract version from filename (e.g., "v3" from "..._v3-parallel.parquet")
-tokens = regexp(sampleFile(1).name, '_v(\d+)-parallel', 'tokens');
 if ~isempty(tokens)
     rampVersion = str2double(tokens{1}{1});
 else
-    rampVersion = 1;  % Default
+    rampVersion = 3;  % Default
 end
 
 cacheFile = sprintf('CTM_RAMP_%s_%d-%d_v%d.mat', ...

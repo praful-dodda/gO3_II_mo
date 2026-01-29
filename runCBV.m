@@ -16,7 +16,7 @@
 %
 % SEE ALSO: runCBV_toar, evaluateFold_CBV_monthly, getCheckerBoard
 
-clear; close all; clc;
+clear; close all;
 
 fprintf('\n');
 fprintf('========================================================================\n');
@@ -43,7 +43,7 @@ valParam.logTransf = 0;  % 0=no, 1=yes (use 0 for regular concentrations)
 % ====================================================================
 
 % Years to validate
-valParam.valYears = [2016 2017];  % e.g., 2017 or [2016 2017 2018]
+valParam.valYears = [2017];  % e.g., 2017 or [2016 2017 2018]
 
 % Months to validate (within each year)
 valParam.valMonths = 1:12;  % All months, or specific: [6 7 8] for JJA
@@ -97,7 +97,11 @@ valParam.forceCov = 0;  % 0=use cached, 1=force new estimation
 %   '13000133-01' = Hard + MERRA2GMI, nhmax=50, nsmax=0, krigingME
 %   '13000133-02' = Hard + M3fusion, nhmax=50, nsmax=0, krigingME
 %   '13000133-xx' = Hard + multi-CTM, nhmax=200, nsmax=5, krigingME multi-soft format
-valParam.BMEmethod = '13000313-20';
+%
+%   01:MERRA2-GMI; 02:M3fusion; 04:OMI-MLS; 08:IASI-GOME2; 10:UKML;
+%   20:NJML; 06:M3fusion+OMI-MLS; 0A:M3fusion+IASI-GOME2; 12:M3fusion+UKML;
+%
+valParam.BMEmethod = '13000313-08';
 
 %% ====================================================================
 %                    SOFT DATA CONFIGURATION (if using CTM)

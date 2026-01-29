@@ -1,4 +1,20 @@
 function code = generateBMEcode(obsType, CTMtype, RAMP, nsmax, nhmax, BMEtype, models)
+% generateBMEcode - Generate BME configuration code based on input parameters
+% Syntax:
+%   code = generateBMEcode(obsType, CTMtype, RAMP, nsmax, nhmax, BMEtype, models)
+% INPUTS:
+%   obsType   - Observation type (0: none, 1: flat GO, 2: fine GO)
+%   CTMtype   - CTM data type (0: none, 1: direct, 2: indirect)
+%   RAMP      - 1x3 vector indicating RAMP parameters
+%   nsmax     - Maximum number of soft data points
+%   nhmax     - Maximum number of hard data points
+%   BMEtype   - BME method type
+%   models    - Cell array of CTM model names included (e.g., {'MERRA2-GMI', 'M3fusion'})
+% OUTPUT:
+%   code      - Generated BME configuration code string
+% Example:
+%   code = generateBMEcode(1, 3, [0 0 0], 3, 3, 3, {'M3fusion', 'UKML'});
+
 
     % If models cell array has repeated entries, keep only unique ones
     nmodels = length(models);
