@@ -237,25 +237,8 @@ totalCov = c01+c02+c03+c04;
 if totalCov > 0
     cov.stmetric = (c01*ar1/at1 + c02*ar1/at2 + c03*ar2/at1 + c04*ar2/at2) / totalCov;
 else
-    cov.stmetric = 1000; 
+    cov.stmetric = 1000;
 end
-
-%% --- Assemble Final Covariance Structure ---
-fprintf('  Assembling final covariance structure...\n');
-v = varSpatial;
-c1n = c1/v; c2n = c2/v; c3n = c3/v; c4n = c4/v;
-c01 = max(0, c1n*c3n*v); c02 = max(0, c1n*c4n*v);
-c03 = max(0, c2n*c3n*v); c04 = max(0, c2n*c4n*v);
-
-cov.covmodel = {['exponentialC/' covmodel_t{1}], ['exponentialC/' covmodel_t{2}], ...
-                ['exponentialC/' covmodel_t{1}], ['exponentialC/' covmodel_t{2}]};
-cov.rLag = rLag; cov.Cr = Cr;
-cov.tLag = tLag; cov.Ct = Ct;
-cov.var = v;
-cov.covparam = {[c01, ar1, at1], [c02, ar1, at2], [c03, ar2, at1], [c04, ar2, at2]};
-totalCov = c01+c02+c03+c04;
-if totalCov > 0, cov.stmetric = (c01*ar1/at1 + c02*ar1/at2 + c03*ar2/at1 + c04*ar2/at2) / totalCov;
-else, cov.stmetric = 1000; end
 
 %% --- Save Covariance ---
 save(covPath, 'cov');
