@@ -155,7 +155,7 @@ end
 fig1 = figure('Visible', opts.visible, 'Position', [100, 100, 1200, 500]);
 
 % Panel 1: Spatial Covariance
-subplot(1, 2, 1);
+subplot(2, 1, 1);
 hold on;
 
 % Plot experimental values
@@ -190,7 +190,7 @@ end
 hold off;
 
 % Panel 2: Temporal Covariance
-subplot(1, 2, 2);
+subplot(2, 1, 2);
 hold on;
 
 % Plot experimental values
@@ -356,9 +356,10 @@ function paramStr = formatCovParams(covmodel, covparam, dimension)
         if strcmp(dimension, 'spatial')
             % Extract spatial component
             if strcmp(spatialModel, 'nuggetC')
-                if length(param) == 1
+                if isscalar(param)
                     paramStr{end+1} = sprintf('Nugget: σ²=%.4f', param(1));
                 else
+                    fprintf('param(1) is: %d', param(1));
                     paramStr{end+1} = sprintf('Nugget: σ²=%.4f', param(1));
                 end
             elseif strcmp(spatialModel, 'exponentialC')

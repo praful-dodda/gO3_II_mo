@@ -101,7 +101,7 @@ valParam.forceCov = 0;  % 0=use cached, 1=force new estimation
 %   01:MERRA2-GMI; 02:M3fusion; 04:OMI-MLS; 08:IASI-GOME2; 10:UKML;
 %   20:NJML; 06:M3fusion+OMI-MLS; 0A:M3fusion+IASI-GOME2; 12:M3fusion+UKML;
 %
-valParam.BMEmethod = '13000313-08';
+valParam.BMEmethod = '13000313-12';
 
 %% ====================================================================
 %                    SOFT DATA CONFIGURATION (if using CTM)

@@ -45,7 +45,7 @@ goMetadata = struct();
 
 for iDir = 1:length(goDirs)
     if exist(goDirs{iDir}, 'dir')
-        files = dir(fullfile(goDirs{iDir}, 'GO_*.mat'));
+        files = dir(fullfile(goDirs{iDir}, 'OZONE-TOARgo_*.mat'));
         for iFile = 1:length(files)
             fullPath = fullfile(files(iFile).folder, files(iFile).name);
             goFiles{end+1} = fullPath;

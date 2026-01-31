@@ -46,7 +46,7 @@ goData = struct();
 
 for iDir = 1:length(goDirs)
     if exist(goDirs{iDir}, 'dir')
-        files = dir(fullfile(goDirs{iDir}, 'GO_*.mat'));
+        files = dir(fullfile(goDirs{iDir}, 'OZONE-TOARgo_*.mat'));
         for iFile = 1:length(files)
             % Skip CBV files for presentation
             if contains(files(iFile).name, 'CBV')
