@@ -73,11 +73,13 @@ end
 
 figPaths = {};
 
-%% Extract metadata from obs and go if available
+%% Extract metadata from obs, go, and cov if available
 goScenario = [];
 logTransf = [];
 Yname = 'Ozone MDA8';
 Ylabel = 'ppb';
+temporalModel = '';
+yearRange = [];
 
 if ~isempty(fieldnames(opts.go))
     goScenario = opts.go.scenario;
@@ -93,6 +95,14 @@ if ~isempty(fieldnames(opts.obs))
     if isfield(opts.obs, 'Ylabel')
         Ylabel = opts.obs.Ylabel;
     end
+end
+
+% Extract temporal model and year range from cov structure if available
+if isfield(cov, 'temporalModel')
+    temporalModel = cov.temporalModel;
+end
+if isfield(cov, 'yearRange')
+    yearRange = cov.yearRange;
 end
 
 %% Prepare covariance model parameters for fitting curves
@@ -224,21 +234,47 @@ end
 
 hold off;
 
-% Overall title
-if ~isempty(goScenario) && ~isempty(logTransf)
-    sgtitle(sprintf('%s Covariance Model (GO=%d, LogTransf=%d)', Yname, goScenario, logTransf), ...
-        'FontSize', 16, 'FontWeight', 'bold');
-else
-    sgtitle(sprintf('%s Covariance Model', Yname), 'FontSize', 16, 'FontWeight', 'bold');
+% Overall title with all metadata
+titleParts = {Yname, 'Covariance Model'};
+if ~isempty(goScenario)
+    titleParts{end+1} = sprintf('GO=%d', goScenario);
+end
+if ~isempty(logTransf)
+    titleParts{end+1} = sprintf('LT=%d', logTransf);
+end
+if ~isempty(temporalModel)
+    titleParts{end+1} = upper(temporalModel);
+end
+if ~isempty(yearRange) && length(yearRange) == 2
+    titleParts{end+1} = sprintf('%d-%d', yearRange(1), yearRange(2));
 end
 
-% Save figure
+if length(titleParts) > 2
+    titleStr = sprintf('%s: %s', titleParts{1}, strjoin(titleParts(3:end), ', '));
+else
+    titleStr = strjoin(titleParts, ' ');
+end
+sgtitle(titleStr, 'FontSize', 16, 'FontWeight', 'bold');
+
+% Save figure with enhanced naming
 if opts.saveFigs
-    if ~isempty(goScenario) && ~isempty(logTransf)
-        filename1 = sprintf('%s_go%d_lt%d_spatial_temporal.png', opts.filePrefix, goScenario, logTransf);
-    else
-        filename1 = sprintf('%s_spatial_temporal.png', opts.filePrefix);
+    % Build filename with all available metadata
+    filenameParts = {opts.filePrefix};
+    if ~isempty(goScenario)
+        filenameParts{end+1} = sprintf('go%d', goScenario);
     end
+    if ~isempty(logTransf)
+        filenameParts{end+1} = sprintf('lt%d', logTransf);
+    end
+    if ~isempty(temporalModel)
+        filenameParts{end+1} = temporalModel;
+    end
+    if ~isempty(yearRange) && length(yearRange) == 2
+        filenameParts{end+1} = sprintf('%d-%d', yearRange(1), yearRange(2));
+    end
+    filenameParts{end+1} = 'spatial_temporal';
+
+    filename1 = sprintf('%s.png', strjoin(filenameParts, '_'));
     figPath1 = fullfile(opts.saveDir, filename1);
     exportgraphics(fig1, figPath1, 'Resolution', opts.dpi);
     figPaths{end+1} = figPath1;
@@ -273,8 +309,23 @@ if strcmp(opts.plotStyle, 'diagnostic') && isfield(cov, 'covmodel') && isfield(c
     ylabel('Temporal Lag \tau (years)', 'FontSize', 12, 'FontWeight', 'bold');
     zlabel(sprintf('Covariance (%s²)', Ylabel), 'FontSize', 12, 'FontWeight', 'bold');
 
-    if ~isempty(goScenario) && ~isempty(logTransf)
-        title(sprintf('3D Space-Time Covariance (GO=%d, LogTransf=%d)', goScenario, logTransf), ...
+    % Build title with all metadata
+    title3DParts = {};
+    if ~isempty(goScenario)
+        title3DParts{end+1} = sprintf('GO=%d', goScenario);
+    end
+    if ~isempty(logTransf)
+        title3DParts{end+1} = sprintf('LT=%d', logTransf);
+    end
+    if ~isempty(temporalModel)
+        title3DParts{end+1} = upper(temporalModel);
+    end
+    if ~isempty(yearRange) && length(yearRange) == 2
+        title3DParts{end+1} = sprintf('%d-%d', yearRange(1), yearRange(2));
+    end
+
+    if ~isempty(title3DParts)
+        title(sprintf('3D Space-Time Covariance: %s', strjoin(title3DParts, ', ')), ...
             'FontSize', 14, 'FontWeight', 'bold');
     else
         title('3D Space-Time Covariance', 'FontSize', 14, 'FontWeight', 'bold');
@@ -283,13 +334,25 @@ if strcmp(opts.plotStyle, 'diagnostic') && isfield(cov, 'covmodel') && isfield(c
     colorbar;
     set(gca, 'FontSize', 11, 'LineWidth', 1.2);
 
-    % Save figure
+    % Save figure with enhanced naming
     if opts.saveFigs
-        if ~isempty(goScenario) && ~isempty(logTransf)
-            filename2 = sprintf('%s_go%d_lt%d_3D.png', opts.filePrefix, goScenario, logTransf);
-        else
-            filename2 = sprintf('%s_3D.png', opts.filePrefix);
+        % Build filename with all available metadata
+        filenameParts3D = {opts.filePrefix};
+        if ~isempty(goScenario)
+            filenameParts3D{end+1} = sprintf('go%d', goScenario);
         end
+        if ~isempty(logTransf)
+            filenameParts3D{end+1} = sprintf('lt%d', logTransf);
+        end
+        if ~isempty(temporalModel)
+            filenameParts3D{end+1} = temporalModel;
+        end
+        if ~isempty(yearRange) && length(yearRange) == 2
+            filenameParts3D{end+1} = sprintf('%d-%d', yearRange(1), yearRange(2));
+        end
+        filenameParts3D{end+1} = '3D';
+
+        filename2 = sprintf('%s.png', strjoin(filenameParts3D, '_'));
         figPath2 = fullfile(opts.saveDir, filename2);
         exportgraphics(fig2, figPath2, 'Resolution', opts.dpi);
         figPaths{end+1} = figPath2;

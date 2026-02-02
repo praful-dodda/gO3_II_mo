@@ -48,6 +48,16 @@ if nargin < 7, yrange = []; end
 % Load structures if numeric inputs provided
 if isnumeric(go), go = getTOARglobalOffset(obs, go, 0); end
 
+% Extract year range from obs.tME
+if isfield(obs, 'tME') && ~isempty(obs.tME)
+    tME_years = year(datetime(obs.tME, 'ConvertFrom', 'datenum'));
+    yearStart = min(tME_years);
+    yearEnd = max(tME_years);
+    yearRangeStr = sprintf('%d-%d', yearStart, yearEnd);
+else
+    yearRangeStr = '';
+end
+
 % Set color range
 if isempty(yrange)
     yrangeQuant = [0.05 0.95];
@@ -86,7 +96,11 @@ if goPlot >= 1
     ht = plot(go.tME, go.mt, '.-k', 'LineWidth', 1.5);
     xlabel('Time (years)', 'FontSize', 12);
     ylabel(obs.Ylabel, 'FontSize', 12);
-    title(sprintf('Raw and smoothed temporal mean trend of %s', obs.Yname), 'FontSize', 14);
+    if ~isempty(yearRangeStr)
+        title(sprintf('Temporal Mean Trend: GO=%d, %s', go.scenario, yearRangeStr), 'FontSize', 14);
+    else
+        title(sprintf('Temporal Mean Trend: GO=%d', go.scenario), 'FontSize', 14);
+    end
     legend([htRaw ht], 'Raw mean trend (spatial average)', 'Smoothed mean trend', 'Location', 'best');
     grid on;
     set(gca, 'FontSize', 12);
@@ -108,7 +122,11 @@ if goPlot >= 2
     cb = colorbar;
     ylabel(cb, obs.Ylabel, 'FontSize', 12);
     axis(ax);
-    title(sprintf('Raw spatial trend of %s', obs.Ylabel), 'FontSize', 14);
+    if ~isempty(yearRangeStr)
+        title(sprintf('Raw Spatial Mean Trend: GO=%d, %s', go.scenario, yearRangeStr), 'FontSize', 14);
+    else
+        title(sprintf('Raw Spatial Mean Trend: GO=%d', go.scenario), 'FontSize', 14);
+    end
     xlabel('Longitude (deg.)', 'FontSize', 12);
     ylabel('Latitude (deg.)', 'FontSize', 12);
     hold on;
@@ -142,7 +160,11 @@ if goPlot >= 1
     hold on;
     axis(ax);
     plot(go.sMSraw(:,1), go.sMSraw(:,2), '.k', 'MarkerSize', 4);
-    title(sprintf('Smoothed spatial trend of %s', obs.Ylabel), 'FontSize', 14);
+    if ~isempty(yearRangeStr)
+        title(sprintf('Smoothed Spatial Mean Trend: GO=%d, %s', go.scenario, yearRangeStr), 'FontSize', 14);
+    else
+        title(sprintf('Smoothed Spatial Mean Trend: GO=%d', go.scenario), 'FontSize', 14);
+    end
     xlabel('Longitude (deg.)', 'FontSize', 12);
     ylabel('Latitude (deg.)', 'FontSize', 12);
 
@@ -175,7 +197,11 @@ if goPlot >= 3
         xlabel('Time (years)', 'FontSize', 12);
         ylabel(obs.Ylabel, 'FontSize', 12);
         stationInfo = sprintf('%s (%s)', obs.stationID{iObsMS}, obs.stationType{iObsMS});
-        title(sprintf('Station: %s', stationInfo), 'FontSize', 14);
+        if ~isempty(yearRangeStr)
+            title(sprintf('Station: %s, GO=%d, %s', stationInfo, go.scenario, yearRangeStr), 'FontSize', 14);
+        else
+            title(sprintf('Station: %s, GO=%d', stationInfo, go.scenario), 'FontSize', 14);
+        end
         legend([hd ht], 'Observations', 'Global offset', 'Location', 'best');
         grid on;
         set(gca, 'FontSize', 12);
@@ -218,7 +244,11 @@ if goPlot >= 3
         axis(ax);
         colorplot(obs.sMS, obs.Y(:, iObsME), redyellow, Property, Value, yrange);
 
-        title(sprintf('%s for %.2f', obs.Ylabel, obs.tME(iObsME)), 'FontSize', 14);
+        if ~isempty(yearRangeStr)
+            title(sprintf('%s for %.2f: GO=%d, %s', obs.Ylabel, obs.tME(iObsME), go.scenario, yearRangeStr), 'FontSize', 14);
+        else
+            title(sprintf('%s for %.2f: GO=%d', obs.Ylabel, obs.tME(iObsME), go.scenario), 'FontSize', 14);
+        end
         xlabel('Longitude (deg.)', 'FontSize', 12);
         ylabel('Latitude (deg.)', 'FontSize', 12);
 
