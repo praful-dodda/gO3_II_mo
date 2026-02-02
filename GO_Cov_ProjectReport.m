@@ -57,8 +57,17 @@ for iDir = 1:length(goDirs)
             goFiles{end+1} = fullPath;
 
             % Extract metadata
+            % Expected formats:
+            % - OZONE-TOARgo_{scenario}_{startYr}-{endYr}.mat
+            % - OZONE-TOARgo_{scenario}_val_{startYr}-{endYr}.mat
+            % - Old format: OZONE-TOARgo_go{scenario}.mat
             [~, fname, ~] = fileparts(files(iFile).name);
-            scenarioMatch = regexp(fname, 'go(\d+)', 'tokens');
+
+            % Parse scenario (matches after 'go' or 'go_')
+            scenarioMatch = regexp(fname, 'go_?(\d+)', 'tokens');
+
+            % Parse year range
+            yearMatch = regexp(fname, '_(\d{4})-(\d{4})', 'tokens');
 
             idx = length(goFiles);
             goData(idx).filename = files(iFile).name;
@@ -68,6 +77,13 @@ for iDir = 1:length(goDirs)
                 goData(idx).scenario = str2double(scenarioMatch{1}{1});
             else
                 goData(idx).scenario = NaN;
+            end
+
+            % Extract year range
+            if ~isempty(yearMatch)
+                goData(idx).yearRange = [str2double(yearMatch{1}{1}), str2double(yearMatch{1}{2})];
+            else
+                goData(idx).yearRange = [NaN, NaN];
             end
         end
     end

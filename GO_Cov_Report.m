@@ -51,13 +51,17 @@ for iDir = 1:length(goDirs)
             goFiles{end+1} = fullPath;
 
             % Extract metadata from filename
-            % Expected format: GO_go{scenario}_lt{logTransf}.mat
-            % or: GO_go{scenario}_lt{logTransf}_CBV_box{size}_fold{fold}_{startYr}-{endYr}.mat
+            % Expected formats:
+            % - OZONE-TOARgo_{scenario}_{startYr}-{endYr}.mat
+            % - OZONE-TOARgo_{scenario}_val_{startYr}-{endYr}.mat
+            % - Old format: OZONE-TOARgo_go{scenario}.mat
             [~, fname, ~] = fileparts(files(iFile).name);
 
-            % Parse scenario and logTransf
-            scenarioMatch = regexp(fname, 'go(\d+)', 'tokens');
-            ltMatch = regexp(fname, 'lt(\d+)', 'tokens');
+            % Parse scenario (matches after 'go' or 'go_')
+            scenarioMatch = regexp(fname, 'go_?(\d+)', 'tokens');
+
+            % Parse year range
+            yearMatch = regexp(fname, '_(\d{4})-(\d{4})', 'tokens');
 
             idx = length(goFiles);
             goMetadata(idx).filename = files(iFile).name;
@@ -72,10 +76,11 @@ for iDir = 1:length(goDirs)
                 goMetadata(idx).scenario = NaN;
             end
 
-            if ~isempty(ltMatch)
-                goMetadata(idx).logTransf = str2double(ltMatch{1}{1});
+            % Extract year range (for both CBV and non-CBV files)
+            if ~isempty(yearMatch)
+                goMetadata(idx).yearRange = [str2double(yearMatch{1}{1}), str2double(yearMatch{1}{2})];
             else
-                goMetadata(idx).logTransf = NaN;
+                goMetadata(idx).yearRange = [NaN, NaN];
             end
 
             % Check if CBV file
@@ -85,16 +90,12 @@ for iDir = 1:length(goDirs)
                 % Extract CBV-specific info
                 boxMatch = regexp(fname, 'box([\d.]+)', 'tokens');
                 foldMatch = regexp(fname, 'fold(\d+)', 'tokens');
-                yearMatch = regexp(fname, '_(\d{4})-(\d{4})', 'tokens');
 
                 if ~isempty(boxMatch)
                     goMetadata(idx).boxSize = str2double(boxMatch{1}{1});
                 end
                 if ~isempty(foldMatch)
                     goMetadata(idx).foldIdx = str2double(foldMatch{1}{1});
-                end
-                if ~isempty(yearMatch)
-                    goMetadata(idx).yearRange = [str2double(yearMatch{1}{1}), str2double(yearMatch{1}{2})];
                 end
             else
                 goMetadata(idx).isCBV = false;

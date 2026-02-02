@@ -67,15 +67,33 @@ densParam = [inclvoronoi inclgrid nxpix nypix densifytME tMEtimeStep];
 axMS = [-180 180 -60 75];  % Global domain [lonmin lonmax latmin latmax]
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% Create global offset directory
+% Extract year range from obs.tME
+if isfield(obs, 'tME') && ~isempty(obs.tME)
+    tME_years = year(datetime(obs.tME, 'ConvertFrom', 'datenum'));
+    yearStart = min(tME_years);
+    yearEnd = max(tME_years);
+else
+    yearStart = NaN;
+    yearEnd = NaN;
+end
+
+% Create global offset directory and set filenames
 if inValidation==0
     goDir='./2globalOffset';
-    % Set filename for saved results
-    goFile = sprintf('%sgo_go%d.mat', obs.Zname, goScenario);
+    % Set filename for saved results including year range
+    if ~isnan(yearStart) && ~isnan(yearEnd)
+        goFile = sprintf('%sgo_%d_%d-%d.mat', obs.Zname, goScenario, yearStart, yearEnd);
+    else
+        goFile = sprintf('%sgo_%d.mat', obs.Zname, goScenario);
+    end
 else
     goDir='./2globalOffset/goValidation';
-    % Set filename for saved results
-    goFile = sprintf('%sgo_go%d_val.mat', obs.Zname, goScenario);
+    % Set filename for saved results including year range
+    if ~isnan(yearStart) && ~isnan(yearEnd)
+        goFile = sprintf('%sgo_%d_val_%d-%d.mat', obs.Zname, goScenario, yearStart, yearEnd);
+    else
+        goFile = sprintf('%sgo_%d_val.mat', obs.Zname, goScenario);
+    end
 end
 
 if ~exist(goDir, 'dir')
@@ -139,7 +157,12 @@ else
     go.mt = mtsd;
     go.goParam = goParam;
     go.densParam = densParam;
-    
+
+    % Store year range metadata
+    if ~isnan(yearStart) && ~isnan(yearEnd)
+        go.yearRange = [yearStart, yearEnd];
+    end
+
     % Save results
     save(fullfile(goDir, goFile), 'go');
     fprintf('Global offset saved to %s\n', goFile);
