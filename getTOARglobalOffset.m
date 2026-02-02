@@ -69,9 +69,9 @@ axMS = [-180 180 -60 75];  % Global domain [lonmin lonmax latmin latmax]
 
 % Extract year range from obs.tME
 if isfield(obs, 'tME') && ~isempty(obs.tME)
-    tME_years = year(datetime(obs.tME, 'ConvertFrom', 'datenum'));
+    tME_years = unique(obs.tME);
     yearStart = min(tME_years);
-    yearEnd = max(tME_years);
+    yearEnd = floor(max(tME_years));
 else
     yearStart = NaN;
     yearEnd = NaN;
