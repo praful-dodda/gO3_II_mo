@@ -16,17 +16,16 @@ timeRange = [2015 2020];        % [startYear endYear]
 logTransf = 0;                  % 0 = no log transform, 1 = log transform
 
 % Global offset scenarios to test
-goScenarioVec = [0 1 2 3 4 5 6 7];    % 0=zero, 1=flat, 2=domain, 3=regional, 4=local
 goScenarioVec = 0:11;    % 0=zero, 1=flat, 2=domain, 3=regional, 4=local
 
 % Processing flags
-forceGOestimation = 0;          % 1 to force recompute GO, 0 to use saved
-forceEstCov = 0;                % 1 to force recompute cov, 0 to use saved
+forceGOestimation = 1;          % 1 to force recompute GO, 0 to use saved
+forceEstCov = 1;                % 1 to force recompute cov, 0 to use saved
 inValidation = 0;               % Set to 0 for normal analysis
 
 % Plotting options
 goPlot = 1;                     % GO plot detail level (0-3)
-temporalModelType = 'holecos';  % 'holecos' or 'exponential'
+temporalModelType = 'exponential';  % 'holecos' or 'exponential'
 
 %% --- Load Observational Data ---
 fprintf('=== Loading TOAR Observational Data ===\n');
@@ -56,14 +55,26 @@ for i = 1:length(goScenarioVec)
         case 5, fprintf('Regional Spatio-Temporal ---\n');
         case 6, fprintf('Local Spatio-Temporal ---\n');
         case 7, fprintf('Super-Local Spatio-Temporal ---\n');
+        case 8, fprintf('Regional (Balanced) ---\n');
+        case 9, fprintf('Sub-Regional ---\n');
+        case 10, fprintf('Local (with Seasonal) ---\n');
+        case 11, fprintf('Fine-Scale ---\n');
         otherwise, fprintf('Unknown Scenario ---\n');
     end
     
     % Compute global offset
-    go = getTOARglobalOffset(obs, goScenario, goPlot, forceGOestimation, inValidation);
+    go = getTOARglobalOffset(obs, goScenario, 0, forceGOestimation, inValidation);
+    
+    goPlots = 1:1;
+
+    for goPlot = goPlots
+        plotTOARglobalOffset(obs, go, goPlot)
+    end
     
     % Compute covariance
-    cov = getTOARautoCov(obs, go, temporalModelType, forceEstCov);
+    % cov = getTOARautoCov(obs, go, temporalModelType, forceEstCov);
+    cov = getTOARautoCov_updated(obs, go, temporalModelType, forceEstCov);
+    plotTOARcovariance(cov, 'visible', 'on')
     
     % Store results
     results(i).goScenario = goScenario;

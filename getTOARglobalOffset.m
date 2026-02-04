@@ -1,4 +1,4 @@
-function go = getTOARglobalOffset(obs, goScenario, goPlot, forceGOestimation, inValidation)
+function go = getTOARglobalOffset(obs, goScenario, goPlot, forceGOestimation, inValidation, verbose)
 % getTOARglobalOffset - Estimates global offset for TOAR ozone data
 %
 % Models the space/time global offset for TOAR-II ozone data following
@@ -22,6 +22,8 @@ function go = getTOARglobalOffset(obs, goScenario, goPlot, forceGOestimation, in
 %                   default: 0
 % inValidation    scalar indicating if this is for validation (1) or training (0)
 %                  default: 0
+% verbose       scalar indicating verbosity level (0=quiet, 1=verbose)
+%               default: 1
 %
 % OUTPUT:
 % go   structure containing global offset:
@@ -43,6 +45,7 @@ if nargin < 2, goScenario = 3; end
 if nargin < 3, goPlot = 1; end
 if nargin < 4, forceGOestimation = 0; end
 if nargin < 5, inValidation = 0; end
+if nargin < 6, verbose = 1; end
 
 if isnumeric(obs)
     error('obs must be a structure from getTOARobservationalData');
@@ -64,15 +67,33 @@ densParam = [inclvoronoi inclgrid nxpix nypix densifytME tMEtimeStep];
 axMS = [-180 180 -60 75];  % Global domain [lonmin lonmax latmin latmax]
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% Create global offset directory
+% Extract year range from obs.tME
+if isfield(obs, 'tME') && ~isempty(obs.tME)
+    tME_years = unique(obs.tME);
+    yearStart = min(tME_years);
+    yearEnd = floor(max(tME_years));
+else
+    yearStart = NaN;
+    yearEnd = NaN;
+end
+
+% Create global offset directory and set filenames
 if inValidation==0
     goDir='./2globalOffset';
-    % Set filename for saved results
-    goFile = sprintf('%sgo_go%d.mat', obs.Zname, goScenario);
+    % Set filename for saved results including year range
+    if ~isnan(yearStart) && ~isnan(yearEnd)
+        goFile = sprintf('%sgo_%d_%d-%d.mat', obs.Zname, goScenario, yearStart, yearEnd);
+    else
+        goFile = sprintf('%sgo_%d.mat', obs.Zname, goScenario);
+    end
 else
     goDir='./2globalOffset/goValidation';
-    % Set filename for saved results
-    goFile = sprintf('%sgo_go%d_val.mat', obs.Zname, goScenario);
+    % Set filename for saved results including year range
+    if ~isnan(yearStart) && ~isnan(yearEnd)
+        goFile = sprintf('%sgo_%d_val_%d-%d.mat', obs.Zname, goScenario, yearStart, yearEnd);
+    else
+        goFile = sprintf('%sgo_%d_val.mat', obs.Zname, goScenario);
+    end
 end
 
 if ~exist(goDir, 'dir')
@@ -136,10 +157,24 @@ else
     go.mt = mtsd;
     go.goParam = goParam;
     go.densParam = densParam;
-    
+
+    % Store year range metadata
+    if ~isnan(yearStart) && ~isnan(yearEnd)
+        go.yearRange = [yearStart, yearEnd];
+    end
+
     % Save results
     save(fullfile(goDir, goFile), 'go');
     fprintf('Global offset saved to %s\n', goFile);
+end
+
+if verbose
+    fprintf('Global offset scenario %d. \n', go.scenario);
+    fprintf('  Radius of spatial neighborhood dNeib (deg.): %.2f\n', go.goParam(1));
+    fprintf('  Spatial range of exponential smoothing function ar (deg): %.2f\n', go.goParam(2));
+    fprintf('  Radius of temporal neighborhood tNeib (months): %.2f\n', go.goParam(3));
+    fprintf('  Temporal range of exponential function smoothing at (months): %.2f\n', go.goParam(4));
+    fprintf('  tloop, if tloop>0, the measured events are looped in a cycle of duration tloop (months): %d\n', go.goParam(5));
 end
 
 % Generate plots if requested

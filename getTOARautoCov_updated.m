@@ -55,9 +55,28 @@ if ~exist(figDir, 'dir')
     mkdir(figDir);
 end
 
-% Set filenames based on go.scenario and obs.logTransf
-covFile = sprintf('Cov_go%d_lt%d.mat', go.scenario, obs.logTransf);
-figFile = sprintf('Cov_go%d_lt%d.png', go.scenario, obs.logTransf);
+% Extract year range from obs.tME
+if isfield(obs, 'tME') && ~isempty(obs.tME)
+    tME_years = unique(obs.tME);
+    yearStart = min(tME_years);
+    yearEnd = floor(max(tME_years));
+else
+    yearStart = NaN;
+    yearEnd = NaN;
+end
+
+% Set filenames including temporal model and year range
+if ~isnan(yearStart) && ~isnan(yearEnd)
+    covFile = sprintf('Cov_go%d_lt%d_%s_%d-%d.mat', ...
+        go.scenario, obs.logTransf, temporalModelType, yearStart, yearEnd);
+    figFile = sprintf('Cov_go%d_lt%d_%s_%d-%d.png', ...
+        go.scenario, obs.logTransf, temporalModelType, yearStart, yearEnd);
+else
+    % Fallback if year range unavailable
+    covFile = sprintf('Cov_go%d_lt%d_%s.mat', go.scenario, obs.logTransf, temporalModelType);
+    figFile = sprintf('Cov_go%d_lt%d_%s.png', go.scenario, obs.logTransf, temporalModelType);
+end
+
 covPath = fullfile(covDir, covFile);
 figPath = fullfile(figDir, figFile);
 
@@ -237,25 +256,14 @@ totalCov = c01+c02+c03+c04;
 if totalCov > 0
     cov.stmetric = (c01*ar1/at1 + c02*ar1/at2 + c03*ar2/at1 + c04*ar2/at2) / totalCov;
 else
-    cov.stmetric = 1000; 
+    cov.stmetric = 1000;
 end
 
-%% --- Assemble Final Covariance Structure ---
-fprintf('  Assembling final covariance structure...\n');
-v = varSpatial;
-c1n = c1/v; c2n = c2/v; c3n = c3/v; c4n = c4/v;
-c01 = max(0, c1n*c3n*v); c02 = max(0, c1n*c4n*v);
-c03 = max(0, c2n*c3n*v); c04 = max(0, c2n*c4n*v);
-
-cov.covmodel = {['exponentialC/' covmodel_t{1}], ['exponentialC/' covmodel_t{2}], ...
-                ['exponentialC/' covmodel_t{1}], ['exponentialC/' covmodel_t{2}]};
-cov.rLag = rLag; cov.Cr = Cr;
-cov.tLag = tLag; cov.Ct = Ct;
-cov.var = v;
-cov.covparam = {[c01, ar1, at1], [c02, ar1, at2], [c03, ar2, at1], [c04, ar2, at2]};
-totalCov = c01+c02+c03+c04;
-if totalCov > 0, cov.stmetric = (c01*ar1/at1 + c02*ar1/at2 + c03*ar2/at1 + c04*ar2/at2) / totalCov;
-else, cov.stmetric = 1000; end
+% Store metadata for file naming and plotting
+cov.temporalModel = temporalModelType;
+if ~isnan(yearStart) && ~isnan(yearEnd)
+    cov.yearRange = [yearStart, yearEnd];
+end
 
 %% --- Save Covariance ---
 save(covPath, 'cov');
@@ -273,11 +281,18 @@ try
 
     ax2 = subplot(2,1,2);
     plot(ax2, tLag, Ct, 'bo', 'MarkerFaceColor','b', 'DisplayName', 'Experimental'); hold(ax2, 'on');
-    t_fine = linspace(0, max(tLag_col(valid_idx_t)), 500); 
+    t_fine = linspace(0, max(tLag_col(valid_idx_t)), 500);
     plot(ax2, t_fine, temporalModel(bestParams_temporal, t_fine), 'r-', 'LineWidth', 1.5, 'DisplayName', 'Fitted Model');
     xlabel(ax2, 'Temporal Lag (Years)'); ylabel(ax2, 'Covariance'); title(ax2, 'Temporal Covariance Fit'); grid(ax2, 'on'); legend(ax2, 'show', 'Location','best'); hold(ax2, 'off');
 
-    sgtitle(fig, sprintf('TOAR Covariance: GO=%d, LT=%d', go.scenario, obs.logTransf), 'FontWeight','bold');
+    % Enhanced title with all metadata
+    if ~isnan(yearStart) && ~isnan(yearEnd)
+        sgtitle(fig, sprintf('TOAR Covariance: GO=%d, LT=%d, %s, %d-%d', ...
+            go.scenario, obs.logTransf, upper(temporalModelType), yearStart, yearEnd), 'FontWeight','bold');
+    else
+        sgtitle(fig, sprintf('TOAR Covariance: GO=%d, LT=%d, %s', ...
+            go.scenario, obs.logTransf, upper(temporalModelType)), 'FontWeight','bold');
+    end
 
     exportgraphics(fig, figPath, 'Resolution', 150);
     fprintf('  Saved covariance plot to: %s\n', figPath);

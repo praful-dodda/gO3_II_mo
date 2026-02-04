@@ -86,43 +86,68 @@ end
 % Determine RAMP version from first file
 sampleFile = dir(fullfile(dataDir, sprintf('lambda1_%s_%d_v3-parallel.parquet', modelName, years(1))));
 if isempty(sampleFile)
-    error('No parquet files found for %s year %d in %s', modelName, years(1), dataDir);
+    warning('No parquet files found for %s year %d in %s', modelName, years(1), dataDir);
+    tokens = [];
+else
+    % Extract version from filename (e.g., "v3" from "..._v3-parallel.parquet")
+    tokens = regexp(sampleFile(1).name, '_v(\d+)-parallel', 'tokens');
 end
 
-% Extract version from filename (e.g., "v3" from "..._v3-parallel.parquet")
-tokens = regexp(sampleFile(1).name, '_v(\d+)-parallel', 'tokens');
 if ~isempty(tokens)
     rampVersion = str2double(tokens{1}{1});
 else
-    rampVersion = 1;  % Default
+    rampVersion = 3;  % Default
 end
 
-cacheFile = sprintf('CTM_RAMP_%s_%d-%d_v%d.mat', ...
-    modelName, min(years), max(years), rampVersion);
-cachePath = fullfile(cacheDir, cacheFile);
+% Try to find existing cache file first
+cachePattern = sprintf('CTM_RAMP_%s_*_v%d.mat', modelName, rampVersion);
+existingCaches = dir(fullfile(cacheDir, cachePattern));
 
-%% Load from Cache or Parquet
-if exist(cachePath, 'file') && ~forceReload
-    fprintf('\nLoading from cache: %s\n', cacheFile);
-    tic;
-    load(cachePath, 'ctmData');
-    tLoad = toc;
-    fprintf('  Loaded in %.2f seconds\n', tLoad);
+cacheFound = false;
+if ~forceReload && ~isempty(existingCaches)
+    % Check if any existing cache has all requested years
+    for i = 1:length(existingCaches)
+        cachePath = fullfile(existingCaches(i).folder, existingCaches(i).name);
+        try
+            load(cachePath, 'ctmData');
+            % Check if cached data contains all requested years
+            if all(ismember(years, ctmData.years))
+                fprintf('\nFound compatible cache: %s\n', existingCaches(i).name);
+                fprintf('  Cached years: %s\n', mat2str(ctmData.years));
+                fprintf('  Requested years: %s\n', mat2str(years));
 
-    % Verify cached data matches requested years
-    if isequal(ctmData.years, years)
-        fprintf('  Grid points: %d\n', length(ctmData.lon));
-        fprintf('  Time periods: %d\n', length(ctmData.tME));
-        fprintf('  Data completeness: %.1f%%\n', 100*sum(~isnan(ctmData.Z(:)))/numel(ctmData.Z));
-        fprintf('========================================\n\n');
-        return;
-    else
-        warning('Cached data years %s do not match requested %s. Reloading...', ...
-            mat2str(ctmData.years), mat2str(years));
+                % Extract only requested years
+                yearIdx = ismember(ctmData.years, years);
+                monthIdx = [];
+                for iY = 1:length(ctmData.years)
+                    if yearIdx(iY)
+                        monthIdx = [monthIdx, (iY-1)*12 + (1:12)];
+                    end
+                end
+
+                % Subset the data
+                ctmData.Z = ctmData.Z(:, monthIdx);
+                ctmData.Zv = ctmData.Zv(:, monthIdx);
+                ctmData.tME = ctmData.tME(monthIdx);
+                ctmData.years = years;
+                ctmData.nMonths = length(monthIdx);
+
+                fprintf('  Grid points: %d\n', length(ctmData.lon));
+                fprintf('  Time periods: %d\n', length(ctmData.tME));
+                fprintf('  Data completeness: %.1f%%\n', 100*sum(~isnan(ctmData.Z(:)))/numel(ctmData.Z));
+                fprintf('========================================\n\n');
+                cacheFound = true;
+                return;
+            end
+        catch
+            continue;
+        end
     end
 end
 
-fprintf('\nCache not found or force reload requested.\n');
+if ~cacheFound
+    fprintf('\nNo compatible cache found or force reload requested.\n');
+end
 
 %% Read Spatial Grid from .mat File
 fprintf('\nLoading spatial grid from .mat file...\n');
@@ -164,12 +189,12 @@ end
 fprintf('\nLoading RAMP-corrected data from parquet files...\n');
 
 nYears = length(years);
-nMonths = nYears * 12;
 
-% Storage for all data
-lambda1_all = NaN(nGrid, nMonths, 'single');
-lambda2_all = NaN(nGrid, nMonths, 'single');
-tME_all = [];
+% Track which years were successfully loaded
+yearsLoaded = [];
+lambda1_list = {};
+lambda2_list = {};
+tME_list = {};
 
 for iYear = 1:nYears
     year = years(iYear);
@@ -183,56 +208,98 @@ for iYear = 1:nYears
     lambda1Path = fullfile(dataDir, lambda1File);
     lambda2Path = fullfile(dataDir, lambda2File);
 
-    % Check files exist
-    if ~exist(lambda1Path, 'file')
-        error('Lambda1 file not found: %s', lambda1Path);
+    % Try to load this year's data
+    try
+        % Check files exist
+        if ~exist(lambda1Path, 'file')
+            error('Lambda1 file not found: %s', lambda1Path);
+        end
+        if ~exist(lambda2Path, 'file')
+            error('Lambda2 file not found: %s', lambda2Path);
+        end
+
+        % Read lambda1 (mean)
+        fprintf('  Reading %s...\n', lambda1File);
+        tic;
+        lambda1_table = parquetread(lambda1Path);
+        tRead1 = toc;
+        fprintf('    Loaded in %.2f seconds (%d rows)\n', tRead1, height(lambda1_table));
+
+        % Read lambda2 (variance)
+        fprintf('  Reading %s...\n', lambda2File);
+        tic;
+        lambda2_table = parquetread(lambda2Path);
+        tRead2 = toc;
+        fprintf('    Loaded in %.2f seconds (%d rows)\n', tRead2, height(lambda2_table));
+
+        % Verify parquet file has correct number of rows (should match grid)
+        if height(lambda1_table) ~= nGrid
+            error('Lambda1 file has %d rows, expected %d (grid size)', ...
+                height(lambda1_table), nGrid);
+        end
+        if height(lambda2_table) ~= nGrid
+            error('Lambda2 file has %d rows, expected %d (grid size)', ...
+                height(lambda2_table), nGrid);
+        end
+
+        % Extract monthly data (columns 1-12, no spatial info in parquet)
+        lambda1_year = single(lambda1_table{:, 1:12});
+        lambda2_year = single(lambda2_table{:, 1:12});
+
+        % Create time vector for this year
+        tME_year = year + (0:11)/12;
+
+        fprintf('  Data range - Mean: [%.2f, %.2f] ppb\n', ...
+            min(lambda1_year(:), [], 'omitnan'), max(lambda1_year(:), [], 'omitnan'));
+        fprintf('  Data range - Variance: [%.4f, %.2f] ppb²\n', ...
+            min(lambda2_year(:), [], 'omitnan'), max(lambda2_year(:), [], 'omitnan'));
+
+        % Store successfully loaded data
+        lambda1_list{end+1} = lambda1_year;
+        lambda2_list{end+1} = lambda2_year;
+        tME_list{end+1} = tME_year;
+        yearsLoaded(end+1) = year;
+
+        fprintf('  ✓ Year %d loaded successfully\n', year);
+
+    catch ME
+        fprintf('\n');
+        fprintf('========================================\n');
+        fprintf('  WARNING: Failed to load year %d\n', year);
+        fprintf('========================================\n');
+        fprintf('Model: %s\n', modelName);
+        fprintf('Year: %d\n', year);
+        fprintf('Error: %s\n', ME.message);
+        fprintf('Expected files:\n');
+        fprintf('  - %s\n', lambda1Path);
+        fprintf('  - %s\n', lambda2Path);
+        fprintf('\nThis year will be SKIPPED. Continuing with remaining years...\n');
+        fprintf('========================================\n\n');
     end
-    if ~exist(lambda2Path, 'file')
-        error('Lambda2 file not found: %s', lambda2Path);
-    end
-
-    % Read lambda1 (mean)
-    fprintf('  Reading %s...\n', lambda1File);
-    tic;
-    lambda1_table = parquetread(lambda1Path);
-    tRead1 = toc;
-    fprintf('    Loaded in %.2f seconds (%d rows)\n', tRead1, height(lambda1_table));
-
-    % Read lambda2 (variance)
-    fprintf('  Reading %s...\n', lambda2File);
-    tic;
-    lambda2_table = parquetread(lambda2Path);
-    tRead2 = toc;
-    fprintf('    Loaded in %.2f seconds (%d rows)\n', tRead2, height(lambda2_table));
-
-    % Verify parquet file has correct number of rows (should match grid)
-    if height(lambda1_table) ~= nGrid
-        error('Lambda1 file has %d rows, expected %d (grid size)', ...
-            height(lambda1_table), nGrid);
-    end
-    if height(lambda2_table) ~= nGrid
-        error('Lambda2 file has %d rows, expected %d (grid size)', ...
-            height(lambda2_table), nGrid);
-    end
-
-    % Extract monthly data (columns 1-12, no spatial info in parquet)
-    lambda1_year = lambda1_table{:, 1:12};
-    lambda2_year = lambda2_table{:, 1:12};
-
-    % Store in overall array
-    monthIdx = (iYear-1)*12 + (1:12);
-    lambda1_all(:, monthIdx) = single(lambda1_year);
-    lambda2_all(:, monthIdx) = single(lambda2_year);
-
-    % Create time vector for this year
-    tME_year = year + (0:11)/12;
-    tME_all = [tME_all, tME_year];
-
-    fprintf('  Data range - Mean: [%.2f, %.2f] ppb\n', ...
-        min(lambda1_year(:), [], 'omitnan'), max(lambda1_year(:), [], 'omitnan'));
-    fprintf('  Data range - Variance: [%.4f, %.2f] ppb²\n', ...
-        min(lambda2_year(:), [], 'omitnan'), max(lambda2_year(:), [], 'omitnan'));
 end
+
+% Check if any years were successfully loaded
+if isempty(yearsLoaded)
+    error('No data could be loaded for any requested year. Requested: %s', mat2str(years));
+end
+
+% Report loading summary
+fprintf('\n--- Loading Summary ---\n');
+fprintf('  Requested years: %s\n', mat2str(years));
+fprintf('  Successfully loaded: %s\n', mat2str(yearsLoaded));
+if length(yearsLoaded) < length(years)
+    missingYears = setdiff(years, yearsLoaded);
+    fprintf('  ⚠ Missing years: %s\n', mat2str(missingYears));
+end
+
+% Concatenate all loaded data
+lambda1_all = cat(2, lambda1_list{:});
+lambda2_all = cat(2, lambda2_list{:});
+tME_all = cat(2, tME_list{:});
+
+% Update years to reflect what was actually loaded
+years = yearsLoaded;
+nMonths = length(tME_all);
 
 %% Quality Control
 fprintf('\n--- Quality Control ---\n');
@@ -300,7 +367,14 @@ fprintf('  Variance range: [%.4f, %.2f] %s²\n', ...
 
 %% Save Cache
 fprintf('\n--- Saving Cache ---\n');
+
+% Update cache filename to reflect actually loaded years
+cacheFile = sprintf('CTM_RAMP_%s_%d-%d_v%d.mat', ...
+    modelName, min(years), max(years), rampVersion);
+cachePath = fullfile(cacheDir, cacheFile);
+
 fprintf('  File: %s\n', cacheFile);
+fprintf('  Years: %s\n', mat2str(years));
 
 tic;
 save(cachePath, 'ctmData', '-v7.3');
