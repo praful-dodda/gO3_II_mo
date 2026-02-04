@@ -33,7 +33,7 @@ valParam.stationTypes = 'all';  % 'all', 'urban', 'rural', or {'urban','rural'}
 
 % Time range for loading data (should cover all validation years ± 1 year)
 % Example: To validate 2017, load 2015-2020 so ±1 year window is available
-valParam.timeRange = [2015 2020];  % [startYear endYear]
+valParam.timeRange = [2010 2015];  % [startYear endYear]
 
 % Log transformation
 valParam.logTransf = 0;  % 0=no, 1=yes (use 0 for regular concentrations)
@@ -43,7 +43,7 @@ valParam.logTransf = 0;  % 0=no, 1=yes (use 0 for regular concentrations)
 % ====================================================================
 
 % Years to validate
-valParam.valYears = [2017];  % e.g., 2017 or [2016 2017 2018]
+valParam.valYears = [2013 2014];  % e.g., 2017 or [2016 2017 2018]
 
 % Months to validate (within each year)
 valParam.valMonths = 1:12;  % All months, or specific: [6 7 8] for JJA
@@ -64,7 +64,7 @@ valParam.boxSizes = 5.0;  % e.g., [2.0, 3.0, 4.0, 5.0]
 valParam.goScenario = 3;
 
 % Force re-estimation of GO (useful if parameters changed)
-valParam.forceGO = 0;  % 0=use cached, 1=force new estimation
+valParam.forceGO = 1;  % 0=use cached, 1=force new estimation
 
 % Plotting level for global offset
 valParam.goPlot = 0;  % 0=no plots, 1=basic (not recommended during CBV)
@@ -77,7 +77,7 @@ valParam.goPlot = 0;  % 0=no plots, 1=basic (not recommended during CBV)
 valParam.temporalModel = 'holecos';  % 'exponential' or 'holecos'
 
 % Force re-estimation
-valParam.forceCov = 0;  % 0=use cached, 1=force new estimation
+valParam.forceCov = 1;  % 0=use cached, 1=force new estimation
 
 %% ====================================================================
 %                    BME METHOD CONFIGURATION
@@ -105,7 +105,7 @@ valParam.forceCov = 0;  % 0=use cached, 1=force new estimation
 % valParam.BMEmethod = {'10000133', '13000313-02', '13000313-12'};
 
 % SINGLE METHOD: Use string for one configuration
-valParam.BMEmethod = '13000313-12';
+valParam.BMEmethod = {'10000133', '13000313-01', '13000313-04'};
 
 %% ====================================================================
 %                    SOFT DATA CONFIGURATION (if using CTM)
@@ -130,7 +130,7 @@ valParam.BMEmethod = '13000313-12';
 % ====================================================================
 
 % Force re-estimation of monthly results (ignore cache)
-valParam.forceEstimation = 1;  % 0=use cached monthly results, 1=recompute
+valParam.forceEstimation = 0;  % 0=use cached monthly results, 1=recompute
 
 % Create plots after validation
 valParam.plotResults = 1;  % 0=no plots, 1=create plots

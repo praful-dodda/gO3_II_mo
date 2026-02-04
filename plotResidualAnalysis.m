@@ -136,7 +136,7 @@ end
 
 %% Plot 6: Temporal Residual Trend
 if ~isempty(tk)
-    figPaths = [figPaths; plotTemporalResiduals(tk, residuals, opts)];
+    figPaths = [figPaths; plotTemporalResiduals(tk, residuals, sk(:,2), opts)];
 end
 
 fprintf('=== Residual analysis complete: %d figures created ===\n', length(figPaths));
@@ -166,19 +166,25 @@ plot([min(Y_est) max(Y_est)], [-2*stdRes -2*stdRes], 'r--', 'LineWidth', 1.5);
 try
     [sortedEst, sortIdx] = sort(Y_est);
     sortedRes = residuals(sortIdx);
-    smoothRes = smooth(sortedEst, sortedRes, 0.1, 'loess');
+    smoothRes = simpleLOWESS(sortedEst, sortedRes, 0.1);
     plot(sortedEst, smoothRes, 'r-', 'LineWidth', 2.5);
 catch
-    % Skip if smooth not available
+    % Skip if smoothing fails
 end
 
 xlabel('Predicted Value (ppb)', 'FontSize', 12);
 ylabel('Residual (Obs - Pred) (ppb)', 'FontSize', 12);
 title([opts.titlePrefix 'Residuals vs Predicted Values'], 'FontSize', 14, 'FontWeight', 'bold');
 
-% Add statistics
-text(0.05, 0.95, sprintf('Mean: %.3f\nStd: %.3f\n2σ: %.3f', ...
-    mean(residuals), stdRes, 2*stdRes), ...
+% Calculate percentages outside ±2SD
+pctAbove = 100 * sum(residuals > 2*stdRes) / length(residuals);
+pctBelow = 100 * sum(residuals < -2*stdRes) / length(residuals);
+pctOutside = pctAbove + pctBelow;
+
+% Add statistics with percentages
+text(0.05, 0.95, sprintf(['Mean: %.3f\nStd: %.3f\n2σ: %.3f\n' ...
+    'Above +2σ: %.1f%%\nBelow -2σ: %.1f%%\nOutside ±2σ: %.1f%% (expect ~5%%)'], ...
+    mean(residuals), stdRes, 2*stdRes, pctAbove, pctBelow, pctOutside), ...
     'Units', 'normalized', 'VerticalAlignment', 'top', ...
     'BackgroundColor', 'w', 'EdgeColor', 'k', 'FontSize', 10);
 
@@ -288,7 +294,7 @@ n = 256;
 cmap = [linspace(0, 1, n/2)', linspace(0, 1, n/2)', ones(n/2, 1); ...
         ones(n/2, 1), linspace(1, 0, n/2)', linspace(1, 0, n/2)'];
 
-scatter(sk(:,1), sk(:,2), 30, residuals, 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 0.5);
+scatter(sk(:,1), sk(:,2), 8, residuals, 'filled', 'LineWidth', 0.5);
 colormap(cmap);
 cb = colorbar;
 ylabel(cb, 'Residual (ppb)', 'FontSize', 12);
@@ -356,42 +362,106 @@ end
 %% ========================================================================
 %% SUBFUNCTION: Temporal Residuals
 %% ========================================================================
-function figPath = plotTemporalResiduals(tk, residuals, opts)
+function figPath = plotTemporalResiduals(tk, residuals, latitude, opts)
+% Separate by hemisphere
+isNorth = latitude >= 0;
+isSouth = latitude < 0;
 
-fig = figure('Visible', opts.visible, 'Position', [100 100 1200 500]);
+fig = figure('Visible', opts.visible, 'Position', [100 100 1400 600]);
 
-% Bin by time (monthly averages)
-uniqueTimes = unique(floor(tk * 12) / 12);  % Monthly bins
-meanResid = NaN(length(uniqueTimes), 1);
-stdResid = NaN(length(uniqueTimes), 1);
+% Overall Residuals Panel
+subplot(3, 1, 1);
+plotHemisphere(tk, residuals, 'Overall', opts);
 
-for i = 1:length(uniqueTimes)
-    timeBin = (floor(tk * 12) / 12) == uniqueTimes(i);
-    meanResid(i) = mean(residuals(timeBin));
-    stdResid(i) = std(residuals(timeBin));
-end
+% Northern Hemisphere Panel
+subplot(3, 1, 2);
+plotHemisphere(tk(isNorth), residuals(isNorth), 'Northern Hemisphere', opts);
 
-% Plot with error bars
-errorbar(uniqueTimes, meanResid, stdResid, 'o-', 'LineWidth', 1.5, ...
-    'MarkerSize', 6, 'MarkerFaceColor', [0.2 0.4 0.8], 'Color', [0.2 0.4 0.8]);
-hold on;
+% Southern Hemisphere Panel
+subplot(3, 1, 3);
+plotHemisphere(tk(isSouth), residuals(isSouth), 'Southern Hemisphere', opts);
 
-% Zero line
-plot([min(uniqueTimes) max(uniqueTimes)], [0 0], 'k--', 'LineWidth', 2);
+% Overall title
+sgtitle([opts.titlePrefix 'Temporal Trend of Residuals by Hemisphere'], ...
+    'FontSize', 14, 'FontWeight', 'bold');
 
-xlabel('Time (year)', 'FontSize', 12);
-ylabel('Mean Residual (ppb)', 'FontSize', 12);
-title([opts.titlePrefix 'Temporal Trend of Residuals'], 'FontSize', 14, 'FontWeight', 'bold');
-grid on;
-set(gca, 'FontSize', 11);
-
-basename = 'temporal_residuals';
+basename = 'temporal_residuals_hemispheres';
 figPath = saveTOARfigure(fig, basename, opts.saveDir, 'dpi', opts.dpi);
 
 if strcmp(opts.visible, 'off')
     close(fig);
 end
+end
 
+%% ========================================================================
+%% HELPER: Plot hemisphere temporal residuals
+%% ========================================================================
+function plotHemisphere(tk, residuals, hemTitle, opts)
+if isempty(tk)
+    text(0.5, 0.5, 'No Data', 'HorizontalAlignment', 'center', ...
+        'FontSize', 14, 'Color', [0.5 0.5 0.5]);
+    title(hemTitle, 'FontSize', 12, 'FontWeight', 'bold');
+    return;
+end
+
+% Convert decimal years to datetime for better formatting
+years = floor(tk);
+fractionalYear = tk - years;
+months = round(fractionalYear * 12) + 1;
+months(months > 12) = 12;
+dates = datetime(years, months, 15);  % Mid-month
+
+% Bin by month
+uniqueDates = unique(dateshift(dates, 'start', 'month'));
+meanResid = NaN(length(uniqueDates), 1);
+stdResid = NaN(length(uniqueDates), 1);
+nPoints = NaN(length(uniqueDates), 1);
+
+for i = 1:length(uniqueDates)
+    timeBin = dateshift(dates, 'start', 'month') == uniqueDates(i);
+    meanResid(i) = mean(residuals(timeBin));
+    stdResid(i) = std(residuals(timeBin));
+    nPoints(i) = sum(timeBin);
+end
+
+% Plot with error bars
+hold on;
+errorbar(uniqueDates, meanResid, stdResid, 'o-', 'LineWidth', 1.5, ...
+    'MarkerSize', 5, 'MarkerFaceColor', [0.2 0.4 0.8], 'Color', [0.2 0.4 0.8]);
+
+% Zero line
+plot([min(uniqueDates) max(uniqueDates)], [0 0], 'k--', 'LineWidth', 2);
+
+% Format x-axis to show months nicely
+xlabel('Time', 'FontSize', 11);
+ylabel('Mean Residual (ppb)', 'FontSize', 11);
+title(sprintf('%s (n=%d)', hemTitle, length(residuals)), ...
+    'FontSize', 12, 'FontWeight', 'bold');
+
+% Smart date formatting based on time span
+timeSpan = max(uniqueDates) - min(uniqueDates);
+if timeSpan <= years(365)  % Less than 1 year
+    xtickformat('MMM yyyy');
+    ax = gca;
+    ax.XAxis.TickLabelRotation = 45;
+elseif timeSpan <= years(730)  % 1-2 years
+    xtickformat('MMM yy');
+    ax = gca;
+    ax.XAxis.TickLabelRotation = 45;
+else  % More than 2 years
+    xtickformat('yyyy');
+end
+
+grid on;
+set(gca, 'FontSize', 10);
+
+% Add summary statistics
+text(0.02, 0.98, sprintf('Mean: %.3f\nStd: %.3f\nN: %d', ...
+    mean(residuals), std(residuals), length(residuals)), ...
+    'Units', 'normalized', 'VerticalAlignment', 'top', ...
+    'BackgroundColor', 'w', 'EdgeColor', 'k', 'FontSize', 9);
+
+hold off;
 end
 
 %% ========================================================================
