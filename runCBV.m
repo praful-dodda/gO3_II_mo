@@ -18,6 +18,10 @@
 
 clear; close all;
 
+% create a dairy log file based on the today's date and time
+logFileName = fullfile('./logs', sprintf('runCBV_log_%s.log', datetime('now','Format','yyyyMMdd_HHmmss')));
+diary(logFileName);
+
 fprintf('\n');
 fprintf('========================================================================\n');
 fprintf('               CHECKER-BOARD VALIDATION (CBV) FOR TOAR\n');
@@ -42,6 +46,9 @@ valParam.logTransf = 0;  % 0=no, 1=yes (use 0 for regular concentrations)
 %                    VALIDATION CONFIGURATION
 % ====================================================================
 
+% Years overhang ± year window of the validation year
+valParam.yearsOverhang = 1;  % 
+
 % Years to validate
 valParam.valYears = [2013 2014];  % e.g., 2017 or [2016 2017 2018]
 
@@ -61,10 +68,10 @@ valParam.boxSizes = 5.0;  % e.g., [2.0, 3.0, 4.0, 5.0]
 %   2 = Domain-wide S/T smoothing
 %   3 = Regional S/T smoothing (RECOMMENDED)
 %   6 = Local S/T smoothing
-valParam.goScenario = 3;
+valParam.goScenario = 0;
 
 % Force re-estimation of GO (useful if parameters changed)
-valParam.forceGO = 1;  % 0=use cached, 1=force new estimation
+valParam.forceGO = 0;  % 0=use cached, 1=force new estimation
 
 % Plotting level for global offset
 valParam.goPlot = 0;  % 0=no plots, 1=basic (not recommended during CBV)
@@ -74,10 +81,10 @@ valParam.goPlot = 0;  % 0=no plots, 1=basic (not recommended during CBV)
 % ====================================================================
 
 % Temporal covariance model
-valParam.temporalModel = 'holecos';  % 'exponential' or 'holecos'
+valParam.temporalModel = 'exponential';  % 'exponential' or 'holecos'
 
 % Force re-estimation
-valParam.forceCov = 1;  % 0=use cached, 1=force new estimation
+valParam.forceCov = 0;  % 0=use cached, 1=force new estimation
 
 %% ====================================================================
 %                    BME METHOD CONFIGURATION
@@ -102,10 +109,14 @@ valParam.forceCov = 1;  % 0=use cached, 1=force new estimation
 %   20:NJML; 06:M3fusion+OMI-MLS; 0A:M3fusion+IASI-GOME2; 12:M3fusion+UKML;
 %
 % MULTIPLE METHODS: Use cell array to run multiple configurations at once
-% valParam.BMEmethod = {'10000133', '13000313-02', '13000313-12'};
+% valParam.BMEmethods = {'10000133', '13000313-02', '13000313-12'};
 
 % SINGLE METHOD: Use string for one configuration
-valParam.BMEmethod = {'10000133', '13000313-01', '13000313-04'};
+valParam.BMEmethods = {'10000133', '13000313-01', '13000313-02', ...
+    '13000313-10', '13000313-04', '13000313-20', ...
+    '13000313-05', '13000313-06', '13000313-08'};
+
+valParam.BMEmethods = {'10000133'};
 
 %% ====================================================================
 %                    SOFT DATA CONFIGURATION (if using CTM)
@@ -130,7 +141,7 @@ valParam.BMEmethod = {'10000133', '13000313-01', '13000313-04'};
 % ====================================================================
 
 % Force re-estimation of monthly results (ignore cache)
-valParam.forceEstimation = 0;  % 0=use cached monthly results, 1=recompute
+valParam.forceEstimation = 1;  % 0=use cached monthly results, 1=recompute
 
 % Create plots after validation
 valParam.plotResults = 1;  % 0=no plots, 1=create plots
@@ -144,14 +155,14 @@ valParam.runParallel = false;  % true=parallel, false=sequential
 % ====================================================================
 
 % Convert single method to cell array for uniform processing
-if ischar(valParam.BMEmethod)
-    bmeMethods = {valParam.BMEmethod};
+if ischar(valParam.BMEmethods)
+    bmeMethods = {valParam.BMEmethods};
     multipleMethodsMode = false;
-elseif iscell(valParam.BMEmethod)
-    bmeMethods = valParam.BMEmethod;
+elseif iscell(valParam.BMEmethods)
+    bmeMethods = valParam.BMEmethods;
     multipleMethodsMode = true;
 else
-    error('valParam.BMEmethod must be a string or cell array of strings');
+    error('valParam.BMEmethods must be a string or cell array of strings');
 end
 
 fprintf('\n');
@@ -362,3 +373,6 @@ end
 fprintf('\n');
 fprintf('========================================================================\n');
 fprintf('\n');
+
+% End diary
+diary off;

@@ -22,6 +22,7 @@ function [cbvResults, cbvStats] = runCBV_toar(valParam)
 %              .boxSizes        - Array of box sizes in degrees (default: [2, 2.5, 3, 3.5, 4, 4.5, 5])
 %              .forceEstimation - Force re-calculation (default: 1)
 %              .plotResults     - Create plots (default: 1)
+%              .yearsOverhang   - Years overhang for ± year window (default: 1)
 %
 % OUTPUTS:
 %   cbvResults - Cell array of monthly result structures
@@ -72,11 +73,12 @@ if ~isfield(valParam, 'plotResults'), valParam.plotResults = 1; end
 if ~isfield(valParam, 'goPlot'), valParam.goPlot = 0; end
 if ~isfield(valParam, 'forceGO'), valParam.forceGO = 0; end
 if ~isfield(valParam, 'forceCov'), valParam.forceCov = 0; end
+if ~isfield(valParam, 'yearsOverhang'), valParam.yearsOverhang = 1; end
 
 %% Print Configuration
 fprintf('\n========================================\n');
 fprintf('  CHECKER-BOARD VALIDATION (CBV)\n');
-fprintf('  Monthly Processing with ±1 Year Window\n');
+fprintf('  Monthly Processing with ± %d Year Window\n', valParam.yearsOverhang);
 fprintf('========================================\n');
 fprintf('Configuration:\n');
 fprintf('  BME method: %s\n', valParam.BMEmethod);
@@ -86,22 +88,13 @@ fprintf('  Months: %s\n', mat2str(valParam.valMonths));
 fprintf('  Box sizes: %s degrees\n', mat2str(valParam.boxSizes));
 fprintf('  Station types: %s\n', valParam.stationTypes);
 
-%% Load Full Observational Data
-% Load all data first, then filter to ±1 year per validation year
-fprintf('\nLoading full observational data for all years...\n');
-obsAll = getTOARobservationalData(valParam.stationTypes, valParam.timeRange, valParam.logTransf);
-
-fprintf('  Loaded %d stations, %d time periods (full range)\n', size(obsAll.Z, 1), size(obsAll.Z, 2));
-fprintf('  Full time range: [%.2f, %.2f]\n', min(obsAll.tME), max(obsAll.tME));
-fprintf('  Valid data: %.1f%%\n', 100*sum(~isnan(obsAll.Z(:)))/numel(obsAll.Z));
-
 %% NOTE: Data Leakage Prevention Strategy
 % For each validation year:
 %   1. Filter obs to ±1 year around validation year
 %   2. Compute GO and Cov per fold using ONLY training stations from that time window
 %   3. This ensures no temporal or spatial leakage
 fprintf('\nData leakage prevention:\n');
-fprintf('  - Each validation year uses obs from ±1 year window only\n');
+fprintf('  - Each validation year uses obs from ±%d year window only\n', valParam.yearsOverhang);
 fprintf('  - GO and Cov computed per fold using training stations only\n');
 fprintf('  - GO scenario: %d\n', valParam.goScenario);
 fprintf('  - Temporal model: %s\n', valParam.temporalModel);
@@ -115,76 +108,6 @@ fprintf('    nhmax: %d\n', BMEparam.nhmax);
 fprintf('    nsmax: %d\n', BMEparam.nsmax);
 fprintf('    dmax: [%.1f, %.1f, %.1f]\n', BMEparam.dmax);
 fprintf('    Data format: %s\n', BMEparam.dataFormat);
-
-%% Load Soft Data (if needed)
-CTMtype = str2double(valParam.BMEmethod(2));  % 2nd digit indicates CTM usage
-softData = [];
-valParam.softData = [];
-
-if CTMtype >= 1
-    fprintf('\nCTM data required (BMEmethod digit 2 = %d)\n', CTMtype);
-
-    if isfield(valParam, 'softData') && isempty(valParam.softData)
-        fprintf('Loading soft data...\n');
-
-        % Use setData_val logic but simpler for CBV
-        try
-            if ~isfield(valParam.softData, 'years')
-                % set years to be +- 1 of validation years
-                valParam.softData.years = [];
-                for y = valParam.valYears
-                    valParam.softData.years = [valParam.softData.years, (y-1):(y+1)];
-                end
-                valParam.softData.years = unique(valParam.softData.years);
-            end
-            if ~isfield(valParam.softData, 'dataDir')
-                valParam.softData.dataDir =  fullfile('d:\Users\praful\Documents\Data\ramp_data\');  % Parquet directory
-            end
-            if ~isfield(valParam.softData, 'forceReload')
-                valParam.softData.forceReload = 0;
-            end
-
-            if ~isfield(valParam.softData, 'ctm')
-                valParam.softData.ctm = 1;
-            end
-
-            % get model names based on the bme-method
-            if ~isfield(valParam.softData, 'modelName')
-                [~, ~, ~, ~, ~, ~, valParam.softData.modelName] = parseBMEcode(valParam.BMEmethod);
-            end
-
-            % Handle multiple models (CTMtype=3) or single model
-            if iscell(valParam.softData.modelName)
-                % Multiple models
-                softData = cell(1, length(valParam.softData.modelName));
-                for iModel = 1:length(valParam.softData.modelName)
-                    softData{iModel} = loadRAMPdata(valParam.softData.modelName{iModel}, ...
-                        valParam.softData.years, valParam.softData.dataDir, ...
-                        valParam.softData.forceReload);
-                end
-                fprintf('  Loaded %d soft datasets\n', length(softData));
-            else
-                % Single model
-                softData = loadRAMPdata(valParam.softData.modelName, ...
-                    valParam.softData.years, valParam.softData.dataDir, ...
-                    valParam.softData.forceReload);
-                fprintf('  Loaded soft data: %s\n', softData.modelName);
-            end
-        catch ME
-            warning(ME.identifier, '\n Failed to load soft data: %s', ME.message);
-            softData = [];
-        end
-    else
-        warning('BMEmethod requires CTM data but no softData configuration provided');
-        fprintf('  Proceeding without soft data\n');
-    end
-
-    if isempty(softData)
-        error('Soft data is not loaded!!!')
-    end
-else
-    fprintf('\nNo CTM data required (BMEmethod digit 2 = %d)\n', CTMtype);
-end
 
 %% Setup Output Directory
 cbvDir = fullfile('7validation', 'CBV');
@@ -213,18 +136,95 @@ currentRun = 0;
 
 for iYear = 1:nYears
     valYear = valParam.valYears(iYear);
+    
+    yearRange = [valYear - valParam.yearsOverhang, valYear + valParam.yearsOverhang];  % Keep for GO/Cov cache naming only
 
     fprintf('\n########################################\n');
     fprintf('# VALIDATION YEAR: %d\n', valYear);
     fprintf('########################################\n');
 
-    %% Use all available observational data (no year filtering)
-    obs = obsAll;
-    yearRange = [valYear - 1, valYear + 1];  % Keep for GO/Cov cache naming only
+    % Load observational data for ±1 year of the validation year
+    fprintf('\nLoading full observational data for all years...\n');
+    obs = getTOARobservationalData(valParam.stationTypes, yearRange, valParam.logTransf);
 
+    fprintf('  Loaded %d stations, %d time periods \n', size(obs.Z, 1), size(obs.Z, 2));
+    fprintf('  Full time range: [%.2f, %.2f]\n', min(obs.tME), max(obs.tME));
+    fprintf('  Valid data: %.1f%%\n', 100*sum(~isnan(obs.Z(:)))/numel(obs.Z));
+
+    %% Use all available observational data (no year filtering)
     fprintf('\n  Using all available data for validation year %d\n', valYear);
     fprintf('    Time periods: %d\n', length(obs.tME));
     fprintf('    Valid obs: %.1f%%\n', 100*sum(~isnan(obs.Z(:)))/numel(obs.Z));
+
+    %% Load Soft data if needed for ±1 year of the validation year
+    CTMtype = str2double(valParam.BMEmethod(2));  % 2nd digit indicates CTM usage
+    softData = [];
+    valParam.softData = [];
+
+    if CTMtype >= 1
+        fprintf('\nCTM data required (BMEmethod digit 2 = %d)\n', CTMtype);
+
+        if isfield(valParam, 'softData') && isempty(valParam.softData)
+            fprintf('Loading soft data...\n');
+
+            % Use setData_val logic but simpler for CBV
+            try
+                if ~isfield(valParam.softData, 'years')
+                    % set years to be +- 1 of validation years
+                    valParam.softData.years = [];
+                    for y = [valYear]
+                        valParam.softData.years = [valParam.softData.years, (y-valParam.yearsOverhang):(y+valParam.yearsOverhang)];
+                    end
+                    valParam.softData.years = unique(valParam.softData.years);
+                end
+                if ~isfield(valParam.softData, 'dataDir')
+                    valParam.softData.dataDir =  fullfile('d:\Users\praful\Documents\Data\ramp_data\');  % Parquet directory
+                end
+                if ~isfield(valParam.softData, 'forceReload')
+                    valParam.softData.forceReload = 0;
+                end
+
+                if ~isfield(valParam.softData, 'ctm')
+                    valParam.softData.ctm = 1;
+                end
+
+                % get model names based on the bme-method
+                if ~isfield(valParam.softData, 'modelName')
+                    [~, ~, ~, ~, ~, ~, valParam.softData.modelName] = parseBMEcode(valParam.BMEmethod);
+                end
+
+                % Handle multiple models (CTMtype=3) or single model
+                if iscell(valParam.softData.modelName)
+                    % Multiple models
+                    softData = cell(1, length(valParam.softData.modelName));
+                    for iModel = 1:length(valParam.softData.modelName)
+                        softData{iModel} = loadRAMPdata(valParam.softData.modelName{iModel}, ...
+                            valParam.softData.years, valParam.softData.dataDir, ...
+                            valParam.softData.forceReload);
+                    end
+                    fprintf('  Loaded %d soft datasets\n', length(softData));
+                else
+                    % Single model
+                    softData = loadRAMPdata(valParam.softData.modelName, ...
+                        valParam.softData.years, valParam.softData.dataDir, ...
+                        valParam.softData.forceReload);
+                    fprintf('  Loaded soft data: %s\n', softData.modelName);
+                end
+            catch ME
+                warning(ME.identifier, '\n Failed to load soft data: %s', ME.message);
+                softData = [];
+            end
+        else
+            warning('BMEmethod requires CTM data but no softData configuration provided');
+            fprintf('  Proceeding without soft data\n');
+        end
+
+        if isempty(softData)
+            error('Soft data is not loaded!!!')
+        end
+    else
+        fprintf('\nNo CTM data required (BMEmethod digit 2 = %d)\n', CTMtype);
+    end
 
     %% Loop through box sizes and folds for this year
     for iBox = 1:nBoxSizes

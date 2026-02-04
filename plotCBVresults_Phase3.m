@@ -23,6 +23,7 @@ function figPaths = plotCBVresults_Phase3(configDirs, configNames, varargin)
 %   'dpi'            - Figure resolution (default: 300)
 %   'visible'        - 'on' or 'off' for figure visibility (default: 'off')
 %   'filePattern'    - Pattern to match result files (default: 'CBV_*.mat')
+%   'boxSize'        - Specific box size to analyze (default: [] = all sizes)
 %   'saveTables'     - Save summary tables as CSV (default: true)
 %
 % OUTPUTS:
@@ -51,6 +52,7 @@ addRequired(p, 'configNames', @iscell);
 addParameter(p, 'baselineConfig', 1, @isnumeric);
 addParameter(p, 'metrics', {'R2','RMSE','MAE','NMB'}, @iscell);
 addParameter(p, 'years', [], @isnumeric);  % [] = all years
+addParameter(p, 'boxSize', [], @isnumeric);  % [] = all box sizes
 addParameter(p, 'saveDir', './7figs_phase3', @ischar);
 addParameter(p, 'dpi', 300, @isnumeric);
 addParameter(p, 'visible', 'off', @(x) ismember(x, {'on', 'off'}));

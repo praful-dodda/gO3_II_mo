@@ -84,7 +84,7 @@ configDirs_minimal = {
 % repeat configDirs_minimal for each pattern
 configDirs_minimal = repmat(configDirs_minimal, 1, length(configPatterns_minimal));
 
-plot_years = 2017;
+plot_years = [2016 2017];
 
 figPaths = plotCBVresults_Phase3(configDirs_minimal, configNames_minimal, 'filePattern', configPatterns_minimal, ...
     'baselineConfig', 1, 'metrics', {'R2', 'RMSE'}, 'years', plot_years, 'saveDir', '7validation/CBV/figs_phase3', ...
