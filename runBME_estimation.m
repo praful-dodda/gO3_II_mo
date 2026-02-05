@@ -30,7 +30,7 @@ analyzeParam.stationTypes = 'all';      % 'all', 'rural', 'urban'
 analyzeParam.logTransf = 0;             % 0=no transform, 1=log transform
 
 % Estimation years (actual years to estimate)
-estYears = [2016, 2017];
+estYears = [2017];
 
 % Temporal padding for observations (years before/after for edge effects)
 temporalPadding = 1;  % Load obs for estYears ± this value
@@ -90,9 +90,6 @@ analyzeParam.mapResolution = 1.0;
 analyzeParam.keepOnlyLand = true;        % true=land only, false=include ocean
 analyzeParam.includeAntarctica = false;  % false=exclude Antarctica
 
-% Time periods to estimate (monthly resolution, based on estYears)
-analyzeParam.tkVec = (estYears(1)):(1/12):(estYears(end) + 11/12);
-
 % Force re-estimation
 analyzeParam.forceEstimation = 0;  % 0=use cached, 1=rerun all
 
@@ -126,8 +123,8 @@ fprintf('=======================================================================
 fprintf('BME Methods: %s\n', strjoin(BMEmethods, ', '));
 fprintf('Observation range: %d-%d (with ±%d year padding)\n', ...
     analyzeParam.timeRange(1), analyzeParam.timeRange(2), temporalPadding);
-fprintf('Estimation years: %d-%d (%d time periods)\n', ...
-    estYears(1), estYears(end), length(analyzeParam.tkVec));
+fprintf('Estimation years: %d-%d\n', ...
+    estYears(1), estYears(end));
 fprintf('Area: %d, Resolution: %.2f deg, Land only: %d\n', ...
     analyzeParam.areaCode, analyzeParam.mapResolution, analyzeParam.keepOnlyLand);
 fprintf('GO scenario: %d, Temporal model: %s\n', ...
@@ -138,229 +135,235 @@ fprintf('=======================================================================
 %% ====================================================================
 %                    METHOD LOOP
 % ====================================================================
-
 for iMethod = 1:length(BMEmethods)
+    for eachYear = estYears
+        fprintf(' Estimation Year: %d\n', eachYear);
 
-analyzeParam.BMEmethod = BMEmethods{iMethod};
+        % Time periods to estimate (monthly resolution, based on the year)
+        analyzeParam.tkVec = (eachYear):(1/12):(eachYear + 11/12);
+    
+        analyzeParam.BMEmethod = BMEmethods{iMethod};
 
-fprintf('\n');
-fprintf('************************************************************************\n');
-fprintf('   PROCESSING METHOD %d/%d: %s\n', iMethod, length(BMEmethods), analyzeParam.BMEmethod);
-fprintf('************************************************************************\n\n');
+        fprintf('\n');
+        fprintf('************************************************************************\n');
+        fprintf('   PROCESSING METHOD %d/%d: %s\n', iMethod, length(BMEmethods), analyzeParam.BMEmethod);
+        fprintf('************************************************************************\n\n');
 
-%% ====================================================================
-%                    SOFT DATA LOADING
-% ====================================================================
+        %% ====================================================================
+        %                    SOFT DATA LOADING
+        % ====================================================================
 
-fprintf('=== STAGE 1: Loading Soft Data ===\n');
-tic;
+        fprintf('=== STAGE 1: Loading Soft Data ===\n');
+        tic;
 
-% Load soft data with temporal padding and spatial subsetting
-% This function:
-% - Parses BME method to extract CTM models
-% - Loads data with ±1 year padding (avoids edge effects)
-% - Subsets to estimation area + buffer
-% - Marks as CTM data (.ctm = 1)
-analyzeParam.softData = getTOARSoftData(analyzeParam.BMEmethod, analyzeParam, ...
-    'temporalPadding', 1, ...      % ±1 year padding
-    'spatialBuffer', 2, ...         % ±2 degree buffer
-    'thinningFactor', 0, ...        % No thinning
-    'forceReload', 0);
+        % Load soft data with temporal padding and spatial subsetting
+        % This function:
+        % - Parses BME method to extract CTM models
+        % - Loads data with ±1 year padding (avoids edge effects)
+        % - Subsets to estimation area + buffer
+        % - Marks as CTM data (.ctm = 1)
+        analyzeParam.softData = getTOARSoftData(analyzeParam.BMEmethod, analyzeParam, ...
+            'temporalPadding', 1, ...      % ±1 year padding
+            'spatialBuffer', 2, ...         % ±2 degree buffer
+            'thinningFactor', 0, ...        % No thinning
+            'forceReload', 0);
 
-fprintf('  Completed in %.1f seconds\n\n', toc);
+        fprintf('  Completed in %.1f seconds\n\n', toc);
 
-%% ====================================================================
-%                    MAIN WORKFLOW (using proven pipeline)
-% ====================================================================
+        %% ====================================================================
+        %                    MAIN WORKFLOW (using proven pipeline)
+        % ====================================================================
 
-fprintf('=== STAGE 2: Running BME Analysis Pipeline ===\n');
-fprintf('Using proven analyzeTOAR → estTOARsBME workflow\n\n');
+        fprintf('=== STAGE 2: Running BME Analysis Pipeline ===\n');
+        fprintf('Using proven analyzeTOAR → estTOARsBME workflow\n\n');
 
-tic;
+        tic;
 
-% Run the proven analysis pipeline
-% This handles:
-% - Loading observational data
-% - Computing/loading global offset
-% - Computing/loading covariance
-% - Preparing knowledge bases (KG, KS)
-% - Running BME estimation (calls estTOARsBME internally)
-[obs, go, cov, KG, KS, BMEparam] = analyzeTOAR(analyzeParam);
+        % Run the proven analysis pipeline
+        % This handles:
+        % - Loading observational data
+        % - Computing/loading global offset
+        % - Computing/loading covariance
+        % - Preparing knowledge bases (KG, KS)
+        % - Running BME estimation (calls estTOARsBME internally)
+        [obs, go, cov, KG, KS, BMEparam] = analyzeTOAR(analyzeParam);
 
-elapsedTime = toc;
+        elapsedTime = toc;
 
-fprintf('\n=== BME Analysis Pipeline Complete ===\n');
-fprintf('Total time: %.1f minutes\n', elapsedTime/60);
-fprintf('Average: %.1f seconds per time period\n\n', elapsedTime/length(analyzeParam.tkVec));
+        fprintf('\n=== BME Analysis Pipeline Complete ===\n');
+        fprintf('Total time: %.1f minutes\n', elapsedTime/60);
+        fprintf('Average: %.1f seconds per time period\n\n', elapsedTime/length(analyzeParam.tkVec));
 
-%% ====================================================================
-%                    PHASE 1: ENHANCED PLOTTING
-% ====================================================================
+        %% ====================================================================
+        %                    PHASE 1: ENHANCED PLOTTING
+        % ====================================================================
 
-if analyzeParam.plotTemporal || analyzeParam.plotSpatialStats
-    fprintf('=== STAGE 3: Phase 1 Plotting ===\n');
-end
-
-%% Select Representative Sites
-
-if analyzeParam.plotTemporal
-    fprintf('\n--- Selecting Representative Sites ---\n');
-    tic;
-
-    repSitesFile = fullfile('5BMEspatialPlots', 'representative_sites.mat');
-
-    if exist(repSitesFile, 'file')
-        fprintf('  Loading existing representative sites...\n');
-        load(repSitesFile, 'repSites');
-    else
-        fprintf('  Selecting one site per region...\n');
-        repSites = selectRepresentativeSites(obs, analyzeParam.areaCode, ...
-            'minCompleteness', 0.70, ...
-            'minObservations', 100, ...
-            'selectionMethod', 'centroid', ...
-            'saveResults', true);
-        save(repSitesFile, 'repSites');
-    end
-
-    regions = fieldnames(repSites);
-    fprintf('  Selected %d representative sites\n', length(regions));
-    for i = 1:length(regions)
-        site = repSites.(regions{i});
-        fprintf('    %s: [%.2f, %.2f] (%d obs, %.1f%% complete)\n', ...
-            regions{i}, site.lon, site.lat, site.nObs, site.completeness*100);
-    end
-
-    fprintf('  Completed in %.1f seconds\n', toc);
-end
-
-%% Temporal Series Plots
-
-if analyzeParam.plotTemporal
-    fprintf('\n--- Generating Temporal Series Plots ---\n');
-    tic;
-
-    % Load all BME results for temporal analysis
-    % Build filename pattern from BME configuration
-    BMEsDir = '5BMEspatialPlots';
-    BMEsFileBase = sprintf('BME%s_go%d_lt%d_area%d_res%.2f_%s_land%d', ...
-        analyzeParam.BMEmethod, analyzeParam.goScenario, analyzeParam.logTransf, ...
-        analyzeParam.areaCode, analyzeParam.mapResolution, analyzeParam.dataFormat, ...
-        analyzeParam.keepOnlyLand);
-
-    % Method-specific temporal output directory
-    temporalFigDir = fullfile('5BMEspatialPlots', 'figs_temporal', analyzeParam.BMEmethod);
-
-    % Load all estimation results
-    allBMEs = cell(length(analyzeParam.tkVec), 1);
-    fprintf('  Loading %d time periods...\n', length(analyzeParam.tkVec));
-
-    if analyzeParam.parallelPlotting
-        % Parallel loading
-        parfor iTime = 1:length(analyzeParam.tkVec)
-            tk = analyzeParam.tkVec(iTime);
-            BMEsFile = sprintf('%s_time%.2f.mat', BMEsFileBase, tk);
-            BMEsPath = fullfile(BMEsDir, BMEsFile);
-
-            if exist(BMEsPath, 'file')
-                data = load(BMEsPath);
-                allBMEs{iTime} = data.BMEs;
-            end
+        if analyzeParam.plotTemporal || analyzeParam.plotSpatialStats
+            fprintf('=== STAGE 3: Phase 1 Plotting ===\n');
         end
-    else
-        % Sequential loading
-        for iTime = 1:length(analyzeParam.tkVec)
-            tk = analyzeParam.tkVec(iTime);
-            BMEsFile = sprintf('%s_time%.2f.mat', BMEsFileBase, tk);
-            BMEsPath = fullfile(BMEsDir, BMEsFile);
 
-            if exist(BMEsPath, 'file')
-                if mod(iTime, 12) == 1
-                    fprintf('    Loading time %d/%d (%.2f)...\n', iTime, length(analyzeParam.tkVec), tk);
+        %% Select Representative Sites
+
+        if analyzeParam.plotTemporal
+            fprintf('\n--- Selecting Representative Sites ---\n');
+            tic;
+
+            repSitesFile = fullfile('5BMEspatialPlots', 'representative_sites.mat');
+
+            if exist(repSitesFile, 'file')
+                fprintf('  Loading existing representative sites...\n');
+                load(repSitesFile, 'repSites');
+            else
+                fprintf('  Selecting one site per region...\n');
+                repSites = selectRepresentativeSites(obs, analyzeParam.areaCode, ...
+                    'minCompleteness', 0.70, ...
+                    'minObservations', 100, ...
+                    'selectionMethod', 'centroid', ...
+                    'saveResults', true);
+                save(repSitesFile, 'repSites');
+            end
+
+            regions = fieldnames(repSites);
+            fprintf('  Selected %d representative sites\n', length(regions));
+            for i = 1:length(regions)
+                site = repSites.(regions{i});
+                fprintf('    %s: [%.2f, %.2f] (%d obs, %.1f%% complete)\n', ...
+                    regions{i}, site.lon, site.lat, site.nObs, site.completeness*100);
+            end
+
+            fprintf('  Completed in %.1f seconds\n', toc);
+        end
+
+        %% Temporal Series Plots
+
+        if analyzeParam.plotTemporal
+            fprintf('\n--- Generating Temporal Series Plots ---\n');
+            tic;
+
+            % Load all BME results for temporal analysis
+            % Build filename pattern from BME configuration
+            BMEsDir = '5BMEspatialPlots';
+            BMEsFileBase = sprintf('BME%s_go%d_lt%d_area%d_res%.2f_%s_land%d', ...
+                analyzeParam.BMEmethod, analyzeParam.goScenario, analyzeParam.logTransf, ...
+                analyzeParam.areaCode, analyzeParam.mapResolution, analyzeParam.dataFormat, ...
+                analyzeParam.keepOnlyLand);
+
+            % Method-specific temporal output directory
+            temporalFigDir = fullfile('5BMEspatialPlots', 'figs_temporal', sprintf('%s_go%d_areaCode%d_year%d', ...
+                analyzeParam.BMEmethod, analyzeParam.goScenario, analyzeParam.areaCode, eachYear));
+
+            % Load all estimation results
+            allBMEs = cell(length(analyzeParam.tkVec), 1);
+            fprintf('  Loading %d time periods...\n', length(analyzeParam.tkVec));
+
+            if analyzeParam.parallelPlotting
+                % Parallel loading
+                parfor iTime = 1:length(analyzeParam.tkVec)
+                    tk = analyzeParam.tkVec(iTime);
+                    BMEsFile = sprintf('%s_time%.2f.mat', BMEsFileBase, tk);
+                    BMEsPath = fullfile(BMEsDir, BMEsFile);
+
+                    if exist(BMEsPath, 'file')
+                        data = load(BMEsPath);
+                        allBMEs{iTime} = data.BMEs;
+                    end
                 end
-                data = load(BMEsPath);
-                allBMEs{iTime} = data.BMEs;
-            end
-        end
-    end
+            else
+                % Sequential loading
+                for iTime = 1:length(analyzeParam.tkVec)
+                    tk = analyzeParam.tkVec(iTime);
+                    BMEsFile = sprintf('%s_time%.2f.mat', BMEsFileBase, tk);
+                    BMEsPath = fullfile(BMEsDir, BMEsFile);
 
-    % Generate temporal plots in method-specific directory
-    fprintf('  Creating temporal series plots...\n');
-    figPaths_temporal = plotBME_TemporalSeries(allBMEs, obs, repSites, analyzeParam, ...
-        'figDir', temporalFigDir, ...      % Method-specific directory
-        'plotType', 'full', ...            % full=4-panel, simple=1-panel, both=both
-        'uncertaintyBands', [1, 2], ...    % ±1σ and ±2σ
-        'saveTable', true, ...             % Save statistics CSV
-        'combineRegions', true, ...        % Multi-region comparison plot
-        'dpi', 300, ...
-        'visible', 'off');
-
-    fprintf('  Generated %d temporal figures\n', length(figPaths_temporal));
-    fprintf('  Saved to: %s\n', temporalFigDir);
-    fprintf('  Completed in %.1f minutes\n', toc/60);
-end
-
-%% Enhanced Spatial Statistics Plots
-
-if analyzeParam.plotSpatialStats
-    fprintf('\n--- Generating Enhanced Spatial Plots ---\n');
-    tic;
-
-    % Multi-panel spatial summary plots (mean, std, CV, obs density)
-    % This is done in addition to the standard plots from estTOARsBME
-
-    fprintf('  Creating multi-panel spatial summaries...\n');
-    nPlots = 0;
-
-    if analyzeParam.parallelPlotting
-        % Parallel plotting
-        parfor iTime = 1:length(analyzeParam.tkVec)
-            tk = analyzeParam.tkVec(iTime);
-            BMEsFile = sprintf('%s_time%.2f.mat', BMEsFileBase, tk);
-            BMEsPath = fullfile(BMEsDir, BMEsFile);
-
-            if exist(BMEsPath, 'file')
-                data = load(BMEsPath);
-                plotBME_SpatialStats(data.BMEs, obs, go, analyzeParam, ...
-                    'plotMultiPanel', true, ...   % 4-panel summary
-                    'plotMean', false, ...         % Skip (already done by estTOARsBME)
-                    'plotVariance', false, ...     % Skip (already done by estTOARsBME)
-                    'plotCV', false, ...           % Skip (already done by estTOARsBME)
-                    'dpi', 300, ...
-                    'visible', 'off');
-            end
-        end
-    else
-        % Sequential plotting
-        for iTime = 1:length(analyzeParam.tkVec)
-            tk = analyzeParam.tkVec(iTime);
-            BMEsFile = sprintf('%s_time%.2f.mat', BMEsFileBase, tk);
-            BMEsPath = fullfile(BMEsDir, BMEsFile);
-
-            if exist(BMEsPath, 'file')
-                if mod(iTime, 12) == 1
-                    fprintf('    Plotting time %d/%d (%.2f)...\n', iTime, length(analyzeParam.tkVec), tk);
+                    if exist(BMEsPath, 'file')
+                        if mod(iTime, 12) == 1
+                            fprintf('    Loading time %d/%d (%.2f)...\n', iTime, length(analyzeParam.tkVec), tk);
+                        end
+                        data = load(BMEsPath);
+                        allBMEs{iTime} = data.BMEs;
+                    end
                 end
-                data = load(BMEsPath);
-                plotBME_SpatialStats(data.BMEs, obs, go, analyzeParam, ...
-                    'plotMultiPanel', true, ...
-                    'plotMean', false, ...
-                    'plotVariance', false, ...
-                    'plotCV', false, ...
-                    'dpi', 300, ...
-                    'visible', 'off');
-                nPlots = nPlots + 1;
             end
+
+            % Generate temporal plots in method-specific directory
+            fprintf('  Creating temporal series plots...\n');
+            figPaths_temporal = plotBME_TemporalSeries(allBMEs, obs, repSites, analyzeParam, ...
+                'figDir', temporalFigDir, ...      % Method-specific directory
+                'plotType', 'full', ...            % full=4-panel, simple=1-panel, both=both
+                'uncertaintyBands', [1, 2], ...    % ±1σ and ±2σ
+                'saveTable', true, ...             % Save statistics CSV
+                'combineRegions', true, ...        % Multi-region comparison plot
+                'dpi', 300, ...
+                'visible', 'off');
+
+            fprintf('  Generated %d temporal figures\n', length(figPaths_temporal));
+            fprintf('  Saved to: %s\n', temporalFigDir);
+            fprintf('  Completed in %.1f minutes\n', toc/60);
         end
-    end
 
-    fprintf('  Generated %d spatial summary figures\n', nPlots);
-    fprintf('  Completed in %.1f minutes\n', toc/60);
-end
+        %% Enhanced Spatial Statistics Plots
 
-fprintf('\n');
-fprintf('************************************************************************\n');
-fprintf('   METHOD %s COMPLETE\n', analyzeParam.BMEmethod);
-fprintf('************************************************************************\n');
+        if analyzeParam.plotSpatialStats
+            fprintf('\n--- Generating Enhanced Spatial Plots ---\n');
+            tic;
+
+            % Multi-panel spatial summary plots (mean, std, CV, obs density)
+            % This is done in addition to the standard plots from estTOARsBME
+
+            fprintf('  Creating multi-panel spatial summaries...\n');
+            nPlots = 0;
+
+            if analyzeParam.parallelPlotting
+                % Parallel plotting
+                parfor iTime = 1:length(analyzeParam.tkVec)
+                    tk = analyzeParam.tkVec(iTime);
+                    BMEsFile = sprintf('%s_time%.2f.mat', BMEsFileBase, tk);
+                    BMEsPath = fullfile(BMEsDir, BMEsFile);
+
+                    if exist(BMEsPath, 'file')
+                        data = load(BMEsPath);
+                        plotBME_SpatialStats(data.BMEs, obs, go, analyzeParam, ...
+                            'plotMultiPanel', true, ...   % 4-panel summary
+                            'plotMean', false, ...         % Skip (already done by estTOARsBME)
+                            'plotVariance', false, ...     % Skip (already done by estTOARsBME)
+                            'plotCV', false, ...           % Skip (already done by estTOARsBME)
+                            'dpi', 300, ...
+                            'visible', 'off');
+                    end
+                end
+            else
+                % Sequential plotting
+                for iTime = 1:length(analyzeParam.tkVec)
+                    tk = analyzeParam.tkVec(iTime);
+                    BMEsFile = sprintf('%s_time%.2f.mat', BMEsFileBase, tk);
+                    BMEsPath = fullfile(BMEsDir, BMEsFile);
+
+                    if exist(BMEsPath, 'file')
+                        if mod(iTime, 12) == 1
+                            fprintf('    Plotting time %d/%d (%.2f)...\n', iTime, length(analyzeParam.tkVec), tk);
+                        end
+                        data = load(BMEsPath);
+                        plotBME_SpatialStats(data.BMEs, obs, go, analyzeParam, ...
+                            'plotMultiPanel', true, ...
+                            'plotMean', false, ...
+                            'plotVariance', false, ...
+                            'plotCV', false, ...
+                            'dpi', 300, ...
+                            'visible', 'off');
+                        nPlots = nPlots + 1;
+                    end
+                end
+            end
+
+            fprintf('  Generated %d spatial summary figures\n', nPlots);
+            fprintf('  Completed in %.1f minutes\n', toc/60);
+        end
+
+        fprintf('\n');
+        fprintf('************************************************************************\n');
+        fprintf('   METHOD %s COMPLETE\n', analyzeParam.BMEmethod);
+        fprintf('************************************************************************\n');
+    end % End of year loop
 
 end  % End of method loop
 
