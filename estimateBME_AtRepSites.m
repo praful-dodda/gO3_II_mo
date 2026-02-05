@@ -198,7 +198,11 @@ for iReg = 1:nRegions
     siteIdx = (siteIndices == iReg);
     BMEmean = XkBMEm_all(siteIdx);
     BMEvar = XkBMEv_all(siteIdx);
+
+    % Ensure variances are non-negative (fix for complex number warnings)
+    BMEvar(BMEvar < 0) = 0;
     BMEstd = sqrt(BMEvar);
+
     nObsUsed = nObsUsed_all(siteIdx);
 
     % Store results

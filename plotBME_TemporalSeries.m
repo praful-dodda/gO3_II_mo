@@ -104,6 +104,15 @@ for iReg = 1:nRegions
         tkVec = opts.siteEstimates.tkVec;
         BMEmean = siteEst.BMEmean;
         BMEstd = siteEst.BMEstd;
+
+        % Safety: ensure no complex numbers (take real part if present)
+        if ~isreal(BMEmean)
+            BMEmean = real(BMEmean);
+        end
+        if ~isreal(BMEstd)
+            BMEstd = real(BMEstd);
+        end
+
         nTimes = length(tkVec);
         obsValues = cell(nTimes, 1);
         obsTimes = cell(nTimes, 1);
