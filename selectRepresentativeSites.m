@@ -83,8 +83,8 @@ stationStats = struct();
 for iStation = 1:nStations
     % Get all observations at this station
     stationMask = (locIdx == iStation);
-    stationObs = obs.Y(stationMask);
-    stationTimes = obs.tME(stationMask);
+    stationObs = obs.Y(stationMask,:);
+    stationTimes = obs.tME;
 
     % Calculate statistics
     nObs = length(stationObs);

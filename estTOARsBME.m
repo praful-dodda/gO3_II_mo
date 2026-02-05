@@ -233,8 +233,18 @@ for iTime = 1:length(tkVec)
                             z_soft{ii} = KS.softdata{ii}.z;
                             vs_soft{ii} = KS.softdata{ii}.vs;
                         end
-                    else
+                    elseif ~isempty(KS.softdata)
+                        % single softdata structure
                         soft_data = reformat_stg_to_stug(KS.softdata);
+                        p_soft = soft_data.p;
+                        z_soft = soft_data.z;
+                        vs_soft = soft_data.vs;
+                    else
+                        % no soft data
+                        soft_data = [];
+                        p_soft = [];
+                        z_soft = [];
+                        vs_soft = [];
                     end
                     % [XkBMEm, XkBMEv] = krigingME_stug(pk, KS.harddata.p, KS.softdata.p, ...
                     %     KS.harddata.z, KS.softdata.z, KS.softdata.vs, ...

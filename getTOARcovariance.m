@@ -118,7 +118,7 @@ end
 
 % Generate plots if requested
 if covPlot >= 1
-    plotTOARcov(cov, covPlot);
+    plotTOARcovariance(cov, 'obs', obs, 'go', go, 'visible', 'on');
 end
 
 end

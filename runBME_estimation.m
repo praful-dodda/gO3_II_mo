@@ -37,7 +37,7 @@ analyzeParam.logTransf = 0;             % 0=no transform, 1=log transform
 %   '10000133' - Observations only
 %   '13000313-02' - Obs + M3fusion
 %   '13000313-02-10' - Obs + M3fusion + UKML
-analyzeParam.BMEmethod = '13000313-12';
+analyzeParam.BMEmethod = '10000133';
 
 % Data format for kriging computation
 % 'stv'  - Space-Time Vector (slowest, any grid)
@@ -71,9 +71,8 @@ analyzeParam.forceCov = 0;   % 0=use cached, 1=recompute
 % 0: Global
 % 1: North America
 % 2: Europe
-% ...
-% 10: Continental USA (DEFAULT)
-analyzeParam.areaCode = 10;
+% ... 10: User defined
+analyzeParam.areaCode = 0;
 
 % Grid resolution (degrees)
 analyzeParam.mapResolution = 1.0;
@@ -83,7 +82,8 @@ analyzeParam.keepOnlyLand = true;        % true=land only, false=include ocean
 analyzeParam.includeAntarctica = false;  % false=exclude Antarctica
 
 % Time periods to estimate (monthly resolution)
-analyzeParam.tkVec = (2015):(1/12):(2020 + 11/12);  % Monthly 2015-2020
+estYears = [2016, 2017];
+analyzeParam.tkVec = (estYears(1)):(1/12):(estYears(end) + 11/12);  % Monthly based on estYears
 
 % Force re-estimation
 analyzeParam.forceEstimation = 0;  % 0=use cached, 1=rerun all
