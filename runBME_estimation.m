@@ -27,8 +27,16 @@ analyzeParam = struct();
 %% DATA CONFIGURATION
 
 analyzeParam.stationTypes = 'all';      % 'all', 'rural', 'urban'
-analyzeParam.timeRange = [2015, 2020];  % [startYear, endYear]
 analyzeParam.logTransf = 0;             % 0=no transform, 1=log transform
+
+% Estimation years (actual years to estimate)
+estYears = [2016, 2017];
+
+% Temporal padding for observations (years before/after for edge effects)
+temporalPadding = 1;  % Load obs for estYears ± this value
+
+% Observation time range (with padding)
+analyzeParam.timeRange = [estYears(1) - temporalPadding, estYears(end) + temporalPadding];
 
 %% BME METHOD CONFIGURATION
 
@@ -37,7 +45,8 @@ analyzeParam.logTransf = 0;             % 0=no transform, 1=log transform
 %   '10000133' - Observations only
 %   '13000313-02' - Obs + M3fusion
 %   '13000313-02-10' - Obs + M3fusion + UKML
-analyzeParam.BMEmethod = '10000133';
+% Can specify multiple methods as cell array: {'10000133', '13000313-02'}
+BMEmethods = {'10000133'};  % Cell array of methods to run
 
 % Data format for kriging computation
 % 'stv'  - Space-Time Vector (slowest, any grid)
@@ -81,9 +90,8 @@ analyzeParam.mapResolution = 1.0;
 analyzeParam.keepOnlyLand = true;        % true=land only, false=include ocean
 analyzeParam.includeAntarctica = false;  % false=exclude Antarctica
 
-% Time periods to estimate (monthly resolution)
-estYears = [2016, 2017];
-analyzeParam.tkVec = (estYears(1)):(1/12):(estYears(end) + 11/12);  % Monthly based on estYears
+% Time periods to estimate (monthly resolution, based on estYears)
+analyzeParam.tkVec = (estYears(1)):(1/12):(estYears(end) + 11/12);
 
 % Force re-estimation
 analyzeParam.forceEstimation = 0;  % 0=use cached, 1=rerun all
@@ -115,15 +123,30 @@ fprintf('\n');
 fprintf('========================================================================\n');
 fprintf('                    BME DATA-FUSION ESTIMATION                         \n');
 fprintf('========================================================================\n');
-fprintf('BME Method: %s\n', analyzeParam.BMEmethod);
-fprintf('Time range: %d-%d (%d time periods)\n', ...
-    analyzeParam.timeRange(1), analyzeParam.timeRange(2), length(analyzeParam.tkVec));
+fprintf('BME Methods: %s\n', strjoin(BMEmethods, ', '));
+fprintf('Observation range: %d-%d (with ±%d year padding)\n', ...
+    analyzeParam.timeRange(1), analyzeParam.timeRange(2), temporalPadding);
+fprintf('Estimation years: %d-%d (%d time periods)\n', ...
+    estYears(1), estYears(end), length(analyzeParam.tkVec));
 fprintf('Area: %d, Resolution: %.2f deg, Land only: %d\n', ...
     analyzeParam.areaCode, analyzeParam.mapResolution, analyzeParam.keepOnlyLand);
 fprintf('GO scenario: %d, Temporal model: %s\n', ...
     analyzeParam.goScenario, analyzeParam.temporalModel);
 fprintf('Data format: %s\n', analyzeParam.dataFormat);
 fprintf('========================================================================\n\n');
+
+%% ====================================================================
+%                    METHOD LOOP
+% ====================================================================
+
+for iMethod = 1:length(BMEmethods)
+
+analyzeParam.BMEmethod = BMEmethods{iMethod};
+
+fprintf('\n');
+fprintf('************************************************************************\n');
+fprintf('   PROCESSING METHOD %d/%d: %s\n', iMethod, length(BMEmethods), analyzeParam.BMEmethod);
+fprintf('************************************************************************\n\n');
 
 %% ====================================================================
 %                    SOFT DATA LOADING
@@ -224,6 +247,9 @@ if analyzeParam.plotTemporal
         analyzeParam.areaCode, analyzeParam.mapResolution, analyzeParam.dataFormat, ...
         analyzeParam.keepOnlyLand);
 
+    % Method-specific temporal output directory
+    temporalFigDir = fullfile('5BMEspatialPlots', 'figs_temporal', analyzeParam.BMEmethod);
+
     % Load all estimation results
     allBMEs = cell(length(analyzeParam.tkVec), 1);
     fprintf('  Loading %d time periods...\n', length(analyzeParam.tkVec));
@@ -257,10 +283,11 @@ if analyzeParam.plotTemporal
         end
     end
 
-    % Generate temporal plots
+    % Generate temporal plots in method-specific directory
     fprintf('  Creating temporal series plots...\n');
     figPaths_temporal = plotBME_TemporalSeries(allBMEs, obs, repSites, analyzeParam, ...
-        'plotType', 'full', ...           % full=4-panel, simple=1-panel, both=both
+        'figDir', temporalFigDir, ...      % Method-specific directory
+        'plotType', 'full', ...            % full=4-panel, simple=1-panel, both=both
         'uncertaintyBands', [1, 2], ...    % ±1σ and ±2σ
         'saveTable', true, ...             % Save statistics CSV
         'combineRegions', true, ...        % Multi-region comparison plot
@@ -268,6 +295,7 @@ if analyzeParam.plotTemporal
         'visible', 'off');
 
     fprintf('  Generated %d temporal figures\n', length(figPaths_temporal));
+    fprintf('  Saved to: %s\n', temporalFigDir);
     fprintf('  Completed in %.1f minutes\n', toc/60);
 end
 
@@ -329,21 +357,31 @@ if analyzeParam.plotSpatialStats
     fprintf('  Completed in %.1f minutes\n', toc/60);
 end
 
+fprintf('\n');
+fprintf('************************************************************************\n');
+fprintf('   METHOD %s COMPLETE\n', analyzeParam.BMEmethod);
+fprintf('************************************************************************\n');
+
+end  % End of method loop
+
 %% ====================================================================
 %                    SUMMARY
 % ====================================================================
 
 fprintf('\n');
 fprintf('========================================================================\n');
-fprintf('                    ESTIMATION COMPLETE                                \n');
+fprintf('                    ALL ESTIMATIONS COMPLETE                           \n');
 fprintf('========================================================================\n');
-fprintf('BME Method: %s\n', analyzeParam.BMEmethod);
+fprintf('BME Methods processed: %s\n', strjoin(BMEmethods, ', '));
 fprintf('Time periods estimated: %d\n', length(analyzeParam.tkVec));
+fprintf('Estimation years: %d-%d\n', estYears(1), estYears(end));
+fprintf('Observation range: %d-%d (±%d year padding)\n', ...
+    analyzeParam.timeRange(1), analyzeParam.timeRange(2), temporalPadding);
 fprintf('\nResults saved to:\n');
 fprintf('  - BME estimates: ./5BMEspatialPlots/\n');
 fprintf('  - Spatial plots: ./5BMEspatialPlots/figs/\n');
 if analyzeParam.plotTemporal
-    fprintf('  - Temporal plots: ./5BMEspatialPlots/figs_temporal/\n');
+    fprintf('  - Temporal plots: ./5BMEspatialPlots/figs_temporal/<method>/\n');
     fprintf('  - Representative sites: ./5BMEspatialPlots/representative_sites.mat\n');
 end
 if analyzeParam.plotSpatialStats
