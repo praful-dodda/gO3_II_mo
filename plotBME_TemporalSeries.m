@@ -309,7 +309,10 @@ end
 if opts.saveTable
     fprintf('  Saving statistics table...\n');
 
+    % Preallocate table
     T = table();
+    iRow = 0;
+
     for iReg = 1:nRegions
         regionName = regions{iReg};
         tsData = timeSeriesData.(regionName);
@@ -318,18 +321,19 @@ if opts.saveTable
             continue;
         end
 
-        T.Region{end+1} = tsData.site.region;
-        T.Longitude(end+1) = tsData.site.lon;
-        T.Latitude(end+1) = tsData.site.lat;
-        T.NumObservations(end+1) = tsData.stats.nObs;
-        T.R2(end+1) = tsData.stats.R2;
-        T.RMSE_ppb(end+1) = tsData.stats.RMSE;
-        T.MAE_ppb(end+1) = tsData.stats.MAE;
-        T.Bias_ppb(end+1) = tsData.stats.Bias;
-        T.NMB_percent(end+1) = tsData.stats.NMB;
-        T.Coverage_percent(end+1) = tsData.stats.coverage;
-        T.MeanBME_ppb(end+1) = mean(tsData.BMEmean, 'omitnan');
-        T.MeanUncertainty_ppb(end+1) = mean(tsData.BMEstd, 'omitnan');
+        iRow = iRow + 1;
+        T.Region{iRow} = tsData.site.region;
+        T.Longitude(iRow) = tsData.site.lon;
+        T.Latitude(iRow) = tsData.site.lat;
+        T.NumObservations(iRow) = tsData.stats.nObs;
+        T.R2(iRow) = tsData.stats.R2;
+        T.RMSE_ppb(iRow) = tsData.stats.RMSE;
+        T.MAE_ppb(iRow) = tsData.stats.MAE;
+        T.Bias_ppb(iRow) = tsData.stats.Bias;
+        T.NMB_percent(iRow) = tsData.stats.NMB;
+        T.Coverage_percent(iRow) = tsData.stats.coverage;
+        T.MeanBME_ppb(iRow) = mean(tsData.BMEmean, 'omitnan');
+        T.MeanUncertainty_ppb(iRow) = mean(tsData.BMEstd, 'omitnan');
     end
 
     tableFile = fullfile(opts.figDir, 'temporal_statistics.csv');

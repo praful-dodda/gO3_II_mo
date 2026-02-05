@@ -86,8 +86,8 @@ for iStation = 1:nStations
     stationObs = obs.Y(stationMask,:);
     stationTimes = obs.tME;
 
-    % Calculate statistics
-    nObs = length(stationObs);
+    % Calculate statistics (count non-NaN observations only)
+    nObs = sum(~isnan(stationObs), 'all');
     timeRange = [min(stationTimes), max(stationTimes)];
     timeDuration = timeRange(2) - timeRange(1);
 

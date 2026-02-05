@@ -33,7 +33,7 @@ addParameter(p, 'forceCov', 0, @(x) isnumeric(x) && ismember(x, [0 1]));
 addParameter(p, 'covPlot', 0, @(x) isnumeric(x) && ismember(x, [-1 0 1]));
 addParameter(p, 'version', 'updated', @(x) ischar(x) || isstring(x));
 
-parse(p, temporalModelType,  yearRange, varargin{:});
+parse(p, varargin{:});
 opts = p.Results;
 
 %% Setup Cache directory
