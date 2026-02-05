@@ -19,13 +19,17 @@ function figPaths = plotBME_TemporalSeries(allBMEs, obs, repSites, estConfig, va
 %   'dpi'            - Figure resolution (default: 300)
 %   'visible'        - Figure visibility 'on'/'off' (default: 'off')
 %   'plotType'       - Plot type (default: 'full')
-%                      'full': 4-panel comprehensive plot
+%                      'full': 6-panel comprehensive plot (2×3 layout)
 %                      'simple': Single time series panel
 %                      'both': Generate both types
 %   'uncertaintyBands' - Uncertainty levels to plot (default: [1, 2])
 %                        1 = ±1σ (68% confidence), 2 = ±2σ (95% confidence)
 %   'saveTable'      - Save statistics table (default: true)
 %   'combineRegions' - Create multi-region comparison plot (default: true)
+%   'siteEstimates'  - Structure with exact site estimates (leave-one-out)
+%                      If provided, uses exact BME at site locations
+%                      If empty, uses nearest grid point (default: [])
+%   'showLocationMap' - Show location map panel (default: true)
 %
 % OUTPUTS:
 %   figPaths - Cell array of generated figure paths
@@ -47,6 +51,8 @@ addParameter(p, 'plotType', 'full', @(x) ismember(x, {'full', 'simple', 'both'})
 addParameter(p, 'uncertaintyBands', [1, 2], @isnumeric);
 addParameter(p, 'saveTable', true, @islogical);
 addParameter(p, 'combineRegions', true, @islogical);
+addParameter(p, 'siteEstimates', [], @(x) isstruct(x) || isempty(x));
+addParameter(p, 'showLocationMap', true, @islogical);
 
 parse(p, allBMEs, obs, repSites, estConfig, varargin{:});
 opts = p.Results;
@@ -87,6 +93,22 @@ for iReg = 1:nRegions
     obsValues = cell(nTimes, 1);
     obsTimes = cell(nTimes, 1);
 
+    % Check if we have exact site estimates (leave-one-out at exact location)
+    useExactEstimates = ~isempty(opts.siteEstimates) && ...
+                        isfield(opts.siteEstimates, 'estimates') && ...
+                        isfield(opts.siteEstimates.estimates, regionName);
+
+    if useExactEstimates
+        % Use exact leave-one-out estimates at site location
+        siteEst = opts.siteEstimates.estimates.(regionName);
+        tkVec = opts.siteEstimates.tkVec;
+        BMEmean = siteEst.BMEmean;
+        BMEstd = siteEst.BMEstd;
+        nTimes = length(tkVec);
+        obsValues = cell(nTimes, 1);
+        obsTimes = cell(nTimes, 1);
+    end
+
     % Extract BME estimates at this location for each time
     for iTime = 1:nTimes
         if isempty(allBMEs{iTime})
@@ -94,15 +116,24 @@ for iReg = 1:nRegions
         end
 
         BMEs = allBMEs{iTime};
-        tkVec(iTime) = BMEs.tk;
 
-        % Find nearest grid point to site location
-        distances = sqrt((BMEs.sk(:,1) - site.lon).^2 + (BMEs.sk(:,2) - site.lat).^2);
-        [minDist, nearestIdx] = min(distances);
+        if ~useExactEstimates
+            % Use nearest grid point (original approach)
+            tkVec(iTime) = BMEs.tk;
 
-        if minDist < 2.0  % Within 2 degrees
-            BMEmean(iTime) = BMEs.YkBMEm(nearestIdx);
-            BMEstd(iTime) = sqrt(BMEs.XkBMEv(nearestIdx));
+            % Find nearest grid point to site location
+            distances = sqrt((BMEs.sk(:,1) - site.lon).^2 + (BMEs.sk(:,2) - site.lat).^2);
+            [minDist, nearestIdx] = min(distances);
+
+            if minDist < 2.0  % Within 2 degrees
+                BMEmean(iTime) = BMEs.YkBMEm(nearestIdx);
+                BMEstd(iTime) = sqrt(BMEs.XkBMEv(nearestIdx));
+            end
+        else
+            % Just get tk from BMEs for alignment
+            if iTime <= length(allBMEs)
+                tkVec(iTime) = BMEs.tk;
+            end
         end
 
         % Get observations near this site
@@ -206,27 +237,39 @@ for iReg = 1:nRegions
 
     % Create figure
     if strcmp(opts.plotType, 'full') || strcmp(opts.plotType, 'both')
-        fig = figure('Visible', opts.visible, 'Position', [100, 100, 1400, 900]);
+        fig = figure('Visible', opts.visible, 'Position', [100, 100, 1800, 900]);
 
         % Subplot 1: Full time series
-        subplot(2, 2, 1);
+        subplot(2, 3, 1);
         plotTimeSeriesPanel(tsData, opts, 'full');
         title(sprintf('%s - Time Series', tsData.site.region), 'FontSize', 12, 'FontWeight', 'bold');
 
         % Subplot 2: Seasonal cycle
-        subplot(2, 2, 2);
+        subplot(2, 3, 2);
         plotSeasonalPanel(tsData);
         title('Seasonal Cycle', 'FontSize', 12, 'FontWeight', 'bold');
 
-        % Subplot 3: Residuals over time
-        subplot(2, 2, 3);
+        % Subplot 3: Location Map
+        subplot(2, 3, 3);
+        if opts.showLocationMap
+            plotLocationMap(tsData.site, obs, repSites);
+            title('Site Location', 'FontSize', 12, 'FontWeight', 'bold');
+        end
+
+        % Subplot 4: Residuals over time
+        subplot(2, 3, 4);
         plotResidualsPanel(tsData);
         title('Residuals (Obs - BME)', 'FontSize', 12, 'FontWeight', 'bold');
 
-        % Subplot 4: Uncertainty over time
-        subplot(2, 2, 4);
+        % Subplot 5: Uncertainty over time
+        subplot(2, 3, 5);
         plotUncertaintyPanel(tsData);
         title('BME Uncertainty', 'FontSize', 12, 'FontWeight', 'bold');
+
+        % Subplot 6: Statistics Summary
+        subplot(2, 3, 6);
+        plotStatisticsSummary(tsData);
+        title('Performance Metrics', 'FontSize', 12, 'FontWeight', 'bold');
 
         % Add overall title with statistics
         sgtitle(sprintf(['%s: [%.2f°, %.2f°] | R²=%.2f, RMSE=%.1f ppb, ' ...
@@ -505,4 +548,109 @@ meanUncertainty = mean(tsData.BMEstd, 'omitnan');
 text(0.98, 0.95, sprintf('Mean: %.2f ppb', meanUncertainty), ...
     'Units', 'normalized', 'HorizontalAlignment', 'right', ...
     'VerticalAlignment', 'top', 'FontSize', 9, 'BackgroundColor', 'w');
+end
+
+function plotLocationMap(site, obs, repSites)
+% Plot location map showing representative site and all observations
+
+hold on;
+
+% Plot all observation stations (gray dots)
+plot(obs.sMS(:,1), obs.sMS(:,2), '.', 'Color', [0.7 0.7 0.7], ...
+    'MarkerSize', 2, 'DisplayName', 'All Stations');
+
+% Plot all representative sites (smaller colored markers)
+regions = fieldnames(repSites);
+colors = lines(length(regions));
+for i = 1:length(regions)
+    otherSite = repSites.(regions{i});
+    plot(otherSite.lon, otherSite.lat, 'o', ...
+        'MarkerSize', 6, 'MarkerFaceColor', colors(i,:), ...
+        'MarkerEdgeColor', 'k', 'LineWidth', 0.5, ...
+        'HandleVisibility', 'off');
+end
+
+% Highlight current site (larger marker)
+plot(site.lon, site.lat, 'p', 'MarkerSize', 15, ...
+    'MarkerFaceColor', 'r', 'MarkerEdgeColor', 'k', 'LineWidth', 2, ...
+    'DisplayName', site.region);
+
+% Add text label for current site
+text(site.lon, site.lat, sprintf('  %s', site.region), ...
+    'FontSize', 9, 'FontWeight', 'bold', 'Color', 'r', ...
+    'VerticalAlignment', 'bottom');
+
+hold off;
+
+xlabel('Longitude (°E)', 'FontSize', 10);
+ylabel('Latitude (°N)', 'FontSize', 10);
+grid on;
+axis equal tight;
+
+% Set reasonable axis limits
+lonRange = max(obs.sMS(:,1)) - min(obs.sMS(:,1));
+latRange = max(obs.sMS(:,2)) - min(obs.sMS(:,2));
+padding = 0.1;
+
+xlim([site.lon - lonRange*padding, site.lon + lonRange*padding]);
+ylim([site.lat - latRange*padding, site.lat + latRange*padding]);
+
+legend('Location', 'best', 'FontSize', 8);
+
+% Add count
+nStations = size(obs.sMS, 1);
+text(0.02, 0.98, sprintf('%d total stations', nStations), ...
+    'Units', 'normalized', 'VerticalAlignment', 'top', ...
+    'FontSize', 9, 'BackgroundColor', 'w');
+end
+
+function plotStatisticsSummary(tsData)
+% Plot summary statistics as text
+
+axis off;
+
+% Title
+text(0.5, 0.95, 'Validation Statistics', ...
+    'Units', 'normalized', 'HorizontalAlignment', 'center', ...
+    'FontSize', 11, 'FontWeight', 'bold');
+
+% Statistics text
+statsText = {
+    sprintf('R² = %.3f', tsData.stats.R2);
+    sprintf('RMSE = %.2f ppb', tsData.stats.RMSE);
+    sprintf('MAE = %.2f ppb', tsData.stats.MAE);
+    sprintf('Bias = %.2f ppb', tsData.stats.Bias);
+    sprintf('NMB = %.1f%%', tsData.stats.NMB);
+    '';
+    sprintf('Coverage (±2σ) = %.1f%%', tsData.stats.coverage);
+    sprintf('Mean BME = %.1f ppb', mean(tsData.BMEmean, 'omitnan'));
+    sprintf('Mean σ = %.2f ppb', mean(tsData.BMEstd, 'omitnan'));
+    '';
+    sprintf('Observations: %d', tsData.stats.nObs);
+};
+
+yPos = 0.80;
+for i = 1:length(statsText)
+    text(0.1, yPos, statsText{i}, ...
+        'Units', 'normalized', 'FontSize', 10, ...
+        'VerticalAlignment', 'top');
+    yPos = yPos - 0.08;
+end
+
+% Add interpretation guide
+text(0.1, 0.15, 'Performance Guide:', ...
+    'Units', 'normalized', 'FontSize', 9, 'FontWeight', 'bold');
+
+guideText = {
+    'Excellent: R² > 0.75, RMSE < 5 ppb';
+    'Good: R² > 0.65, RMSE < 7 ppb';
+    'Fair: R² > 0.50, RMSE < 10 ppb';
+};
+
+yPos = 0.10;
+for i = 1:length(guideText)
+    text(0.1, yPos, guideText{i}, ...
+        'Units', 'normalized', 'FontSize', 8, 'Color', [0.5 0.5 0.5]);
+    yPos = yPos - 0.05;
+end
 end

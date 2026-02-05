@@ -232,6 +232,31 @@ for iMethod = 1:length(BMEmethods)
             end
 
             fprintf('  Completed in %.1f seconds\n', toc);
+
+            %% Estimate BME at Exact Site Locations (Leave-One-Out)
+
+            fprintf('\n--- BME Estimation at Representative Sites ---\n');
+            tic;
+
+            siteEstFile = fullfile('5BMEspatialPlots', ...
+                sprintf('site_estimates_%s_year%d.mat', analyzeParam.BMEmethod, eachYear));
+
+            if exist(siteEstFile, 'file') && ~analyzeParam.forceEstimation
+                fprintf('  Loading existing site estimates...\n');
+                load(siteEstFile, 'siteEstimates');
+            else
+                fprintf('  Running leave-one-out estimation at sites...\n');
+                siteEstimates = estimateBME_AtRepSites(repSites, obs, go, cov, ...
+                    KG, KS, BMEparam, analyzeParam.tkVec, ...
+                    'exclusionRadius', 0.5, ...
+                    'saveResults', false, ...
+                    'verbose', true);
+
+                % Save with year-specific filename
+                save(siteEstFile, 'siteEstimates', '-v7.3');
+            end
+
+            fprintf('  Site estimation completed in %.1f seconds\n', toc);
         end
 
         %% Temporal Series Plots
@@ -289,6 +314,7 @@ for iMethod = 1:length(BMEmethods)
             fprintf('  Creating temporal series plots...\n');
             figPaths_temporal = plotBME_TemporalSeries(allBMEs, obs, repSites, analyzeParam, ...
                 'figDir', temporalFigDir, ...      % Method-specific directory
+                'siteEstimates', siteEstimates, ... % Use exact site estimates
                 'plotType', 'full', ...            % full=4-panel, simple=1-panel, both=both
                 'uncertaintyBands', [1, 2], ...    % ±1σ and ±2σ
                 'saveTable', true, ...             % Save statistics CSV
