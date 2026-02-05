@@ -134,9 +134,14 @@ for iReg = 1:nRegions
             distances = sqrt((BMEs.sk(:,1) - site.lon).^2 + (BMEs.sk(:,2) - site.lat).^2);
             [minDist, nearestIdx] = min(distances);
 
-            if minDist < 2.0  % Within 2 degrees
+            if minDist == 0
+                % Exact match
                 BMEmean(iTime) = BMEs.YkBMEm(nearestIdx);
                 BMEstd(iTime) = sqrt(BMEs.XkBMEv(nearestIdx));
+            elseif minDist < 2.0
+                % If no exact match, check if within reasonable distance (e.g., 2 degrees)
+                BMEmean(iTime) = BMEs.YkBMEm(nearestIdx);
+                BMEstd(iTime) = sqrt(BMEs.XkBMEv(nearestIdx));                
             end
         else
             % Just get tk from BMEs for alignment
@@ -576,12 +581,12 @@ for i = 1:length(regions)
     plot(otherSite.lon, otherSite.lat, 'o', ...
         'MarkerSize', 6, 'MarkerFaceColor', colors(i,:), ...
         'MarkerEdgeColor', 'k', 'LineWidth', 0.5, ...
-        'HandleVisibility', 'off');
+        'DisplayName', 'Rep. Sites');
 end
 
 % Highlight current site (larger marker)
 plot(site.lon, site.lat, 'p', 'MarkerSize', 15, ...
-    'MarkerFaceColor', 'r', 'MarkerEdgeColor', 'k', 'LineWidth', 2, ...
+    'MarkerEdgeColor', 'k', 'LineWidth', 1, ...
     'DisplayName', site.region);
 
 % Add text label for current site
@@ -646,20 +651,20 @@ for i = 1:length(statsText)
     yPos = yPos - 0.08;
 end
 
-% Add interpretation guide
-text(0.1, 0.15, 'Performance Guide:', ...
-    'Units', 'normalized', 'FontSize', 9, 'FontWeight', 'bold');
+% % Add interpretation guide
+% text(0.1, 0.15, 'Performance Guide:', ...
+%     'Units', 'normalized', 'FontSize', 9, 'FontWeight', 'bold');
 
-guideText = {
-    'Excellent: R² > 0.75, RMSE < 5 ppb';
-    'Good: R² > 0.65, RMSE < 7 ppb';
-    'Fair: R² > 0.50, RMSE < 10 ppb';
-};
+% guideText = {
+%     'Excellent: R² > 0.75, RMSE < 5 ppb';
+%     'Good: R² > 0.65, RMSE < 7 ppb';
+%     'Fair: R² > 0.50, RMSE < 10 ppb';
+% };
 
-yPos = 0.10;
-for i = 1:length(guideText)
-    text(0.1, yPos, guideText{i}, ...
-        'Units', 'normalized', 'FontSize', 8, 'Color', [0.5 0.5 0.5]);
-    yPos = yPos - 0.05;
-end
+% yPos = 0.10;
+% for i = 1:length(guideText)
+%     text(0.1, yPos, guideText{i}, ...
+%         'Units', 'normalized', 'FontSize', 8, 'Color', [0.5 0.5 0.5]);
+%     yPos = yPos - 0.05;
+% end
 end

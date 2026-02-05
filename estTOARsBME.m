@@ -106,15 +106,22 @@ fprintf('\nCreating estimation grid...\n');
 % Create spatial grid
 sk = getTOARmapGrid(mapResolution, estParam.keepOnlyLand, estParam.includeAntarctica);
 
+% add locations of monitoring sites to the estimatio grid
+sk = [sk; obs.sMS];
+
+% remove duplicate points
+[~, uniqueIdx] = unique(sk, 'rows');
+sk = sk(uniqueIdx, :);
+
 % Filter grid to estimation area
 inArea = (sk(:,1) >= axMS_est(1)) & (sk(:,1) <= axMS_est(2)) & ...
          (sk(:,2) >= axMS_est(3)) & (sk(:,2) <= axMS_est(4));
 sk = sk(inArea, :);
 
-% Remove observation locations from estimation grid
-obsLocs = obs.sMS;
-[~, duplicateIdx] = ismember(sk, obsLocs, 'rows');
-sk = sk(duplicateIdx == 0, :);
+% % Remove observation locations from estimation grid
+% obsLocs = obs.sMS;
+% [~, duplicateIdx] = ismember(sk, obsLocs, 'rows');
+% sk = sk(duplicateIdx == 0, :);
 
 fprintf('  Estimation grid: %d points\n', size(sk, 1));
 fprintf('  Spatial extent: [%.1f %.1f] x [%.1f %.1f]\n', ...
@@ -259,8 +266,13 @@ for iTime = 1:length(tkVec)
                         BMEparam.dataFormat);
             end
 
-            % Replace NaNs in XkBMEm with 0s
-            XkBMEm(isnan(XkBMEm)) = 0;
+            % QC check: print the number of NaNs and negative variances
+            nNaNs = sum(isnan(XkBMEm));
+            nNegVar = sum(XkBMEv < 0);
+            fprintf('    QC Check: %d NaN means, %d negative variances\n', nNaNs, nNegVar);
+
+            XkBMEm(isnan(XkBMEm)) = 0; % Replace NaNs in XkBMEm with 0s
+            XkBMEv(XkBMEv<0)=0; % set negative variances to zero
             
         otherwise
             error('Invalid BMEprobaType: %d', BMEprobaType);

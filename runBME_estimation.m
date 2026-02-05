@@ -217,8 +217,8 @@ for iMethod = 1:length(BMEmethods)
                 fprintf('  Selecting one site per region...\n');
                 repSites = selectRepresentativeSites(obs, analyzeParam.areaCode, ...
                     'minCompleteness', 0.70, ...
-                    'minObservations', 100, ...
-                    'selectionMethod', 'centroid', ...
+                    'minObservations', 24, ...
+                    'selectionMethod', 'completeness', ...
                     'saveResults', true);
                 save(repSitesFile, 'repSites');
             end
@@ -233,30 +233,30 @@ for iMethod = 1:length(BMEmethods)
 
             fprintf('  Completed in %.1f seconds\n', toc);
 
-            %% Estimate BME at Exact Site Locations (Leave-One-Out)
+            % %% Estimate BME at Exact Site Locations (Leave-One-Out)
 
-            fprintf('\n--- BME Estimation at Representative Sites ---\n');
-            tic;
+            % fprintf('\n--- BME Estimation at Representative Sites ---\n');
+            % tic;
 
-            siteEstFile = fullfile('5BMEspatialPlots', ...
-                sprintf('site_estimates_%s_year%d.mat', analyzeParam.BMEmethod, eachYear));
+            % siteEstFile = fullfile('5BMEspatialPlots', ...
+            %     sprintf('site_estimates_%s_year%d.mat', analyzeParam.BMEmethod, eachYear));
 
-            if exist(siteEstFile, 'file') && ~analyzeParam.forceEstimation
-                fprintf('  Loading existing site estimates...\n');
-                load(siteEstFile, 'siteEstimates');
-            else
-                fprintf('  Running leave-one-out estimation at sites...\n');
-                siteEstimates = estimateBME_AtRepSites(repSites, obs, go, cov, ...
-                    KG, KS, BMEparam, analyzeParam.tkVec, ...
-                    'exclusionRadius', 0.5, ...
-                    'saveResults', false, ...
-                    'verbose', true);
+            % if exist(siteEstFile, 'file') && ~analyzeParam.forceEstimation
+            %     fprintf('  Loading existing site estimates...\n');
+            %     load(siteEstFile, 'siteEstimates');
+            % else
+            %     fprintf('  Running leave-one-out estimation at sites...\n');
+            %     siteEstimates = estimateBME_AtRepSites(repSites, obs, go, cov, ...
+            %         KG, KS, BMEparam, analyzeParam.tkVec, ...
+            %         'exclusionRadius', 0.5, ...
+            %         'saveResults', false, ...
+            %         'verbose', true);
 
-                % Save with year-specific filename
-                save(siteEstFile, 'siteEstimates', '-v7.3');
-            end
+            %     % Save with year-specific filename
+            %     save(siteEstFile, 'siteEstimates', '-v7.3');
+            % end
 
-            fprintf('  Site estimation completed in %.1f seconds\n', toc);
+            % fprintf('  Site estimation completed in %.1f seconds\n', toc);
         end
 
         %% Temporal Series Plots
@@ -312,9 +312,17 @@ for iMethod = 1:length(BMEmethods)
 
             % Generate temporal plots in method-specific directory
             fprintf('  Creating temporal series plots...\n');
+            % figPaths_temporal = plotBME_TemporalSeries(allBMEs, obs, repSites, analyzeParam, ...
+            %     'figDir', temporalFigDir, ...      % Method-specific directory
+            %     'siteEstimates', siteEstimates, ... % Use exact site estimates
+            %     'plotType', 'full', ...            % full=4-panel, simple=1-panel, both=both
+            %     'uncertaintyBands', [1, 2], ...    % ±1σ and ±2σ
+            %     'saveTable', true, ...             % Save statistics CSV
+            %     'combineRegions', true, ...        % Multi-region comparison plot
+            %     'dpi', 300, ...
+            %     'visible', 'off');
             figPaths_temporal = plotBME_TemporalSeries(allBMEs, obs, repSites, analyzeParam, ...
                 'figDir', temporalFigDir, ...      % Method-specific directory
-                'siteEstimates', siteEstimates, ... % Use exact site estimates
                 'plotType', 'full', ...            % full=4-panel, simple=1-panel, both=both
                 'uncertaintyBands', [1, 2], ...    % ±1σ and ±2σ
                 'saveTable', true, ...             % Save statistics CSV
