@@ -96,13 +96,13 @@ analyzeParam.forceEstimation = 0;  % 0=use cached, 1=rerun all
 %% PLOTTING CONFIGURATION
 
 % Spatial plotting (handled by estTOARsBME)
-analyzeParam.plotResults = 2;   % 0=none, 1=basic, 2=with observations
+analyzeParam.plotResults = 1;   % 0=none, 1=basic, 2=with observations
 analyzeParam.plotVariance = 1;  % 0=none, 1=std, 2=var, 3=CV, 4=all
 
 % Phase 1 plotting (temporal and enhanced spatial)
 analyzeParam.plotTemporal = 1;      % Generate temporal series plots
 analyzeParam.plotSpatialStats = 1;  % Generate multi-panel spatial summary
-analyzeParam.parallelPlotting = 0;  % 0=sequential, 1=parallel (for plotting only)
+analyzeParam.parallelPlotting = 1;  % 0=sequential, 1=parallel (for plotting only)
 
 %% WORKFLOW CONTROL
 

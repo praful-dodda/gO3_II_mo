@@ -254,8 +254,12 @@ end
 % Create scatter plot
 scatter(sk(:,1), sk(:,2), 20, values, 'filled');
 colormap(colormap_data);
-colorbar('Label', colorbarLabel);
-caxis([prctile(validValues, 2), prctile(validValues, 98)]);  % 2-98 percentile
+
+% FIX: Get colorbar handle, then set label
+cb = colorbar;
+cb.Label.String = colorbarLabel;
+
+clim([prctile(validValues, 2), prctile(validValues, 98)]);  % 2-98 percentile
 
 xlabel('Longitude (°E)', 'FontSize', 10);
 ylabel('Latitude (°N)', 'FontSize', 10);
@@ -292,7 +296,11 @@ density = histcounts2(obsLocs(:,1), obsLocs(:,2), lonEdges, latEdges);
 % Plot density as image
 imagesc(lonEdges, latEdges, density');
 colormap(flipud(gray));
-colorbar('Label', 'Observation Count');
+
+% FIX: Get colorbar handle, then set label
+cb = colorbar;
+cb.Label.String = 'Observation Count';
+
 axis xy;
 
 % Overlay observation locations
