@@ -105,21 +105,27 @@ for iReg = 1:nRegions
             BMEstd(iTime) = sqrt(BMEs.XkBMEv(nearestIdx));
         end
 
-        % Get observations within time window (±15 days)
-        timeWindow = 15/365;  % ±15 days in decimal years
-        obsIdx = abs(obs.tME - BMEs.tk) < timeWindow;
+        % Get observations near this site
+        % obs.Y is [nStations × nTimes], need to find both station and time indices
 
-        % Further filter by location (within 0.5 degrees of site)
-        if any(obsIdx)
-            locDist = sqrt((obs.sMS(obsIdx, 1) - site.lon).^2 + ...
-                          (obs.sMS(obsIdx, 2) - site.lat).^2);
-            nearSite = locDist < 0.5;
+        % Find stations near this representative site (within 0.5 degrees)
+        locDist = sqrt((obs.sMS(:, 1) - site.lon).^2 + (obs.sMS(:, 2) - site.lat).^2);
+        nearStations = find(locDist < 0.5);
 
-            if any(nearSite)
-                obsValues{iTime} = obs.Y(obsIdx);
-                obsValues{iTime} = obsValues{iTime}(nearSite);
-                obsTimes{iTime} = obs.tME(obsIdx);
-                obsTimes{iTime} = obsTimes{iTime}(nearSite);
+        if ~isempty(nearStations)
+            % Find time index closest to BMEs.tk (within ±15 days)
+            timeWindow = 15/365;  % ±15 days in decimal years
+            [minTimeDiff, closestTimeIdx] = min(abs(obs.tME - BMEs.tk));
+
+            if minTimeDiff < timeWindow
+                % Extract observations at nearby stations for this time
+                obsAtTime = obs.Y(nearStations, closestTimeIdx);
+                validObs = ~isnan(obsAtTime);
+
+                if any(validObs)
+                    obsValues{iTime} = obsAtTime(validObs);
+                    obsTimes{iTime} = repmat(obs.tME(closestTimeIdx), sum(validObs), 1);
+                end
             end
         end
     end
