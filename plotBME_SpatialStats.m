@@ -278,15 +278,28 @@ function plotObservationDensity(BMEs, obs)
 % Plot observation locations and density
 
 % Get observations near this time
-timeWindow = 15/365;  % ±15 days
-obsIdx = abs(obs.tME - BMEs.tk) < timeWindow;
+% obs.Y is [nStations × nTimes], need to find time index then extract valid stations
 
-if ~any(obsIdx)
+% Find time index closest to BMEs.tk (within ±15 days)
+timeWindow = 15/365;  % ±15 days
+[minTimeDiff, closestTimeIdx] = min(abs(obs.tME - BMEs.tk));
+
+if minTimeDiff > timeWindow
     text(0.5, 0.5, 'No observations', 'HorizontalAlignment', 'center', 'FontSize', 12);
     return;
 end
 
-obsLocs = obs.sMS(obsIdx, :);
+% Extract observations at this time across all stations
+obsAtTime = obs.Y(:, closestTimeIdx);
+validStations = ~isnan(obsAtTime);
+
+if ~any(validStations)
+    text(0.5, 0.5, 'No observations', 'HorizontalAlignment', 'center', 'FontSize', 12);
+    return;
+end
+
+% Get locations of stations with valid observations
+obsLocs = obs.sMS(validStations, :);
 
 % Create density map using 2D histogram
 lonEdges = linspace(min(BMEs.sk(:,1)), max(BMEs.sk(:,1)), 50);
