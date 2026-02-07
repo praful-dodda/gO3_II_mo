@@ -68,7 +68,7 @@ addRequired(p, 'analyzeParam', @isstruct);
 addParameter(p, 'temporalPadding', 1, @isnumeric);  % 1 year padding
 addParameter(p, 'spatialBuffer', 2, @isnumeric);    % 2 degree buffer
 addParameter(p, 'thinningFactor', 0, @isnumeric);   % No thinning
-addParameter(p, 'dataDir', fullfile('1data', 'CTM'), @ischar);
+addParameter(p, 'dataDir', fullfile('d:\Users\praful\Documents\Data\ramp_data\'), @ischar);
 addParameter(p, 'forceReload', 0, @isnumeric);
 addParameter(p, 'verbose', 1, @isnumeric);
 
@@ -114,10 +114,10 @@ end
 % Extract year range from tkVec and timeRange
 if isfield(analyzeParam, 'tkVec') && ~isempty(analyzeParam.tkVec)
     minYear = floor(min(analyzeParam.tkVec));
-    maxYear = ceil(max(analyzeParam.tkVec));
+    maxYear = floor(max(analyzeParam.tkVec));
 else
     minYear = analyzeParam.timeRange(1);
-    maxYear = analyzeParam.timeRange(2);
+    maxYear = analyzeParam.timeRange(end);
 end
 
 % Add temporal padding
@@ -141,18 +141,18 @@ end
 
 % Get area boundaries
 try
-    [areaBounds, areaName] = getTOARareaBoundaries(analyzeParam.areaCode);
+    [areaBounds, ~] = getTOARareaBoundaries(analyzeParam.areaCode);
 
     % Add spatial buffer
     spatialBounds = [
-        areaBounds(1) - opts.spatialBuffer,  % minLon
-        areaBounds(2) + opts.spatialBuffer,  % maxLon
-        areaBounds(3) - opts.spatialBuffer,  % minLat
-        areaBounds(4) + opts.spatialBuffer   % maxLat
+        areaBounds(1) - opts.spatialBuffer, ...  % minLon
+        areaBounds(2) + opts.spatialBuffer, ...  % maxLon
+        areaBounds(3) - opts.spatialBuffer, ...  % minLat
+        areaBounds(4) + opts.spatialBuffer % maxLat
     ];
 
     if opts.verbose
-        fprintf('  Area: %s (code %d)\n', areaName, analyzeParam.areaCode);
+        fprintf('  Area code %d\n', analyzeParam.areaCode);
         fprintf('  Core bounds: [%.1f, %.1f] x [%.1f, %.1f]\n', areaBounds);
         fprintf('  Spatial buffer: ±%.1f degrees\n', opts.spatialBuffer);
         fprintf('  Extended bounds: [%.1f, %.1f] x [%.1f, %.1f]\n', spatialBounds);
@@ -164,8 +164,7 @@ end
 
 % Calculate temporal bounds for subsetting (estimation period + padding)
 if isfield(analyzeParam, 'tkVec') && ~isempty(analyzeParam.tkVec)
-    temporalBounds = [min(analyzeParam.tkVec) - opts.temporalPadding, ...
-                      max(analyzeParam.tkVec) + opts.temporalPadding];
+    temporalBounds = [paddedMinYear, paddedMaxYear+1];
 else
     temporalBounds = [minYear, maxYear + 1];  % Full year coverage
 end

@@ -28,6 +28,7 @@ analyzeParam = struct();
 
 analyzeParam.stationTypes = 'all';      % 'all', 'rural', 'urban'
 analyzeParam.logTransf = 0;             % 0=no transform, 1=log transform
+analyzeParam.softDataDir = fullfile('d:\Users\praful\Documents\Data\ramp_data\');  % Parquet directory
 
 % Estimation years (actual years to estimate)
 estYears = [2017];
@@ -46,7 +47,12 @@ analyzeParam.timeRange = [estYears(1) - temporalPadding, estYears(end) + tempora
 %   '13000313-02' - Obs + M3fusion
 %   '13000313-02-10' - Obs + M3fusion + UKML
 % Can specify multiple methods as cell array: {'10000133', '13000313-02'}
-BMEmethods = {'10000133'};  % Cell array of methods to run
+% BMEmethods = {'13000313-01', '13000313-02', '13000313-10', '13000313-04', ...
+%     '13000313-20', '13000313-06', '13000313-08'};  % Cell array of methods to run
+% 
+BMEmethods = {'13000313-06', '13000313-08'};
+
+% BMEmethods = {'10000133'};
 
 % Data format for kriging computation
 % 'stv'  - Space-Time Vector (slowest, any grid)
@@ -163,8 +169,8 @@ for iMethod = 1:length(BMEmethods)
         % - Subsets to estimation area + buffer
         % - Marks as CTM data (.ctm = 1)
         analyzeParam.softData = getTOARSoftData(analyzeParam.BMEmethod, analyzeParam, ...
-            'temporalPadding', 1, ...      % ±1 year padding
             'spatialBuffer', 2, ...         % ±2 degree buffer
+            'temporalPadding', 1, ...     % ±1 year buffer
             'thinningFactor', 0, ...        % No thinning
             'forceReload', 0);
 
@@ -397,6 +403,7 @@ for iMethod = 1:length(BMEmethods)
         fprintf('************************************************************************\n');
         fprintf('   METHOD %s COMPLETE\n', analyzeParam.BMEmethod);
         fprintf('************************************************************************\n');
+        close all;
     end % End of year loop
 
 end  % End of method loop

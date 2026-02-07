@@ -235,7 +235,7 @@ if analyzeParam.runBME && ~isempty(KG)
     BMEparam.BMEmethod8digits = analyzeParam.BMEmethod;
     
     % Run BME estimation
-    estTOARsBME(obs, go, cov, KG, KS, BMEparam, estParam);
+    estTOARsBMEoptim(obs, go, cov, KG, KS, BMEparam, estParam);
 end
 
 %% Summary

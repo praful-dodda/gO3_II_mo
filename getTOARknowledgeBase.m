@@ -210,10 +210,16 @@ if CTMtype >= 1 && ~isempty(softData)
         KS.softdata.p = p_stg(valid_idx, :);
         KS.softdata.z = z_stg(valid_idx);
         KS.softdata.vs = vs_stg(valid_idx);
+        KS.softdata.modelName = ctmData.modelName;
         
         fprintf('    Soft data: %d valid points (%.1f%% complete)\n', ...
             length(KS.softdata.z), 100*(1-KS.softdata.nanratio));
     elseif CTMtype == 3
+
+        if ~iscell(ctmData)
+            ctmData = {ctmData};
+        end
+
         % Multiple soft datasets
         KS.softdata = cell(length(ctmData), 1);
         for m = 1:length(ctmData)
@@ -244,6 +250,7 @@ if CTMtype >= 1 && ~isempty(softData)
             KS.softdata{m}.p = p_stg(valid_idx, :);
             KS.softdata{m}.z = z_stg(valid_idx);
             KS.softdata{m}.vs = vs_stg(valid_idx);
+            KS.softdata{m}.modelName = ctmModel.modelName;
             fprintf('        Soft data model %d: %d valid points (%.1f%% complete)\n', ...
                 m, length(KS.softdata{m}.z), 100*(1-KS.softdata{m}.nanratio));
         end
