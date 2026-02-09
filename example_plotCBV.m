@@ -23,7 +23,15 @@ configNames = {
     'Obs. + M3fusion + OMI-MLS'
 };
 
-allYears = [2013, 2014, 2016, 2017]; % use [] for all years
+all_methods = {'10000133_go3', '13000313-01', '13000313-05'};
+
+configNames = {
+    'Obs. only (fine GO)', ...
+    'Obs. + MERRA2-GMI', ...
+    'Obs. + MERRA2-GMI + OMI-MLS'
+};
+
+allYears = [2007 2008]; % use [] for all years
 
 boxSize = 5;  % only important in phase-3 plots. % use [] for all box sizes
 

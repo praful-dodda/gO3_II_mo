@@ -198,7 +198,7 @@ else
 end
 
 %% Step 5: Knowledge Base Preparation
-if analyzeParam.runBME && analyzeParam.runGO && analyzeParam.runCov
+if analyzeParam.runGO && analyzeParam.runCov
     fprintf('\n====================================================\n');
     fprintf('STEP 5: Preparing BME Knowledge Bases\n');
     fprintf('====================================================\n');

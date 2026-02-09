@@ -33,7 +33,7 @@ valParam.stationTypes = 'all';  % 'all', 'urban', 'rural', or {'urban','rural'}
 
 % Time range for loading data (should cover all validation years ± 1 year)
 % Example: To validate 2017, load 2015-2020 so ±1 year window is available
-valParam.timeRange = [2010 2015];  % [startYear endYear]
+valParam.timeRange = [2000 2005];  % [startYear endYear]
 
 % Log transformation
 valParam.logTransf = 0;  % 0=no, 1=yes (use 0 for regular concentrations)
@@ -43,7 +43,7 @@ valParam.logTransf = 0;  % 0=no, 1=yes (use 0 for regular concentrations)
 % ====================================================================
 
 % Years to validate
-valParam.valYears = [2017];  % e.g., 2017 or [2016 2017 2018]
+valParam.valYears = [1996 1997];  % e.g., 2017 or [2016 2017 2018]
 
 % Months to validate (within each year)
 valParam.valMonths = 1:12;  % All months, or specific: [6 7 8] for JJA
@@ -74,7 +74,7 @@ valParam.goPlot = 0;  % 0=no plots, 1=basic (not recommended during CBV)
 % ====================================================================
 
 % Temporal covariance model
-valParam.temporalModel = 'holecos';  % 'exponential' or 'holecos'
+valParam.temporalModel = 'exponential';  % 'exponential' or 'holecos'
 
 % Force re-estimation
 valParam.forceCov = 0;  % 0=use cached, 1=force new estimation
@@ -102,7 +102,7 @@ valParam.forceCov = 0;  % 0=use cached, 1=force new estimation
 %   20:NJML; 06:M3fusion+OMI-MLS; 0A:M3fusion+IASI-GOME2; 12:M3fusion+UKML;
 %
 % Can specify single method or cell array for multiple methods
-valParam.BMEmethod = {'13000313-12'};  % or use cell array: {'10000133', '13000313-12'}
+valParam.BMEmethod = {'10000133','13000313-01'};  % or use cell array: {'10000133', '13000313-12'}
 
 %% ====================================================================
 %                    SOFT DATA CONFIGURATION (if using CTM)
@@ -127,7 +127,7 @@ valParam.BMEmethod = {'13000313-12'};  % or use cell array: {'10000133', '130003
 % ====================================================================
 
 % Force re-estimation of monthly results (ignore cache)
-valParam.forceEstimation = 1;  % 0=use cached monthly results, 1=recompute
+valParam.forceEstimation = 0;  % 0=use cached monthly results, 1=recompute
 
 % Create plots after validation
 valParam.plotResults = 1;  % 0=no plots, 1=create plots
@@ -184,6 +184,7 @@ allStats = [];
 
 tic;
 for iMethod = 1:length(methodList)
+    close all;
     currentMethod = methodList{iMethod};
 
     fprintf('\n');
