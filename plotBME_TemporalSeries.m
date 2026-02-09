@@ -30,6 +30,9 @@ function figPaths = plotBME_TemporalSeries(allBMEs, obs, repSites, estConfig, va
 %                      If provided, uses exact BME at site locations
 %                      If empty, uses nearest grid point (default: [])
 %   'showLocationMap' - Show location map panel (default: true)
+%   'obsMatchRadius' - Radius (degrees) for matching observations to site (default: 0.01)
+%                      0.01 = exact site only, 0.5 = within 0.5 degrees
+%   'plotSoftData'   - Plot soft-data if available (default: true)
 %
 % OUTPUTS:
 %   figPaths - Cell array of generated figure paths
@@ -53,6 +56,8 @@ addParameter(p, 'saveTable', true, @islogical);
 addParameter(p, 'combineRegions', true, @islogical);
 addParameter(p, 'siteEstimates', [], @(x) isstruct(x) || isempty(x));
 addParameter(p, 'showLocationMap', true, @islogical);
+addParameter(p, 'obsMatchRadius', 0.01, @isnumeric);
+addParameter(p, 'plotSoftData', true, @islogical);
 
 parse(p, allBMEs, obs, repSites, estConfig, varargin{:});
 opts = p.Results;
@@ -153,9 +158,9 @@ for iReg = 1:nRegions
         % Get observations near this site
         % obs.Y is [nStations × nTimes], need to find both station and time indices
 
-        % Find stations near this representative site (within 0.5 degrees)
+        % Find stations near this representative site (using obsMatchRadius)
         locDist = sqrt((obs.sMS(:, 1) - site.lon).^2 + (obs.sMS(:, 2) - site.lat).^2);
-        nearStations = find(locDist < 0.5);
+        nearStations = find(locDist < opts.obsMatchRadius);
 
         if ~isempty(nearStations)
             % Find time index closest to BMEs.tk (within ±15 days)
@@ -182,6 +187,51 @@ for iReg = 1:nRegions
     BMEstd = BMEstd(validTimes);
     obsValues = obsValues(validTimes);
     obsTimes = obsTimes(validTimes);
+
+    % Extract soft-data at this site (if available and requested)
+    softValues = cell(nTimes, 1);
+    softTimes = cell(nTimes, 1);
+    hasSoftData = false;
+
+    if opts.plotSoftData && isfield(estConfig, 'softData') && ~isempty(estConfig.softData)
+        softData = estConfig.softData;
+
+        % Find soft-data near this representative site
+        for iTime = 1:nTimes
+            if isempty(allBMEs{iTime})
+                continue;
+            end
+
+            BMEs = allBMEs{iTime};
+
+            % Find soft-data points near this site (using same radius as observations)
+            softLocDist = sqrt((softData.sMS(:, 1) - site.lon).^2 + ...
+                              (softData.sMS(:, 2) - site.lat).^2);
+            nearSoftPoints = find(softLocDist < opts.obsMatchRadius);
+
+            if ~isempty(nearSoftPoints)
+                % Find time index closest to BMEs.tk (within ±15 days)
+                timeWindow = 15/365;  % ±15 days in decimal years
+                [minTimeDiff, closestTimeIdx] = min(abs(softData.tME - BMEs.tk));
+
+                if minTimeDiff < timeWindow
+                    % Extract soft-data at nearby points for this time
+                    softAtTime = softData.Y(nearSoftPoints, closestTimeIdx);
+                    validSoft = ~isnan(softAtTime);
+
+                    if any(validSoft)
+                        softValues{iTime} = softAtTime(validSoft);
+                        softTimes{iTime} = repmat(softData.tME(closestTimeIdx), sum(validSoft), 1);
+                        hasSoftData = true;
+                    end
+                end
+            end
+        end
+
+        % Apply same time filtering as observations
+        softValues = softValues(validTimes);
+        softTimes = softTimes(validTimes);
+    end
 
     % Flatten observations for statistics
     obsFlat = [];
@@ -223,6 +273,9 @@ for iReg = 1:nRegions
     timeSeriesData.(regionName).obsValues = obsValues;
     timeSeriesData.(regionName).obsTimes = obsTimes;
     timeSeriesData.(regionName).obsFlat = obsFlat;
+    timeSeriesData.(regionName).softValues = softValues;
+    timeSeriesData.(regionName).softTimes = softTimes;
+    timeSeriesData.(regionName).hasSoftData = hasSoftData;
     timeSeriesData.(regionName).stats.R2 = R2;
     timeSeriesData.(regionName).stats.RMSE = RMSE;
     timeSeriesData.(regionName).stats.MAE = MAE;
@@ -446,6 +499,22 @@ if ~isempty(obsX)
         'DisplayName', 'Observations');
 end
 
+% Plot soft-data (if available)
+if isfield(tsData, 'hasSoftData') && tsData.hasSoftData
+    softX = [];
+    softY = [];
+    for i = 1:length(tsData.softTimes)
+        if ~isempty(tsData.softTimes{i})
+            softX = [softX; tsData.softTimes{i}];
+            softY = [softY; tsData.softValues{i}];
+        end
+    end
+    if ~isempty(softX)
+        plot(softX, softY, 'md', 'MarkerSize', 5, 'MarkerFaceColor', 'm', ...
+            'DisplayName', 'Soft-Data (CTM)');
+    end
+end
+
 hold off;
 
 xlabel('Time (year)', 'FontSize', 10);
@@ -495,6 +564,26 @@ obsMonthly = cellfun(@(x) mean(x, 'omitnan'), monthlyObs);
 validMonths = ~isnan(obsMonthly);
 plot(monthVec(validMonths), obsMonthly(validMonths), 'ko', 'MarkerSize', 6, ...
     'MarkerFaceColor', 'k', 'DisplayName', 'Obs Mean');
+
+% Plot soft-data seasonal cycle (if available)
+if isfield(tsData, 'hasSoftData') && tsData.hasSoftData
+    monthlySoft = cell(12, 1);
+    for i = 1:length(tsData.softTimes)
+        if ~isempty(tsData.softTimes{i})
+            softMonths = round(mod(tsData.softTimes{i}, 1) * 12) + 1;
+            for j = 1:length(softMonths)
+                monthlySoft{softMonths(j)} = [monthlySoft{softMonths(j)}; tsData.softValues{i}(j)];
+            end
+        end
+    end
+
+    softMonthly = cellfun(@(x) mean(x, 'omitnan'), monthlySoft);
+    validSoftMonths = ~isnan(softMonthly);
+    if any(validSoftMonths)
+        plot(monthVec(validSoftMonths), softMonthly(validSoftMonths), 'md', ...
+            'MarkerSize', 6, 'MarkerFaceColor', 'm', 'DisplayName', 'Soft Mean');
+    end
+end
 
 hold off;
 

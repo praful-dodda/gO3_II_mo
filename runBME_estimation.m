@@ -110,6 +110,14 @@ analyzeParam.plotTemporal = 1;      % Generate temporal series plots
 analyzeParam.plotSpatialStats = 1;  % Generate multi-panel spatial summary
 analyzeParam.parallelPlotting = 1;  % 0=sequential, 1=parallel (for plotting only)
 
+% Temporal plot observation matching
+analyzeParam.obsMatchRadius = 0.01; % Radius (deg) for matching obs to site
+                                     % 0.01 = exact site (~1 km)
+                                     % 0.5 = within 0.5 deg (~50 km)
+
+% Soft-data plotting
+analyzeParam.plotSoftData = 1;      % 0=disable, 1=plot soft-data if available
+
 %% WORKFLOW CONTROL
 
 % Control which analysis steps to run
@@ -328,11 +336,13 @@ for iMethod = 1:length(BMEmethods)
             %     'dpi', 300, ...
             %     'visible', 'off');
             figPaths_temporal = plotBME_TemporalSeries(allBMEs, obs, repSites, analyzeParam, ...
-                'figDir', temporalFigDir, ...      % Method-specific directory
-                'plotType', 'full', ...            % full=4-panel, simple=1-panel, both=both
-                'uncertaintyBands', [1, 2], ...    % ±1σ and ±2σ
-                'saveTable', true, ...             % Save statistics CSV
-                'combineRegions', true, ...        % Multi-region comparison plot
+                'figDir', temporalFigDir, ...              % Method-specific directory
+                'plotType', 'full', ...                    % full=4-panel, simple=1-panel, both=both
+                'uncertaintyBands', [1, 2], ...            % ±1σ and ±2σ
+                'saveTable', true, ...                     % Save statistics CSV
+                'combineRegions', true, ...                % Multi-region comparison plot
+                'obsMatchRadius', analyzeParam.obsMatchRadius, ... % Use configured radius
+                'plotSoftData', analyzeParam.plotSoftData, ...     % Use configured setting
                 'dpi', 300, ...
                 'visible', 'off');
 
