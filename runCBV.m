@@ -101,7 +101,8 @@ valParam.forceCov = 0;  % 0=use cached, 1=force new estimation
 %   01:MERRA2-GMI; 02:M3fusion; 04:OMI-MLS; 08:IASI-GOME2; 10:UKML;
 %   20:NJML; 06:M3fusion+OMI-MLS; 0A:M3fusion+IASI-GOME2; 12:M3fusion+UKML;
 %
-valParam.BMEmethod = '13000313-12';
+% Can specify single method or cell array for multiple methods
+valParam.BMEmethod = {'13000313-12'};  % or use cell array: {'10000133', '13000313-12'}
 
 %% ====================================================================
 %                    SOFT DATA CONFIGURATION (if using CTM)
@@ -142,7 +143,14 @@ fprintf('=======================================================================
 fprintf('Validation years: %s\n', mat2str(valParam.valYears));
 fprintf('Validation months: %s\n', mat2str(valParam.valMonths));
 fprintf('Box sizes: %s degrees\n', mat2str(valParam.boxSizes));
-fprintf('BME method: %s\n', valParam.BMEmethod);
+
+% Display BME method(s)
+if ischar(valParam.BMEmethod)
+    fprintf('BME method: %s\n', valParam.BMEmethod);
+elseif iscell(valParam.BMEmethod)
+    fprintf('BME methods (%d): %s\n', length(valParam.BMEmethod), strjoin(valParam.BMEmethod, ', '));
+end
+
 fprintf('GO scenario: %d\n', valParam.goScenario);
 fprintf('Temporal model: %s\n', valParam.temporalModel);
 fprintf('Station types: %s\n', valParam.stationTypes);
@@ -163,9 +171,43 @@ fprintf('                      STARTING VALIDATION\n');
 fprintf('========================================================================\n');
 fprintf('\n');
 
+% Convert single method to cell array for consistent looping
+if ischar(valParam.BMEmethod)
+    methodList = {valParam.BMEmethod};
+else
+    methodList = valParam.BMEmethod;
+end
+
+% Initialize result containers
+allResults = cell(length(methodList), 1);
+allStats = [];
+
 tic;
+for iMethod = 1:length(methodList)
+    currentMethod = methodList{iMethod};
+
+    fprintf('\n');
+    fprintf('--- Running method %d/%d: %s ---\n', iMethod, length(methodList), currentMethod);
+    fprintf('\n');
+
+    % Set current method
+    valParam.BMEmethod = currentMethod;
+
+    % Run validation
     [cbvResults, cbvStats] = runCBV_toar(valParam);
+
+    % Store results
+    allResults{iMethod} = cbvResults;
+    if ~isempty(cbvStats)
+        cbvStats.BMEmethod = repmat({currentMethod}, height(cbvStats), 1);
+        allStats = [allStats; cbvStats];
+    end
+end
 totalTime = toc;
+
+% Consolidate results
+cbvResults = allResults;
+cbvStats = allStats;
 
 %% Display Results
 fprintf('\n');
@@ -179,19 +221,35 @@ if ~isempty(cbvStats)
     fprintf('Validation statistics summary:\n');
     fprintf('------------------------------\n');
 
-    % Group by year if multiple years
-    uniqueYears = unique(cbvStats.Year);
-    for iYear = 1:length(uniqueYears)
-        year = uniqueYears(iYear);
-        yearStats = cbvStats(cbvStats.Year == year, :);
+    % Group by method and year
+    if ismember('BMEmethod', cbvStats.Properties.VariableNames)
+        uniqueMethods = unique(cbvStats.BMEmethod);
+    else
+        uniqueMethods = methodList;
+    end
 
-        fprintf('\nYear %d:\n', year);
-        fprintf('  Box sizes tested: %s\n', mat2str(unique(yearStats.BoxSize)));
-        fprintf('  Average R²:   %.3f ± %.3f\n', mean(yearStats.R2), std(yearStats.R2));
-        fprintf('  Average RMSE: %.2f ± %.2f ppbv\n', mean(yearStats.RMSE), std(yearStats.RMSE));
-        fprintf('  Average MAE:  %.2f ± %.2f ppbv\n', mean(yearStats.MAE), std(yearStats.MAE));
-        fprintf('  Average NMB:  %.1f ± %.1f %%\n', mean(yearStats.NMB), std(yearStats.NMB));
-        fprintf('  Sample size:  %d validation points\n', mean(yearStats.N));
+    uniqueYears = unique(cbvStats.Year);
+
+    for iMethod = 1:length(uniqueMethods)
+        method = uniqueMethods{iMethod};
+        methodStats = cbvStats(strcmp(cbvStats.BMEmethod, method), :);
+
+        fprintf('\n--- Method: %s ---\n', method);
+
+        for iYear = 1:length(uniqueYears)
+            year = uniqueYears(iYear);
+            yearStats = methodStats(methodStats.Year == year, :);
+
+            if ~isempty(yearStats)
+                fprintf('\n  Year %d:\n', year);
+                fprintf('    Box sizes tested: %s\n', mat2str(unique(yearStats.BoxSize)));
+                fprintf('    Average R²:   %.3f ± %.3f\n', mean(yearStats.R2), std(yearStats.R2));
+                fprintf('    Average RMSE: %.2f ± %.2f ppbv\n', mean(yearStats.RMSE), std(yearStats.RMSE));
+                fprintf('    Average MAE:  %.2f ± %.2f ppbv\n', mean(yearStats.MAE), std(yearStats.MAE));
+                fprintf('    Average NMB:  %.1f ± %.1f %%\n', mean(yearStats.NMB), std(yearStats.NMB));
+                fprintf('    Sample size:  %d validation points\n', mean(yearStats.N));
+            end
+        end
     end
 
     fprintf('\nResults saved to: ./7validation/CBV/\n');
