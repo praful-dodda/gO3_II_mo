@@ -74,8 +74,22 @@ figPaths = {};
 regions = fieldnames(repSites);
 nRegions = length(regions);
 
+% Determine workflow type
+usingSiteEstimates = ~isempty(opts.siteEstimates);
+hasFullGrids = ~isempty(allBMEs{1}) && isfield(allBMEs{1}, 'sk') && ...
+               ~isempty(allBMEs{1}.sk);
+
 fprintf('  Regions to plot: %d\n', nRegions);
 fprintf('  Time periods: %d\n', length(allBMEs));
+
+if usingSiteEstimates
+    fprintf('  Data source: Exact site estimates (leave-one-out)\n');
+elseif hasFullGrids
+    fprintf('  Data source: Nearest grid point (spatial workflow)\n');
+else
+    error('plotBME_TemporalSeries: No valid BME estimates available (no grids and no siteEstimates)');
+end
+
 fprintf('  Output directory: %s\n\n', opts.figDir);
 
 %% Extract time series data for each site
@@ -103,6 +117,10 @@ for iReg = 1:nRegions
                         isfield(opts.siteEstimates, 'estimates') && ...
                         isfield(opts.siteEstimates.estimates, regionName);
 
+    % Check if allBMEs contains full spatial grids or just minimal time info
+    hasFullGrids = ~isempty(allBMEs{1}) && isfield(allBMEs{1}, 'sk') && ...
+                   ~isempty(allBMEs{1}.sk);
+
     if useExactEstimates
         % Use exact leave-one-out estimates at site location
         siteEst = opts.siteEstimates.estimates.(regionName);
@@ -121,6 +139,10 @@ for iReg = 1:nRegions
         nTimes = length(tkVec);
         obsValues = cell(nTimes, 1);
         obsTimes = cell(nTimes, 1);
+    elseif ~hasFullGrids
+        % Temporal-only workflow: no grid data available
+        % Must have siteEstimates to proceed
+        error('plotBME_TemporalSeries: No grid data in allBMEs and no siteEstimates provided. Cannot extract time series for %s', regionName);
     end
 
     % Extract BME estimates at this location for each time
@@ -131,8 +153,8 @@ for iReg = 1:nRegions
 
         BMEs = allBMEs{iTime};
 
-        if ~useExactEstimates
-            % Use nearest grid point (original approach)
+        if ~useExactEstimates && hasFullGrids
+            % Use nearest grid point (spatial workflow approach)
             tkVec(iTime) = BMEs.tk;
 
             % Find nearest grid point to site location
@@ -146,11 +168,11 @@ for iReg = 1:nRegions
             elseif minDist < 2.0
                 % If no exact match, check if within reasonable distance (e.g., 2 degrees)
                 BMEmean(iTime) = BMEs.YkBMEm(nearestIdx);
-                BMEstd(iTime) = sqrt(BMEs.XkBMEv(nearestIdx));                
+                BMEstd(iTime) = sqrt(BMEs.XkBMEv(nearestIdx));
             end
-        else
-            % Just get tk from BMEs for alignment
-            if iTime <= length(allBMEs)
+        elseif useExactEstimates && iTime <= length(allBMEs)
+            % Just get tk from BMEs for alignment (if available)
+            if isfield(BMEs, 'tk')
                 tkVec(iTime) = BMEs.tk;
             end
         end

@@ -215,6 +215,14 @@ for iReg = 1:nRegions
     siteEstimates.estimates.(regionName).nObsUsed = nObsUsed;
 end
 
+% Add metadata for tracking and documentation
+siteEstimates.metadata.timestamp = datestr(now, 'yyyy-mm-dd HH:MM:SS');
+siteEstimates.metadata.nSites = nRegions;
+siteEstimates.metadata.nTimes = nTimes;
+siteEstimates.metadata.totalPoints = size(pk, 1);
+siteEstimates.metadata.covModel = KG.covmodel;
+siteEstimates.metadata.covParam = KG.covparam;
+
 %% Save results
 if opts.saveResults
     if ~exist(opts.outputDir, 'dir')
