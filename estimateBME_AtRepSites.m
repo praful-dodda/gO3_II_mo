@@ -1,8 +1,8 @@
 function siteEstimates = estimateBME_AtRepSites(repSites, obs, go, cov, KG, KS, BMEparam, tkVec, varargin)
-% estimateBME_AtRepSites - Leave-one-out BME estimation at representative sites
+% estimateBME_AtRepSites - BME estimation at representative sites
 %
-% Performs BME estimation at exact representative site locations using
-% leave-one-out cross-validation (excludes nearby observations)
+% Performs BME estimation at exact representative site locations, with optional
+% leave-one-out cross-validation (excludes nearby observations per site)
 %
 % SYNTAX:
 %   siteEstimates = estimateBME_AtRepSites(repSites, obs, go, cov, KG, KS, BMEparam, tkVec)
@@ -19,10 +19,12 @@ function siteEstimates = estimateBME_AtRepSites(repSites, obs, go, cov, KG, KS, 
 %   tkVec       - Time periods to estimate (decimal years)
 %
 % OPTIONAL PARAMETERS:
-%   'exclusionRadius'  - Radius (degrees) to exclude obs for leave-one-out (default: 0.5)
-%   'saveResults'      - Save results to file (default: true)
-%   'outputDir'        - Output directory (default: '5BMEspatialPlots')
-%   'verbose'          - Print progress (default: true)
+%   'performValidation' - Enable leave-one-out validation (default: false)
+%   'exclusionRadius'   - Radius (degrees) to exclude obs for leave-one-out (default: 0.5)
+%                         Only used when performValidation is true
+%   'saveResults'       - Save results to file (default: true)
+%   'outputDir'         - Output directory (default: '5BMEspatialPlots')
+%   'verbose'           - Print progress (default: true)
 %
 % OUTPUTS:
 %   siteEstimates - Structure with fields:
@@ -46,6 +48,7 @@ addRequired(p, 'KG', @isstruct);
 addRequired(p, 'KS', @isstruct);
 addRequired(p, 'BMEparam', @isstruct);
 addRequired(p, 'tkVec', @isnumeric);
+addParameter(p, 'performValidation', false, @islogical);
 addParameter(p, 'exclusionRadius', 0.5, @isnumeric);
 addParameter(p, 'saveResults', true, @islogical);
 addParameter(p, 'outputDir', '5BMEspatialPlots', @ischar);
@@ -57,7 +60,12 @@ opts = p.Results;
 %% Setup
 if opts.verbose
     fprintf('\n=== BME Estimation at Representative Sites ===\n');
-    fprintf('  Exclusion radius: %.2f degrees (leave-one-out)\n', opts.exclusionRadius);
+    if opts.performValidation
+        fprintf('  Mode: Leave-one-out validation\n');
+        fprintf('  Exclusion radius: %.2f degrees\n', opts.exclusionRadius);
+    else
+        fprintf('  Mode: Standard estimation (all observations)\n');
+    end
 end
 
 regions = fieldnames(repSites);
@@ -75,6 +83,7 @@ siteEstimates = struct();
 siteEstimates.sites = repSites;
 siteEstimates.tkVec = tkVec;
 siteEstimates.BMEmethod = BMEparam.BMEmethod;
+siteEstimates.performValidation = opts.performValidation;
 siteEstimates.exclusionRadius = opts.exclusionRadius;
 siteEstimates.estimates = struct();
 
@@ -102,42 +111,21 @@ if opts.verbose
         size(pk, 1), nRegions, nTimes);
 end
 
-%% Estimate at all sites (vectorized for efficiency)
+%% Estimate at all sites
 
 if opts.verbose
     fprintf('  Running BME estimation...\n');
     tic;
 end
 
-% For each site, we need to do leave-one-out
-% Since each site needs different filtered observations, we process in batches
-
 XkBMEm_all = nan(size(pk, 1), 1);
 XkBMEv_all = nan(size(pk, 1), 1);
 nObsUsed_all = zeros(size(pk, 1), 1);
 
-% Process each region separately (leave-one-out per region)
-for iReg = 1:nRegions
-    regionName = regions{iReg};
-    site = repSites.(regionName);
+if ~opts.performValidation
+    % Standard estimation: Use all observations for all sites (more efficient)
 
-    % Find estimation points for this site
-    siteIdx = (siteIndices == iReg);
-    pk_site = pk(siteIdx, :);
-
-    % Create leave-one-out hard data (exclude obs near this site)
-    distToSite = sqrt((KS.harddata.p(:,1) - site.lon).^2 + ...
-                     (KS.harddata.p(:,2) - site.lat).^2);
-    keepObs = distToSite > opts.exclusionRadius;
-
-    % Filter hard data
-    KS_loo = KS;
-    KS_loo.harddata.p = KS.harddata.p(keepObs, :);
-    KS_loo.harddata.z = KS.harddata.z(keepObs);
-
-    nObsUsed_all(siteIdx) = sum(keepObs);
-
-    % Prepare soft data (same for all, no filtering needed)
+    % Prepare soft data
     if iscell(KS.softdata)
         soft_data = cell(size(KS.softdata));
         p_soft = cell(size(KS.softdata));
@@ -164,24 +152,90 @@ for iReg = 1:nRegions
         end
     end
 
-    % Run BME estimation for this site
+    % Run BME estimation for all sites at once (vectorized)
     try
-        [XkBMEm, XkBMEv] = krigingME_stug_multi(pk_site, KS_loo.harddata.p, p_soft, ...
-            KS_loo.harddata.z, z_soft, vs_soft, KG.covmodel, KG.covparam, ...
+        [XkBMEm_all, XkBMEv_all] = krigingME_stug_multi(pk, KS.harddata.p, p_soft, ...
+            KS.harddata.z, z_soft, vs_soft, KG.covmodel, KG.covparam, ...
             BMEparam.nhmax, BMEparam.nsmax, BMEparam.dmax, BMEparam.order, ...
-            BMEparam.options, KS_loo.harddata, soft_data);
+            BMEparam.options, KS.harddata, soft_data);
 
-        XkBMEm_all(siteIdx) = XkBMEm;
-        XkBMEv_all(siteIdx) = XkBMEv;
+        nObsUsed_all(:) = size(KS.harddata.p, 1);
 
     catch ME
         if opts.verbose
-            warning('BME estimation failed for %s: %s', regionName, ME.message);
+            warning('BME estimation failed: %s', ME.message);
         end
     end
 
-    if opts.verbose && mod(iReg, 5) == 0
-        fprintf('    Completed %d/%d sites...\n', iReg, nRegions);
+else
+    % Leave-one-out validation: Process each region separately
+
+    for iReg = 1:nRegions
+        regionName = regions{iReg};
+        site = repSites.(regionName);
+
+        % Find estimation points for this site
+        siteIdx = (siteIndices == iReg);
+        pk_site = pk(siteIdx, :);
+
+        % Create leave-one-out hard data (exclude obs near this site)
+        distToSite = sqrt((KS.harddata.p(:,1) - site.lon).^2 + ...
+                         (KS.harddata.p(:,2) - site.lat).^2);
+        keepObs = distToSite > opts.exclusionRadius;
+
+        % Filter hard data
+        KS_loo = KS;
+        KS_loo.harddata.p = KS.harddata.p(keepObs, :);
+        KS_loo.harddata.z = KS.harddata.z(keepObs);
+
+        nObsUsed_all(siteIdx) = sum(keepObs);
+
+        % Prepare soft data (same for all, no filtering needed)
+        if iscell(KS.softdata)
+            soft_data = cell(size(KS.softdata));
+            p_soft = cell(size(KS.softdata));
+            z_soft = cell(size(KS.softdata));
+            vs_soft = cell(size(KS.softdata));
+
+            for ii = 1:length(KS.softdata)
+                soft_data{ii} = reformat_stg_to_stug(KS.softdata{ii});
+                p_soft{ii} = soft_data{ii}.p;
+                z_soft{ii} = soft_data{ii}.z;
+                vs_soft{ii} = soft_data{ii}.vs;
+            end
+        else
+            if ~isempty(KS.softdata)
+                soft_data = reformat_stg_to_stug(KS.softdata);
+                p_soft = soft_data.p;
+                z_soft = soft_data.z;
+                vs_soft = soft_data.vs;
+            else
+                soft_data = [];
+                p_soft = [];
+                z_soft = [];
+                vs_soft = [];
+            end
+        end
+
+        % Run BME estimation for this site
+        try
+            [XkBMEm, XkBMEv] = krigingME_stug_multi(pk_site, KS_loo.harddata.p, p_soft, ...
+                KS_loo.harddata.z, z_soft, vs_soft, KG.covmodel, KG.covparam, ...
+                BMEparam.nhmax, BMEparam.nsmax, BMEparam.dmax, BMEparam.order, ...
+                BMEparam.options, KS_loo.harddata, soft_data);
+
+            XkBMEm_all(siteIdx) = XkBMEm;
+            XkBMEv_all(siteIdx) = XkBMEv;
+
+        catch ME
+            if opts.verbose
+                warning('BME estimation failed for %s: %s', regionName, ME.message);
+            end
+        end
+
+        if opts.verbose && mod(iReg, 5) == 0
+            fprintf('    Completed %d/%d sites...\n', iReg, nRegions);
+        end
     end
 end
 
