@@ -33,9 +33,10 @@ function siteEstimates = estimateBME_AtRepSites(repSites, obs, go, cov, KG, KS, 
 %       .estimates      - Struct array with fields for each site:
 %           .regionName - Region name
 %           .lon, .lat  - Site coordinates
-%           .BMEmean    - BME mean estimates [nTimes × 1]
-%           .BMEstd     - BME std dev estimates [nTimes × 1]
-%           .BMEvar     - BME variance estimates [nTimes × 1]
+%           .XkBMEmean  - BME residual mean estimates [nTimes × 1]
+%           .XkBMEstd   - BME residual std dev estimates [nTimes × 1]
+%           .XkBMEvar   - BME residual variance estimates [nTimes × 1]
+%           .YkBMEmean  - Final prediction with global offset [nTimes × 1]
 %           .nObsUsed   - Number of obs used per time [nTimes × 1]
 
 %% Parse inputs
@@ -87,28 +88,17 @@ siteEstimates.performValidation = opts.performValidation;
 siteEstimates.exclusionRadius = opts.exclusionRadius;
 siteEstimates.estimates = struct();
 
-%% Create estimation points for all sites × times
-sk_all = [];
-tk_all = [];
-siteIndices = [];
-
+%% Create estimation points for all sites
+sk = [];
 for iReg = 1:nRegions
     regionName = regions{iReg};
     site = repSites.(regionName);
-
-    for iTime = 1:nTimes
-        sk_all = [sk_all; site.lon, site.lat];
-        tk_all = [tk_all; tkVec(iTime)];
-        siteIndices = [siteIndices; iReg];
-    end
+    sk = [sk; site.lon, site.lat];
 end
 
-% Create space-time estimation points
-pk = [sk_all, tk_all];
-
 if opts.verbose
-    fprintf('  Total estimation points: %d (= %d sites × %d times)\n\n', ...
-        size(pk, 1), nRegions, nTimes);
+    fprintf('  Total estimation points: %d sites × %d times = %d\n\n', ...
+        nRegions, nTimes, nRegions * nTimes);
 end
 
 %% Estimate at all sites
@@ -118,14 +108,15 @@ if opts.verbose
     tic;
 end
 
-XkBMEm_all = nan(size(pk, 1), 1);
-XkBMEv_all = nan(size(pk, 1), 1);
-nObsUsed_all = zeros(size(pk, 1), 1);
+XkBMEm_all = nan(nRegions, nTimes);
+XkBMEv_all = nan(nRegions, nTimes);
+YkBMEm_all = nan(nRegions, nTimes);
+nObsUsed_all = zeros(nRegions, nTimes);
 
 if ~opts.performValidation
-    % Standard estimation: Use all observations for all sites (more efficient)
+    % Standard estimation: Use all observations, loop through each time period
 
-    % Prepare soft data
+    % Prepare soft data once (same for all time periods)
     if iscell(KS.softdata)
         soft_data = cell(size(KS.softdata));
         p_soft = cell(size(KS.softdata));
@@ -152,89 +143,126 @@ if ~opts.performValidation
         end
     end
 
-    % Run BME estimation for all sites at once (vectorized)
-    try
-        [XkBMEm_all, XkBMEv_all] = krigingME_stug_multi(pk, KS.harddata.p, p_soft, ...
-            KS.harddata.z, z_soft, vs_soft, KG.covmodel, KG.covparam, ...
-            BMEparam.nhmax, BMEparam.nsmax, BMEparam.dmax, BMEparam.order, ...
-            BMEparam.options, KS.harddata, soft_data);
+    % Loop through each time period (following estTOARsBME pattern)
+    for iTime = 1:nTimes
+        tk = tkVec(iTime);
 
-        nObsUsed_all(:) = size(KS.harddata.p, 1);
+        if opts.verbose && (iTime == 1 || mod(iTime, 6) == 0 || iTime == nTimes)
+            fprintf('    Time %d/%d (%.2f)...\n', iTime, nTimes, tk);
+        end
 
-    catch ME
-        if opts.verbose
-            warning('BME estimation failed: %s', ME.message);
+        % Create space-time estimation points for this time
+        pk = [sk, kron(tk, 1 + 0*sk(:,1))];
+
+        % Run BME estimation for all sites at this time
+        try
+            [XkBMEm, XkBMEv] = krigingME_stug_multi(pk, KS.harddata.p, p_soft, ...
+                KS.harddata.z, z_soft, vs_soft, KG.covmodel, KG.covparam, ...
+                BMEparam.nhmax, BMEparam.nsmax, BMEparam.dmax, BMEparam.order, ...
+                BMEparam.options, KS.harddata, soft_data);
+
+            % Replace NaNs in XkBMEm with 0s
+            XkBMEm(isnan(XkBMEm)) = 0;
+
+            % Add global offset back to get final predictions (following estTOARsBME)
+            gok = stmeaninterp(go.sMS, go.tME, go.ms, go.mt, sk, tk);
+            YkBMEm = XkBMEm + gok;
+
+            % Store results
+            XkBMEm_all(:, iTime) = XkBMEm;
+            XkBMEv_all(:, iTime) = XkBMEv;
+            YkBMEm_all(:, iTime) = YkBMEm;
+            nObsUsed_all(:, iTime) = size(KS.harddata.p, 1);
+
+        catch ME
+            if opts.verbose
+                warning('BME estimation failed at time %.2f: %s', tk, ME.message);
+            end
         end
     end
 
 else
-    % Leave-one-out validation: Process each region separately
+    % Leave-one-out validation: Process each site and each time period separately
 
-    for iReg = 1:nRegions
-        regionName = regions{iReg};
-        site = repSites.(regionName);
+    % Prepare soft data once (same for all, no filtering needed)
+    if iscell(KS.softdata)
+        soft_data = cell(size(KS.softdata));
+        p_soft = cell(size(KS.softdata));
+        z_soft = cell(size(KS.softdata));
+        vs_soft = cell(size(KS.softdata));
 
-        % Find estimation points for this site
-        siteIdx = (siteIndices == iReg);
-        pk_site = pk(siteIdx, :);
-
-        % Create leave-one-out hard data (exclude obs near this site)
-        distToSite = sqrt((KS.harddata.p(:,1) - site.lon).^2 + ...
-                         (KS.harddata.p(:,2) - site.lat).^2);
-        keepObs = distToSite > opts.exclusionRadius;
-
-        % Filter hard data
-        KS_loo = KS;
-        KS_loo.harddata.p = KS.harddata.p(keepObs, :);
-        KS_loo.harddata.z = KS.harddata.z(keepObs);
-
-        nObsUsed_all(siteIdx) = sum(keepObs);
-
-        % Prepare soft data (same for all, no filtering needed)
-        if iscell(KS.softdata)
-            soft_data = cell(size(KS.softdata));
-            p_soft = cell(size(KS.softdata));
-            z_soft = cell(size(KS.softdata));
-            vs_soft = cell(size(KS.softdata));
-
-            for ii = 1:length(KS.softdata)
-                soft_data{ii} = reformat_stg_to_stug(KS.softdata{ii});
-                p_soft{ii} = soft_data{ii}.p;
-                z_soft{ii} = soft_data{ii}.z;
-                vs_soft{ii} = soft_data{ii}.vs;
-            end
+        for ii = 1:length(KS.softdata)
+            soft_data{ii} = reformat_stg_to_stug(KS.softdata{ii});
+            p_soft{ii} = soft_data{ii}.p;
+            z_soft{ii} = soft_data{ii}.z;
+            vs_soft{ii} = soft_data{ii}.vs;
+        end
+    else
+        if ~isempty(KS.softdata)
+            soft_data = reformat_stg_to_stug(KS.softdata);
+            p_soft = soft_data.p;
+            z_soft = soft_data.z;
+            vs_soft = soft_data.vs;
         else
-            if ~isempty(KS.softdata)
-                soft_data = reformat_stg_to_stug(KS.softdata);
-                p_soft = soft_data.p;
-                z_soft = soft_data.z;
-                vs_soft = soft_data.vs;
-            else
-                soft_data = [];
-                p_soft = [];
-                z_soft = [];
-                vs_soft = [];
-            end
+            soft_data = [];
+            p_soft = [];
+            z_soft = [];
+            vs_soft = [];
+        end
+    end
+
+    % Loop through each time period
+    for iTime = 1:nTimes
+        tk = tkVec(iTime);
+
+        if opts.verbose && (iTime == 1 || mod(iTime, 6) == 0 || iTime == nTimes)
+            fprintf('    Time %d/%d (%.2f)...\n', iTime, nTimes, tk);
         end
 
-        % Run BME estimation for this site
-        try
-            [XkBMEm, XkBMEv] = krigingME_stug_multi(pk_site, KS_loo.harddata.p, p_soft, ...
-                KS_loo.harddata.z, z_soft, vs_soft, KG.covmodel, KG.covparam, ...
-                BMEparam.nhmax, BMEparam.nsmax, BMEparam.dmax, BMEparam.order, ...
-                BMEparam.options, KS_loo.harddata, soft_data);
+        % Process each region at this time
+        for iReg = 1:nRegions
+            regionName = regions{iReg};
+            site = repSites.(regionName);
 
-            XkBMEm_all(siteIdx) = XkBMEm;
-            XkBMEv_all(siteIdx) = XkBMEv;
+            % Create space-time estimation point for this site at this time
+            pk_site = [site.lon, site.lat, tk];
 
-        catch ME
-            if opts.verbose
-                warning('BME estimation failed for %s: %s', regionName, ME.message);
+            % Create leave-one-out hard data (exclude obs near this site)
+            distToSite = sqrt((KS.harddata.p(:,1) - site.lon).^2 + ...
+                             (KS.harddata.p(:,2) - site.lat).^2);
+            keepObs = distToSite > opts.exclusionRadius;
+
+            % Filter hard data
+            KS_loo = KS;
+            KS_loo.harddata.p = KS.harddata.p(keepObs, :);
+            KS_loo.harddata.z = KS.harddata.z(keepObs);
+
+            nObsUsed_all(iReg, iTime) = sum(keepObs);
+
+            % Run BME estimation for this site at this time
+            try
+                [XkBMEm, XkBMEv] = krigingME_stug_multi(pk_site, KS_loo.harddata.p, p_soft, ...
+                    KS_loo.harddata.z, z_soft, vs_soft, KG.covmodel, KG.covparam, ...
+                    BMEparam.nhmax, BMEparam.nsmax, BMEparam.dmax, BMEparam.order, ...
+                    BMEparam.options, KS_loo.harddata, soft_data);
+
+                % Replace NaNs with 0s
+                XkBMEm(isnan(XkBMEm)) = 0;
+
+                % Add global offset back to get final predictions
+                gok = stmeaninterp(go.sMS, go.tME, go.ms, go.mt, [site.lon, site.lat], tk);
+                YkBMEm = XkBMEm + gok;
+
+                % Store results
+                XkBMEm_all(iReg, iTime) = XkBMEm;
+                XkBMEv_all(iReg, iTime) = XkBMEv;
+                YkBMEm_all(iReg, iTime) = YkBMEm;
+
+            catch ME
+                if opts.verbose
+                    warning('BME estimation failed for %s at time %.2f: %s', regionName, tk, ME.message);
+                end
             end
-        end
-
-        if opts.verbose && mod(iReg, 5) == 0
-            fprintf('    Completed %d/%d sites...\n', iReg, nRegions);
         end
     end
 end
@@ -243,29 +271,29 @@ if opts.verbose
     fprintf('  Estimation completed in %.1f seconds\n', toc);
 end
 
-%% Reshape results back to site × time structure
+%% Package results by site
 for iReg = 1:nRegions
     regionName = regions{iReg};
     site = repSites.(regionName);
 
-    % Extract results for this site
-    siteIdx = (siteIndices == iReg);
-    BMEmean = XkBMEm_all(siteIdx);
-    BMEvar = XkBMEv_all(siteIdx);
+    % Extract results for this site (across all times)
+    XkBMEmean = XkBMEm_all(iReg, :)';  % Residual mean [nTimes × 1]
+    XkBMEvar = XkBMEv_all(iReg, :)';   % Residual variance [nTimes × 1]
+    YkBMEmean = YkBMEm_all(iReg, :)';  % Final prediction with GO [nTimes × 1]
+    nObsUsed = nObsUsed_all(iReg, :)'; % Obs count [nTimes × 1]
 
     % Ensure variances are non-negative (fix for complex number warnings)
-    BMEvar(BMEvar < 0) = 0;
-    BMEstd = sqrt(BMEvar);
-
-    nObsUsed = nObsUsed_all(siteIdx);
+    XkBMEvar(XkBMEvar < 0) = 0;
+    XkBMEstd = sqrt(XkBMEvar);
 
     % Store results
     siteEstimates.estimates.(regionName).regionName = regionName;
     siteEstimates.estimates.(regionName).lon = site.lon;
     siteEstimates.estimates.(regionName).lat = site.lat;
-    siteEstimates.estimates.(regionName).BMEmean = BMEmean;
-    siteEstimates.estimates.(regionName).BMEstd = BMEstd;
-    siteEstimates.estimates.(regionName).BMEvar = BMEvar;
+    siteEstimates.estimates.(regionName).XkBMEmean = XkBMEmean;  % Residual mean
+    siteEstimates.estimates.(regionName).XkBMEstd = XkBMEstd;    % Residual std
+    siteEstimates.estimates.(regionName).XkBMEvar = XkBMEvar;    % Residual variance
+    siteEstimates.estimates.(regionName).YkBMEmean = YkBMEmean;  % Final prediction (with GO)
     siteEstimates.estimates.(regionName).nObsUsed = nObsUsed;
 end
 
@@ -273,7 +301,7 @@ end
 siteEstimates.metadata.timestamp = datestr(now, 'yyyy-mm-dd HH:MM:SS');
 siteEstimates.metadata.nSites = nRegions;
 siteEstimates.metadata.nTimes = nTimes;
-siteEstimates.metadata.totalPoints = size(pk, 1);
+siteEstimates.metadata.totalPoints = nRegions * nTimes;
 siteEstimates.metadata.covModel = KG.covmodel;
 siteEstimates.metadata.covParam = KG.covparam;
 
