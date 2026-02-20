@@ -158,8 +158,20 @@ if ~opts.performValidation
             KS.harddata.z, z_soft, vs_soft, KG.covmodel, KG.covparam, ...
             BMEparam.nhmax, BMEparam.nsmax, BMEparam.dmax, BMEparam.order, ...
             BMEparam.options, KS.harddata, soft_data);
+        
+        % print the number of NaNs and negative variances for debugging
+        nNaNs = sum(isnan(XkBMEm_all));
+        nNegVar = sum(XkBMEv_all < 0);
+        fprintf('    BME estimation completed with %d NaN means and %d negative variances\n', nNaNs, nNegVar);
+
+        XkBMEm_all(isnan(XkBMEm_all)) = 0;  % Fix NaN means (if any)
+        XkBMEv_all(XkBMEv_all < 0) = 0;  % Fix negative variances
 
         nObsUsed_all(:) = size(KS.harddata.p, 1);
+
+        % add global offset back to get final estimates
+        gok = stmeaninterp(go.sMS, go.tME, go.ms, go.mt, unique(sk_all, 'rows'), tk_all');
+        YkBMEm_all = XkBMEm_all + gok;
 
     catch ME
         if opts.verbose
@@ -239,6 +251,8 @@ else
     end
 end
 
+
+
 if opts.verbose
     fprintf('  Estimation completed in %.1f seconds\n', toc);
 end
@@ -250,7 +264,7 @@ for iReg = 1:nRegions
 
     % Extract results for this site
     siteIdx = (siteIndices == iReg);
-    BMEmean = XkBMEm_all(siteIdx);
+    BMEmean = YkBMEm_all(siteIdx);
     BMEvar = XkBMEv_all(siteIdx);
 
     % Ensure variances are non-negative (fix for complex number warnings)

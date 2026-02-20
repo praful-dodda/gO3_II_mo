@@ -14,7 +14,8 @@ function repSites = selectRepresentativeSites(obs, areaCode, varargin)
 %               Used to filter regions relevant to the study area
 %
 % OPTIONAL PARAMETERS:
-%   'minCompleteness'  - Minimum data completeness (0-1, default: 0.70)
+%   'minCompleteness'  - Minimum data completeness (0-1, default: 0.40)
+%   'maxCompleteness'  - Maximum data completeness (0-1, default: 1.0)
 %   'minObservations'  - Minimum number of observations (default: 100)
 %   'selectionMethod'  - Selection criterion (default: 'centroid')
 %                        'centroid': Closest to regional centroid
@@ -42,8 +43,9 @@ function repSites = selectRepresentativeSites(obs, areaCode, varargin)
 p = inputParser;
 addRequired(p, 'obs', @isstruct);
 addRequired(p, 'areaCode', @isnumeric);
-addParameter(p, 'minCompleteness', 0.70, @isnumeric);
-addParameter(p, 'minObservations', 100, @isnumeric);
+addParameter(p, 'minCompleteness', 0.40, @isnumeric);
+addParameter(p, 'maxCompleteness', 1.0, @isnumeric);
+addParameter(p, 'minObservations', 2, @isnumeric);
 addParameter(p, 'selectionMethod', 'centroid', @(x) ismember(x, {'centroid', 'completeness', 'density'}));
 addParameter(p, 'saveResults', true, @islogical);
 
@@ -53,6 +55,7 @@ opts = p.Results;
 fprintf('=== Selecting Representative Sites ===\n');
 fprintf('  Selection method: %s\n', opts.selectionMethod);
 fprintf('  Min completeness: %.0f%%\n', opts.minCompleteness * 100);
+fprintf('  Max completeness: %.0f%%\n', opts.maxCompleteness * 100);
 fprintf('  Min observations: %d\n\n', opts.minObservations);
 
 %% Get area boundaries
@@ -130,7 +133,8 @@ for iReg = 1:length(uniqueRegions)
 
     % Filter by minimum criteria
     validMask = ([regionStations.nObs] >= opts.minObservations) & ...
-                ([regionStations.completeness] >= opts.minCompleteness);
+                ([regionStations.completeness] >= opts.minCompleteness) & ...
+                ([regionStations.completeness] <= opts.maxCompleteness);
 
     validStations = regionStations(validMask);
 
@@ -140,7 +144,8 @@ for iReg = 1:length(uniqueRegions)
 
         % Relax criteria: try 50% completeness or 50 observations
         validMask = ([regionStations.nObs] >= opts.minObservations/2) | ...
-                    ([regionStations.completeness] >= opts.minCompleteness/2);
+                    ([regionStations.completeness] >= opts.minCompleteness/2) | ...
+                    ([regionStations.completeness] <= opts.maxCompleteness*1.5);
         validStations = regionStations(validMask);
 
         if isempty(validStations)
