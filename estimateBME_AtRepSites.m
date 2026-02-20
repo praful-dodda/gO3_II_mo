@@ -38,6 +38,9 @@ function siteEstimates = estimateBME_AtRepSites(repSites, obs, go, cov, KG, KS, 
 %           .XkBMEvar   - BME residual variance estimates [nTimes × 1]
 %           .YkBMEmean  - Final prediction with global offset [nTimes × 1]
 %           .nObsUsed   - Number of obs used per time [nTimes × 1]
+%           .BMEmean    - Alias for YkBMEmean (backward compatibility)
+%           .BMEstd     - Alias for XkBMEstd (backward compatibility)
+%           .BMEvar     - Alias for XkBMEvar (backward compatibility)
 
 %% Parse inputs
 p = inputParser;
@@ -295,6 +298,11 @@ for iReg = 1:nRegions
     siteEstimates.estimates.(regionName).XkBMEvar = XkBMEvar;    % Residual variance
     siteEstimates.estimates.(regionName).YkBMEmean = YkBMEmean;  % Final prediction (with GO)
     siteEstimates.estimates.(regionName).nObsUsed = nObsUsed;
+
+    % Backward compatibility fields for plotting functions
+    siteEstimates.estimates.(regionName).BMEmean = YkBMEmean;  % Final prediction (for compatibility)
+    siteEstimates.estimates.(regionName).BMEvar = XkBMEvar;    % Variance (for compatibility)
+    siteEstimates.estimates.(regionName).BMEstd = XkBMEstd;    % Std dev (for compatibility)
 end
 
 % Add metadata for tracking and documentation
