@@ -43,7 +43,7 @@ valParam.logTransf = 0;  % 0=no, 1=yes (use 0 for regular concentrations)
 % ====================================================================
 
 % Years to validate
-valParam.valYears = [1996 1997];  % e.g., 2017 or [2016 2017 2018]
+valParam.valYears = 1990:2000;  % e.g., 2017 or [2016 2017 2018]
 
 % Months to validate (within each year)
 valParam.valMonths = 1:12;  % All months, or specific: [6 7 8] for JJA
@@ -61,7 +61,7 @@ valParam.boxSizes = 5.0;  % e.g., [2.0, 3.0, 4.0, 5.0]
 %   2 = Domain-wide S/T smoothing
 %   3 = Regional S/T smoothing (RECOMMENDED)
 %   6 = Local S/T smoothing
-valParam.goScenario = 3;
+valParam.goScenario = 0;
 
 % Force re-estimation of GO (useful if parameters changed)
 valParam.forceGO = 0;  % 0=use cached, 1=force new estimation
@@ -102,7 +102,8 @@ valParam.forceCov = 0;  % 0=use cached, 1=force new estimation
 %   20:NJML; 06:M3fusion+OMI-MLS; 0A:M3fusion+IASI-GOME2; 12:M3fusion+UKML;
 %
 % Can specify single method or cell array for multiple methods
-valParam.BMEmethod = {'10000133','13000313-01'};  % or use cell array: {'10000133', '13000313-12'}
+valParam.BMEmethod = {'10000133','13000313-01', '13000313-10', '13000313-11'};  % or use cell array: {'10000133', '13000313-12'}
+valParam.BMEmethod = {'10000133'};
 
 %% ====================================================================
 %                    SOFT DATA CONFIGURATION (if using CTM)
@@ -110,12 +111,6 @@ valParam.BMEmethod = {'10000133','13000313-01'};  % or use cell array: {'1000013
 
 % Only needed if BMEmethod digit 2 >= 1 (CTM data required)
 % Leave empty or comment out if not using soft data
-
-% Example: Single CTM model
-% valParam.softData.modelName = 'MERRA2GMI';
-
-% Example: Multiple CTM models (for BMEmethod with digit 2 = 3)
-% valParam.softData.modelName = {'MERRA2GMI', 'M3fusion'};
 
 % Soft data configuration (optional, auto-detected if not specified)
 % valParam.softData.years = [];  % Auto: ±1 year of each validation year
