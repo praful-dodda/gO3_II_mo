@@ -29,9 +29,16 @@ function [status, report] = verifySoftDataFiles(BMEmethod, years, varargin)
 %            .allFilesExist    - Boolean, overall status
 %            .missingFiles     - Cell array of missing file paths
 %            .missingByModel   - Struct with missing files per model
+%                                (field names use underscores, e.g., MERRA2_GMI)
 %            .spatialGrids     - Struct with spatial grid file status
+%                                (field names use underscores, e.g., MERRA2_GMI)
 %            .dataFiles        - Struct with parquet file status per model/year
+%                                (field names use underscores, e.g., MERRA2_GMI)
 %            .summary          - Human-readable summary string
+%
+% NOTE: Model names with hyphens (e.g., 'MERRA2-GMI') are converted to
+%       underscores (e.g., 'MERRA2_GMI') when used as struct field names.
+%       The original names are preserved in the .modelName field.
 %
 % EXAMPLES:
 %   % Check single year
@@ -133,21 +140,25 @@ spatialGridDir = fullfile(opts.dataDir, 'model_output_data', 'spatial_grids');
 for iModel = 1:length(ctm_models)
     modelName = ctm_models{iModel};
 
+    % Sanitize model name for use as struct field (replace hyphens with underscores)
+    modelFieldName = strrep(modelName, '-', '_');
+
     spatialGridFile = sprintf('%s_spatial_grid.mat', modelName);
     spatialGridPath = fullfile(spatialGridDir, spatialGridFile);
 
     exists = exist(spatialGridPath, 'file') == 2;
 
-    report.spatialGrids.(modelName).file = spatialGridPath;
-    report.spatialGrids.(modelName).exists = exists;
+    report.spatialGrids.(modelFieldName).modelName = modelName;
+    report.spatialGrids.(modelFieldName).file = spatialGridPath;
+    report.spatialGrids.(modelFieldName).exists = exists;
 
     if ~exists
         report.allFilesExist = false;
         report.missingFiles{end+1} = spatialGridPath;
-        if ~isfield(report.missingByModel, modelName)
-            report.missingByModel.(modelName) = {};
+        if ~isfield(report.missingByModel, modelFieldName)
+            report.missingByModel.(modelFieldName) = {};
         end
-        report.missingByModel.(modelName){end+1} = spatialGridPath;
+        report.missingByModel.(modelFieldName){end+1} = spatialGridPath;
 
         if opts.verbose
             fprintf('  ✗ %s: MISSING\n', spatialGridFile);
@@ -170,6 +181,9 @@ end
 
 for iModel = 1:length(ctm_models)
     modelName = ctm_models{iModel};
+
+    % Sanitize model name for use as struct field (replace hyphens with underscores)
+    modelFieldName = strrep(modelName, '-', '_');
 
     if opts.verbose
         fprintf('\nModel: %s\n', modelName);
@@ -195,30 +209,31 @@ for iModel = 1:length(ctm_models)
 
         % Store in report
         yearKey = sprintf('year%d', year);
-        report.dataFiles.(modelName).(yearKey).year = year;
-        report.dataFiles.(modelName).(yearKey).lambda1.file = lambda1Path;
-        report.dataFiles.(modelName).(yearKey).lambda1.exists = lambda1Exists;
-        report.dataFiles.(modelName).(yearKey).lambda2.file = lambda2Path;
-        report.dataFiles.(modelName).(yearKey).lambda2.exists = lambda2Exists;
-        report.dataFiles.(modelName).(yearKey).bothExist = bothExist;
+        report.dataFiles.(modelFieldName).(yearKey).modelName = modelName;
+        report.dataFiles.(modelFieldName).(yearKey).year = year;
+        report.dataFiles.(modelFieldName).(yearKey).lambda1.file = lambda1Path;
+        report.dataFiles.(modelFieldName).(yearKey).lambda1.exists = lambda1Exists;
+        report.dataFiles.(modelFieldName).(yearKey).lambda2.file = lambda2Path;
+        report.dataFiles.(modelFieldName).(yearKey).lambda2.exists = lambda2Exists;
+        report.dataFiles.(modelFieldName).(yearKey).bothExist = bothExist;
 
         % Track missing files
         if ~lambda1Exists
             report.allFilesExist = false;
             report.missingFiles{end+1} = lambda1Path;
-            if ~isfield(report.missingByModel, modelName)
-                report.missingByModel.(modelName) = {};
+            if ~isfield(report.missingByModel, modelFieldName)
+                report.missingByModel.(modelFieldName) = {};
             end
-            report.missingByModel.(modelName){end+1} = lambda1Path;
+            report.missingByModel.(modelFieldName){end+1} = lambda1Path;
         end
 
         if ~lambda2Exists
             report.allFilesExist = false;
             report.missingFiles{end+1} = lambda2Path;
-            if ~isfield(report.missingByModel, modelName)
-                report.missingByModel.(modelName) = {};
+            if ~isfield(report.missingByModel, modelFieldName)
+                report.missingByModel.(modelFieldName) = {};
             end
-            report.missingByModel.(modelName){end+1} = lambda2Path;
+            report.missingByModel.(modelFieldName){end+1} = lambda2Path;
         end
 
         % Verbose output
@@ -275,9 +290,11 @@ if opts.verbose
         fprintf('Missing files by model:\n');
         missingModels = fieldnames(report.missingByModel);
         for i = 1:length(missingModels)
-            modelName = missingModels{i};
-            nMissing = length(report.missingByModel.(modelName));
-            fprintf('  %s: %d missing\n', modelName, nMissing);
+            modelFieldName = missingModels{i};
+            % Display with hyphens restored
+            displayName = strrep(modelFieldName, '_', '-');
+            nMissing = length(report.missingByModel.(modelFieldName));
+            fprintf('  %s: %d missing\n', displayName, nMissing);
         end
 
         fprintf('\nFirst 10 missing file paths:\n');
