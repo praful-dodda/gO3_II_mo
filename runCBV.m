@@ -152,6 +152,52 @@ fprintf('Station types: %s\n', valParam.stationTypes);
 fprintf('Data time range: [%d, %d]\n', valParam.timeRange(1), valParam.timeRange(2));
 fprintf('\n');
 
+%% ====================================================================
+%                    VERIFY SOFT DATA FILES
+% ====================================================================
+
+% Convert to cell array for consistent processing
+if ischar(valParam.BMEmethod)
+    methodsToVerify = {valParam.BMEmethod};
+else
+    methodsToVerify = valParam.BMEmethod;
+end
+
+% Verify files for each BME method
+allFilesPresent = true;
+for iMethod = 1:length(methodsToVerify)
+    currentMethod = methodsToVerify{iMethod};
+
+    % Verify soft-data files exist for this method and year range
+    [status, ~] = verifySoftDataFiles(currentMethod, valParam.valYears, ...
+        'verbose', true, ...
+        'throwError', false);  % Don't throw error, just report
+
+    if ~status
+        allFilesPresent = false;
+    end
+end
+
+if ~allFilesPresent
+    fprintf('\n');
+    fprintf('========================================================================\n');
+    fprintf('                     ⚠ WARNING: MISSING FILES\n');
+    fprintf('========================================================================\n');
+    fprintf('Some soft-data files are missing. You can:\n');
+    fprintf('  1. Continue anyway (BME will use only available data)\n');
+    fprintf('  2. Cancel and ensure all files are present\n');
+    fprintf('  3. Remove methods with missing files from valParam.BMEmethod\n');
+    fprintf('========================================================================\n');
+    fprintf('\n');
+
+    % Optional: uncomment to require user confirmation
+    % response = input('Continue despite missing files? (y/n): ', 's');
+    % if ~strcmpi(response, 'y')
+    %     fprintf('Validation cancelled.\n');
+    %     return;
+    % end
+end
+
 % Confirm before running (comment out to skip)
 % response = input('Proceed with validation? (y/n): ', 's');
 % if ~strcmpi(response, 'y')
