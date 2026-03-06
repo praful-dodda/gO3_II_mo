@@ -14,8 +14,10 @@ function [status, report] = verifySoftDataFiles(BMEmethod, years, varargin)
 %   years     - Year or year range to check (e.g., 2017 or [2015 2020])
 %
 % OPTIONAL PARAMETERS:
-%   'dataDir'      - Root directory for soft data files
-%                    (default: fullfile('1data', 'CTM'))
+%   'RAMPdataDir'      - Root directory for soft data files
+%                    (default: fullfile('D:\Users\praful\Documents\Data\ramp_data'))
+%    'GRIDdataDir'      - Directory for spatial grid files
+%                    (default: fullfile('1data', 'CTM', 'model_output_data', 'spatial_grids'))
 %   'rampVersion'  - RAMP version to check (default: 3)
 %   'verbose'      - Display detailed report (default: true)
 %   'throwError'   - Throw error if files missing (default: false)
@@ -50,7 +52,7 @@ function [status, report] = verifySoftDataFiles(BMEmethod, years, varargin)
 %
 %   % Check multiple years with custom directory
 %   [status, report] = verifySoftDataFiles('13000313-02-10', [2015 2020], ...
-%       'dataDir', 'd:\Data\ramp_data\', 'verbose', true);
+%       'RAMPdataDir', 'd:\Data\ramp_data\', 'verbose', true);
 %
 %   % Throw error if files missing (useful in automated workflows)
 %   verifySoftDataFiles('13000313-02', 2017, 'throwError', true);
@@ -61,7 +63,8 @@ function [status, report] = verifySoftDataFiles(BMEmethod, years, varargin)
 p = inputParser;
 addRequired(p, 'BMEmethod', @ischar);
 addRequired(p, 'years', @isnumeric);
-addParameter(p, 'dataDir', fullfile('1data', 'CTM'), @ischar);
+addParameter(p, 'RAMPdataDir', fullfile('D:\Users\praful\Documents\Data\ramp_data'), @ischar);
+addParameter(p, 'GRIDdataDir', fullfile('1data', 'CTM', 'model_output_data', 'spatial_grids'), @ischar);
 addParameter(p, 'rampVersion', 3, @isnumeric);
 addParameter(p, 'verbose', true, @islogical);
 addParameter(p, 'throwError', false, @islogical);
@@ -78,7 +81,8 @@ end
 report = struct();
 report.BMEmethod = BMEmethod;
 report.years = years;
-report.dataDir = opts.dataDir;
+report.RAMPdataDir = opts.RAMPdataDir;
+report.GRIDdataDir = opts.GRIDdataDir;
 report.rampVersion = opts.rampVersion;
 report.CTMmodels = {};
 report.allFilesExist = true;
@@ -95,7 +99,8 @@ if opts.verbose
     fprintf('========================================\n');
     fprintf('BME Method: %s\n', BMEmethod);
     fprintf('Years: %s\n', mat2str(years));
-    fprintf('Data directory: %s\n', opts.dataDir);
+    fprintf('RAMP Data directory: %s\n', opts.RAMPdataDir);
+    fprintf('GRID Data directory: %s\n', opts.GRIDdataDir);
     fprintf('RAMP version: v%d\n', opts.rampVersion);
     fprintf('========================================\n\n');
 end
@@ -135,7 +140,7 @@ if opts.verbose
     fprintf('Checking spatial grid files...\n');
 end
 
-spatialGridDir = fullfile(opts.dataDir, 'model_output_data', 'spatial_grids');
+spatialGridDir = fullfile(opts.GRIDdataDir);
 
 for iModel = 1:length(ctm_models)
     modelName = ctm_models{iModel};
@@ -198,8 +203,8 @@ for iModel = 1:length(ctm_models)
         lambda2File = sprintf('lambda2_%s_%d_v%d-parallel.parquet', ...
             modelName, year, opts.rampVersion);
 
-        lambda1Path = fullfile(opts.dataDir, lambda1File);
-        lambda2Path = fullfile(opts.dataDir, lambda2File);
+        lambda1Path = fullfile(opts.RAMPdataDir, lambda1File);
+        lambda2Path = fullfile(opts.RAMPdataDir, lambda2File);
 
         % Check existence
         lambda1Exists = exist(lambda1Path, 'file') == 2;

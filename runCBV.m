@@ -43,7 +43,7 @@ valParam.logTransf = 0;  % 0=no, 1=yes (use 0 for regular concentrations)
 % ====================================================================
 
 % Years to validate
-valParam.valYears = 1990:2000;  % e.g., 2017 or [2016 2017 2018]
+valParam.valYears = 1990:2004;  % e.g., 2017 or [2016 2017 2018]
 
 % Months to validate (within each year)
 valParam.valMonths = 1:12;  % All months, or specific: [6 7 8] for JJA
@@ -61,7 +61,7 @@ valParam.boxSizes = 5.0;  % e.g., [2.0, 3.0, 4.0, 5.0]
 %   2 = Domain-wide S/T smoothing
 %   3 = Regional S/T smoothing (RECOMMENDED)
 %   6 = Local S/T smoothing
-valParam.goScenario = 0;
+valParam.goScenario = 3;
 
 % Force re-estimation of GO (useful if parameters changed)
 valParam.forceGO = 0;  % 0=use cached, 1=force new estimation
@@ -102,8 +102,10 @@ valParam.forceCov = 0;  % 0=use cached, 1=force new estimation
 %   20:NJML; 06:M3fusion+OMI-MLS; 0A:M3fusion+IASI-GOME2; 12:M3fusion+UKML;
 %
 % Can specify single method or cell array for multiple methods
-valParam.BMEmethod = {'10000133','13000313-01', '13000313-10', '13000313-11'};  % or use cell array: {'10000133', '13000313-12'}
-valParam.BMEmethod = {'10000133'};
+valParam.BMEmethod = {'13000313-02', ...
+                        '13000313-06', '13000313-12', '13000313-22', '13000313-16'};  % or use cell array: {'10000133', '13000313-12'}
+% valParam.BMEmethod = {'10000133'};
+valParam.BMEmethod = {'13000313-02'};
 
 %% ====================================================================
 %                    SOFT DATA CONFIGURATION (if using CTM)
@@ -171,7 +173,7 @@ for iMethod = 1:length(methodsToVerify)
     % Verify soft-data files exist for this method and year range
     [status, ~] = verifySoftDataFiles(currentMethod, valParam.valYears, ...
         'verbose', true, ...
-        'throwError', false);  % Don't throw error, just report
+        'throwError', true);  % Don't throw error, just report
 
     if ~status
         allFilesPresent = false;
@@ -191,19 +193,19 @@ if ~allFilesPresent
     fprintf('\n');
 
     % Optional: uncomment to require user confirmation
-    % response = input('Continue despite missing files? (y/n): ', 's');
-    % if ~strcmpi(response, 'y')
-    %     fprintf('Validation cancelled.\n');
-    %     return;
-    % end
+    response = input('Continue despite missing files? (y/n): ', 's');
+    if ~strcmpi(response, 'y')
+        fprintf('Validation cancelled.\n');
+        return;
+    end
 end
 
 % Confirm before running (comment out to skip)
-% response = input('Proceed with validation? (y/n): ', 's');
-% if ~strcmpi(response, 'y')
-%     fprintf('Validation cancelled.\n');
-%     return;
-% end
+response = input('Proceed with validation? (y/n): ', 's');
+if ~strcmpi(response, 'y')
+    fprintf('Validation cancelled.\n');
+    return;
+end
 
 %% Run CBV
 fprintf('\n');
