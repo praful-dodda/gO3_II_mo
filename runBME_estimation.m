@@ -50,7 +50,7 @@ analyzeParam.timeRange = [estYears(1) - temporalPadding, estYears(end) + tempora
 % BMEmethods = {'13000313-01', '13000313-02', '13000313-10', '13000313-04', ...
 %     '13000313-20', '13000313-06', '13000313-08'};  % Cell array of methods to run
 % 
-BMEmethods = {'13000313-06', '13000313-08'};
+BMEmethods = {'13000313-01'};
 
 % BMEmethods = {'10000133'};
 
@@ -77,7 +77,7 @@ analyzeParam.goPlot = 0;     % 0=no plots, 1=basic, 2=detailed
 % Temporal covariance model
 % 'holecos': Damped oscillating (good for seasonal patterns)
 % 'exponential': Smooth decay
-analyzeParam.temporalModel = 'holecos';
+analyzeParam.temporalModel = 'exponential';
 analyzeParam.forceCov = 0;   % 0=use cached, 1=recompute
 
 %% ESTIMATION CONFIGURATION
@@ -97,7 +97,7 @@ analyzeParam.keepOnlyLand = true;        % true=land only, false=include ocean
 analyzeParam.includeAntarctica = false;  % false=exclude Antarctica
 
 % Force re-estimation
-analyzeParam.forceEstimation = 0;  % 0=use cached, 1=rerun all
+analyzeParam.forceEstimation = 1;  % 0=use cached, 1=rerun all
 
 %% PLOTTING CONFIGURATION
 
@@ -108,7 +108,7 @@ analyzeParam.plotVariance = 1;  % 0=none, 1=std, 2=var, 3=CV, 4=all
 % Phase 1 plotting (temporal and enhanced spatial)
 analyzeParam.plotTemporal = 1;      % Generate temporal series plots
 analyzeParam.plotSpatialStats = 1;  % Generate multi-panel spatial summary
-analyzeParam.parallelPlotting = 1;  % 0=sequential, 1=parallel (for plotting only)
+analyzeParam.parallelPlotting = 0;  % 0=sequential, 1=parallel (for plotting only)
 
 % Temporal plot observation matching
 analyzeParam.obsMatchRadius = 0.01; % Radius (deg) for matching obs to site

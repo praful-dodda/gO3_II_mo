@@ -20,6 +20,9 @@ function estTOARsBME(obs, go, ~, KG, KS, BMEparam, estParam)
 %              .tkVec           - Vector of times to estimate (decimal years)
 %              .forceEstimation - Force re-estimation (1) or use saved (0)
 %              .plotResults     - Plot level (0=none, 1=basic, 2=detailed)
+%              .smoothVariance  - Optional variance smoothing to reduce grid artifacts:
+%                                 0 = no smoothing (default)
+%                                 scalar > 0 = smoothing radius in degrees (recommended: 1-2)
 %
 % OUTPUTS:
 %   Saves BME estimation results to ./5BMEspatialPlots/ directory
@@ -294,7 +297,35 @@ for iTime = 1:length(tkVec)
     % Clean up variance estimates
     XkBMEv(isnan(XkBMEv)) = max(XkBMEv(~isnan(XkBMEv)));
     XkBMEv = real(XkBMEv);  % Remove any imaginary components
-    
+
+    % Optional variance smoothing to reduce grid-aligned stripe artifacts
+    % This uses spatial Gaussian smoothing on the variance field
+    if isfield(estParam, 'smoothVariance') && estParam.smoothVariance > 0
+        smoothRadius = estParam.smoothVariance;
+        fprintf('    Applying variance smoothing (radius = %.2f degrees)...\n', smoothRadius);
+
+        % Gaussian spatial smoothing
+        % Weight = exp(-distance^2 / (2*sigma^2)), where sigma = smoothRadius/2
+        sigma = smoothRadius / 2;
+        XkBMEv_smooth = zeros(size(XkBMEv));
+
+        for idx = 1:length(XkBMEv)
+            % Compute distances from this point to all other points
+            dists = sqrt((sk(:,1) - sk(idx,1)).^2 + (sk(:,2) - sk(idx,2)).^2);
+
+            % Gaussian weights
+            weights = exp(-dists.^2 / (2*sigma^2));
+            weights = weights / sum(weights);  % Normalize
+
+            % Weighted average of variance
+            XkBMEv_smooth(idx) = sum(weights .* XkBMEv);
+        end
+
+        % Replace with smoothed variance
+        XkBMEv = XkBMEv_smooth;
+        fprintf('    Variance smoothing complete\n');
+    end
+
     % Package results
     BMEs.sk = sk;
     BMEs.tk = tk;
