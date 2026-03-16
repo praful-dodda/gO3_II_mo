@@ -1,4 +1,4 @@
-function plotTOARsBMEvar(obs, go, BMEs, BMEparam, estParam)
+function plotTOARsBMEvar(obs, go, BMEs, BMEparam, estParam, dispParam)
 % plotTOARsBMEvar - Plot TOAR BME variance/uncertainty estimates
 %
 % Creates maps of BME estimation uncertainty with multiple visualization options
@@ -19,6 +19,12 @@ function plotTOARsBMEvar(obs, go, BMEs, BMEparam, estParam)
 %                              3 = Coefficient of variation (CV%)
 %                              4 = Multi-panel (all three)
 %              .areaCode, .mapResolution (for file naming)
+%   dispParam - Display parameters (optional)
+%              .nxpix - Number of pixels in x-direction (default=150)
+%              .nypix - Number of pixels in y-direction (default=100)
+%              .bufferDist - Buffer distance for masking (default=0.5 degrees)
+%              .bufferType - 'soft' (gradual fade) or 'hard' (sharp cut) (default='soft')
+%              .interpMethod - Interpolation method for griddata (default='natural')
 %
 % OUTPUTS:
 %   Saves figures to ./5BMEspatialPlots/figs/variance/
@@ -29,6 +35,23 @@ function plotTOARsBMEvar(obs, go, BMEs, BMEparam, estParam)
 
 if nargin < 5
     error('All 5 inputs required. See help plotTOARsBMEvar');
+end
+
+if nargin < 6
+    dispParam = struct();
+    % set initial defaults for display parameters
+    dispParam.nxpix = 150;
+    dispParam.nypix = 100;
+    dispParam.bufferDist = 0.5;  % degrees
+    dispParam.bufferType = 'soft';  % 'soft' or 'hard'
+    dispParam.interpMethod = 'natural';  % 'natural', 'linear', 'cubic', 'nearest', or 'v4'
+else
+    % Set defaults for display parameters
+    if ~isfield(dispParam, 'nxpix'), dispParam.nxpix = 150; end
+    if ~isfield(dispParam, 'nypix'), dispParam.nypix = 100; end
+    if ~isfield(dispParam, 'bufferDist'), dispParam.bufferDist = 0.5; end
+    if ~isfield(dispParam, 'bufferType'), dispParam.bufferType = 'soft'; end
+    if ~isfield(dispParam, 'interpMethod'), dispParam.interpMethod = 'natural'; end
 end
 
 %% Setup
@@ -51,7 +74,14 @@ end
 
 % Directories
 dataDir = '1data';
-figDir = fullfile('5BMEspatialPlots', 'figs', 'variance');
+
+% check if the figDir field exists in estParam, otherwise use default
+if isfield(estParam, 'figDir')
+    figDir = estParam.figDir;
+else
+    figDir = fullfile('5BMEspatialPlots', 'figs', 'variance');
+end
+
 if ~exist(figDir, 'dir'), mkdir(figDir); end
 
 % Clean variance data
@@ -122,7 +152,7 @@ switch plotType
         hold on;
         
         % Plot standard deviation
-        plotFieldTOAR(BMEs.sk, stdDev, displayArea, maskcontour);
+        plotFieldTOAR(BMEs.sk, stdDev, displayArea, maskcontour, dispParam.nxpix, dispParam.nypix, dispParam.bufferDist, dispParam.bufferType, dispParam.interpMethod, dispParam.dxRes, dispParam.dyRes);
         stdRange = quantest(stdDev(~isnan(stdDev)), [0 0.95]);
         clim(stdRange);
         
@@ -163,7 +193,7 @@ switch plotType
         hold on;
         
         % Plot variance
-        plotFieldTOAR(BMEs.sk, XkBMEv, displayArea, maskcontour);
+        plotFieldTOAR(BMEs.sk, XkBMEv, displayArea, maskcontour, dispParam.nxpix, dispParam.nypix, dispParam.bufferDist, dispParam.bufferType, dispParam.interpMethod, dispParam.dxRes, dispParam.dyRes);
         varRange = quantest(XkBMEv(~isnan(XkBMEv)), [0 0.95]);
         clim(varRange);
         
@@ -209,7 +239,7 @@ switch plotType
         hold on;
         
         % Plot CV
-        plotFieldTOAR(BMEs.sk, CV, displayArea, maskcontour);
+        plotFieldTOAR(BMEs.sk, CV, displayArea, maskcontour, dispParam.nxpix, dispParam.nypix, dispParam.bufferDist, dispParam.bufferType, dispParam.interpMethod, dispParam.dxRes, dispParam.dyRes);
         cvRange = quantest(CV(~isnan(CV) & ~isinf(CV)), [0.05 0.95]);
         clim(cvRange);
         
@@ -248,7 +278,7 @@ switch plotType
         % Panel 1: Standard Deviation
         subplot(1, 3, 1);
         hold on;
-        plotFieldTOAR(BMEs.sk, stdDev, displayArea, maskcontour);
+        plotFieldTOAR(BMEs.sk, stdDev, displayArea, maskcontour, dispParam.nxpix, dispParam.nypix, dispParam.bufferDist, dispParam.bufferType, dispParam.interpMethod, dispParam.dxRes, dispParam.dyRes);
         stdRange = quantest(stdDev(~isnan(stdDev)), [0 0.95]);
         clim(stdRange);
         if ~isempty(BMEs.sMSobs)
@@ -265,7 +295,7 @@ switch plotType
         % Panel 2: Variance
         subplot(1, 3, 2);
         hold on;
-        plotFieldTOAR(BMEs.sk, XkBMEv, displayArea, maskcontour);
+        plotFieldTOAR(BMEs.sk, XkBMEv, displayArea, maskcontour, dispParam.nxpix, dispParam.nypix, dispParam.bufferDist, dispParam.bufferType, dispParam.interpMethod, dispParam.dxRes, dispParam.dyRes);
         varRange = quantest(XkBMEv(~isnan(XkBMEv)), [0 0.95]);
         clim(varRange);
         if ~isempty(BMEs.sMSobs)
@@ -283,7 +313,7 @@ switch plotType
         subplot(1, 3, 3);
         hold on;
         if ~isempty(CV)
-            plotFieldTOAR(BMEs.sk, CV, displayArea, maskcontour);
+            plotFieldTOAR(BMEs.sk, CV, displayArea, maskcontour, dispParam.nxpix, dispParam.nypix, dispParam.bufferDist, dispParam.bufferType, dispParam.interpMethod, dispParam.dxRes, dispParam.dyRes);
             cvRange = quantest(CV(~isnan(CV) & ~isinf(CV)), [0.05 0.95]);
             clim(cvRange);
             if ~isempty(BMEs.sMSobs)

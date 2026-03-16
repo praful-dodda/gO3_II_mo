@@ -43,8 +43,8 @@ function code = generateBMEcode(obsType, CTMtype, RAMP, nsmax, nhmax, BMEtype, m
 
     % CTM bitmask using Map
     modelMap = containers.Map({'MERRA2-GMI', 'M3fusion', 'OMI-MLS', ...
-                               'IASI-GOME2', 'UKML', 'NJML'}, ...
-                              [1, 2, 4, 8, 16, 32]);
+                               'IASI-GOME2', 'UKML', 'NJML', 'CrIS'}, ...
+                              [1, 2, 4, 8, 16, 32, 64]);
     bitmask = 0;
     for i = 1:length(models)
         bitmask = bitmask + modelMap(models{i});

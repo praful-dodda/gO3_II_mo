@@ -32,6 +32,7 @@ analyzeParam.softDataDir = fullfile('d:\Users\praful\Documents\Data\ramp_data\')
 
 % Estimation years (actual years to estimate)
 estYears = [2017];
+estMonths = [2]; % Months to estimate (or use [2 7 11] for specific months; 1:12 for all months)
 
 % Temporal padding for observations (years before/after for edge effects)
 temporalPadding = 1;  % Load obs for estYears ± this value
@@ -87,7 +88,7 @@ analyzeParam.forceCov = 0;   % 0=use cached, 1=recompute
 % 1: North America
 % 2: Europe
 % ... 10: User defined
-analyzeParam.areaCode = 0;
+analyzeParam.areaCode = 1;
 
 % Grid resolution (degrees)
 analyzeParam.mapResolution = 1.0;
@@ -97,7 +98,7 @@ analyzeParam.keepOnlyLand = true;        % true=land only, false=include ocean
 analyzeParam.includeAntarctica = false;  % false=exclude Antarctica
 
 % Force re-estimation
-analyzeParam.forceEstimation = 1;  % 0=use cached, 1=rerun all
+analyzeParam.forceEstimation = 0;  % 0=use cached, 1=rerun all
 
 %% PLOTTING CONFIGURATION
 
@@ -108,15 +109,24 @@ analyzeParam.plotVariance = 1;  % 0=none, 1=std, 2=var, 3=CV, 4=all
 % Phase 1 plotting (temporal and enhanced spatial)
 analyzeParam.plotTemporal = 1;      % Generate temporal series plots
 analyzeParam.plotSpatialStats = 1;  % Generate multi-panel spatial summary
-analyzeParam.parallelPlotting = 0;  % 0=sequential, 1=parallel (for plotting only)
+analyzeParam.parallelPlotting = 1;  % 0=sequential, 1=parallel (for plotting only)
 
 % Temporal plot observation matching
 analyzeParam.obsMatchRadius = 0.01; % Radius (deg) for matching obs to site
                                      % 0.01 = exact site (~1 km)
                                      % 0.5 = within 0.5 deg (~50 km)
 
+% Plotting parameters for spatial plots
+analyzeParam.nxpix = 150;            % Number of pixels in x-direction
+analyzeParam.nypix = 100;            % Number of pixels in y-direction
+analyzeParam.bufferDist = 0.5;      % Buffer distance for masking (degrees)
+analyzeParam.bufferType = 'soft';  % 'soft' (gradual fade) or 'hard' (sharp cut)
+analyzeParam.interpMethod = 'natural';  % Interpolation method for griddata
+analyzeParam.dxRes = [];             % x-direction grid resolution in degrees (overrides nxpix if provided)
+analyzeParam.dyRes = [];             % y-direction grid resolution in degrees (overrides nypix if provided)
+
 % Soft-data plotting
-analyzeParam.plotSoftData = 1;      % 0=disable, 1=plot soft-data if available
+analyzeParam.plotSoftData = true;      % false=disable, true=plot soft-data if available
 
 %% WORKFLOW CONTROL
 
@@ -153,8 +163,12 @@ for iMethod = 1:length(BMEmethods)
     for eachYear = estYears
         fprintf(' Estimation Year: %d\n', eachYear);
 
-        % Time periods to estimate (monthly resolution, based on the year)
-        analyzeParam.tkVec = (eachYear):(1/12):(eachYear + 11/12);
+        % Time periods to estimate (monthly resolution, based on the year and the months specified)
+        % analyzeParam.tkVec = (eachYear):(1/12):(eachYear + 11/12);
+        analyzeParam.tkVec = [];
+        for m = estMonths
+            analyzeParam.tkVec(end+1) = eachYear + (m-1)/12;
+        end
     
         analyzeParam.BMEmethod = BMEmethods{iMethod};
 

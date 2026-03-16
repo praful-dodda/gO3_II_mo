@@ -157,7 +157,7 @@ models(21).years = 2022:2022;
 % models = models(17:18);  % UKML and NJML only
 
 % process satellite-bme corrected models only
-models = models(20:20);  % OMI-MLS, IASI-GOME2, CrIS only
+models = models(21:21);  % OMI-MLS, IASI-GOME2, CrIS only
 
 %% Process Each Model
 nModels = length(models);

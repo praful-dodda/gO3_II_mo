@@ -1,4 +1,4 @@
-function ck = getTOARmapGrid(resolution, keepOnlyLand , includeAntarctica)
+function ck = getTOARmapGrid(resolution, keepOnlyLand , includeAntarctica, gridOffset)
 % getTOARmapGrid - Generates estimation grid on land for TOAR mapping
 %
 % Creates and caches a regular grid of estimation points covering land areas
@@ -13,6 +13,7 @@ function ck = getTOARmapGrid(resolution, keepOnlyLand , includeAntarctica)
 %                        default: true
 %   includeAntarctica  - Include Antarctica in grid (true/false)
 %                        default: false
+%   gridOffset        - Optional [lonOffset, latOffset] to shift grid points (default: [0, 0])
 %
 % OUTPUT:
 %   ck - [nPoints x 2] matrix of estimation points [lon, lat]
@@ -24,6 +25,7 @@ function ck = getTOARmapGrid(resolution, keepOnlyLand , includeAntarctica)
 if nargin < 1, resolution = 1.0; end
 if nargin < 2, keepOnlyLand = true; end
 if nargin < 3, includeAntarctica = false; end
+if nargin < 4, gridOffset = [0, 0]; end
 
 % Setup directories
 dataDir = '1data';
@@ -47,6 +49,13 @@ fprintf('Generating map grid (%.2f° resolution)...\n', resolution);
 % Generate global grid
 [lon_grid, lat_grid] = meshgrid(-180:resolution:180, -90:resolution:90);
 grid_all = [lon_grid(:), lat_grid(:)];
+
+% Apply grid offset if specified
+if any(gridOffset ~= 0)
+    fprintf('Applying grid offset: [%.2f, %.2f] degrees\n', gridOffset(1), gridOffset(2));
+    grid_all(:, 1) = grid_all(:, 1) + gridOffset(1);
+    grid_all(:, 2) = grid_all(:, 2) + gridOffset(2);
+end
 
 % Filter Antarctica if requested
 if ~includeAntarctica

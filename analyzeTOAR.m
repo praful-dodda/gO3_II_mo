@@ -59,6 +59,14 @@ function [obs, go, cov, KG, KS, BMEparam] = analyzeTOAR(analyzeParam)
 %                           default: 0
 %       .plotResults      - Plot level (0-4)
 %                           default: 2
+%    PLOTTING:
+%       .nxpix            - Number of pixels in x-direction (default=150)
+%       .nypix            - Number of pixels in y-direction (default=100)
+%       .bufferDist       - Buffer distance for masking (default=0.5 degrees)
+%       .bufferType       - 'soft' (gradual fade) or 'hard' (sharp cut) (default='soft')
+%       .interpMethod     - Interpolation method for griddata (default='natural')
+%       .dxRes             - x-direction grid resolution in degrees (overrides nxpix if provided)
+%       .dyRes             - y-direction grid resolution in degrees (overrides nypix if provided)
 %
 % OUTPUT:
 %   obs      - Observational data structure
@@ -233,9 +241,20 @@ if analyzeParam.runBME && ~isempty(KG)
     
     % Add BMEmethod to BMEparam for plotting
     BMEparam.BMEmethod8digits = analyzeParam.BMEmethod;
-    
+
+    % display parameters
+    dispParam = struct();
+    dispParam.nxpix = analyzeParam.nxpix;
+    dispParam.nypix = analyzeParam.nypix;
+    dispParam.bufferDist = analyzeParam.bufferDist;
+    dispParam.bufferType = analyzeParam.bufferType;
+    dispParam.interpMethod = analyzeParam.interpMethod;
+    dispParam.dxRes = analyzeParam.dxRes;
+    dispParam.dyRes = analyzeParam.dyRes;
+
     % Run BME estimation
-    estTOARsBMEoptim(obs, go, cov, KG, KS, BMEparam, estParam);
+    % estTOARsBMEoptim(obs, go, cov, KG, KS, BMEparam, estParam);
+    estTOARsBME_diag(obs, go, cov, KG, KS, BMEparam, estParam, [], dispParam);
 end
 
 %% Summary

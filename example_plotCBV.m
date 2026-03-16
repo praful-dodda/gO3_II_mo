@@ -39,7 +39,7 @@ end
 %     'Obs. + MERRA2-GMI + UKML'
 % };
 
-allYears = 2005:2010; % use [] for all years
+allYears = 1990:2020; % use [] for all years
 
 boxSize = 5;  % only important in phase-3 plots. % use [] for all box sizes
 
@@ -54,8 +54,9 @@ for each_method = 1:length(all_methods)
     end
 end
 
-% plotLevels = {'phase1', 'phase2', 'phase3'};
-plotLevels = {'phase3'};
+% plotLevels = {'phase1', 'phase2', 'phase3', 'phase4'};
+% plotLevels = {'phase3', 'phase4'};
+plotLevels = {'phase4'};
 
 % example usage:
 % phase 1
@@ -141,4 +142,28 @@ if ismember('phase3', plotLevels)
         'visible', 'on', ...
         'saveTables', true);
     % close all;
+end
+
+% phase 4 - Enhanced Time-Series Analysis with Unique Colors/Styles
+fprintf('\n=== Example 3: Phase 4 Time-Series Analysis ===\n');
+if ismember('phase4', plotLevels)
+    fprintf('Generating Phase 4 time-series plots with unique colors and line styles...\n');
+
+    % Extract method codes for color/style assignment (strip _goX suffix)
+    methodCodes = cellfun(@(x) regexprep(x, '_go\d+$', ''), all_methods, 'UniformOutput', false);
+
+    figPaths_phase4 = plotCBVresults_Phase4(...
+        repmat({cbvResultsDir}, 1, length(configPatterns)), configNames, ...
+        'filePattern', configPatterns, ...
+        'methodCodes', methodCodes, ...
+        'years', allYears, ...
+        'boxSize', boxSize, ...
+        'metrics', {'R2', 'RMSE'}, ...
+        'saveDir', fullfile(cbvResultsDir, 'figs', sprintf('phase4_%d_%d', allYears(1), allYears(end))), ...
+        'dpi', 300, ...
+        'visible', 'on', ...
+        'saveTables', true);
+
+    fprintf('Phase 4 complete. Generated figures saved to: %s\n', ...
+        fullfile(cbvResultsDir, 'figs', sprintf('phase4_%d_%d', allYears(1), allYears(end))));
 end

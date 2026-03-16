@@ -43,7 +43,7 @@ valParam.logTransf = 0;  % 0=no, 1=yes (use 0 for regular concentrations)
 % ====================================================================
 
 % Years to validate
-valParam.valYears = 1990:2004;  % e.g., 2017 or [2016 2017 2018]
+valParam.valYears = [2020 2021 2022];  % e.g., 2017 or [2016 2017 2018]
 
 % Months to validate (within each year)
 valParam.valMonths = 1:12;  % All months, or specific: [6 7 8] for JJA
@@ -102,10 +102,18 @@ valParam.forceCov = 0;  % 0=use cached, 1=force new estimation
 %   20:NJML; 06:M3fusion+OMI-MLS; 0A:M3fusion+IASI-GOME2; 12:M3fusion+UKML;
 %
 % Can specify single method or cell array for multiple methods
-valParam.BMEmethod = {'13000313-02', ...
-                        '13000313-06', '13000313-12', '13000313-22', '13000313-16'};  % or use cell array: {'10000133', '13000313-12'}
+valParam.BMEmethod = {'13000313-01', '13000313-02','13000313-04','13000313-05','13000313-11','13000313-06', '13000313-10','13000313-12', ...
+                    '13000313-16', '13000313-20', '13000313-21', '13000313-15', '13000313-22'};  % or use cell array: {'10000133', '13000313-12'}
+
+valParam.BMEmethod = {'13000313-08', '13000313-0A'}; % IASI-GOME2 Methods: for 2018-2020
+% valParam.BMEmethod = {'13000313-09'}; % IASI-GOME2 with MERRA2-GMI methods: for 2017-2019
+valParam.BMEmethod = {'13000313-40', '13000313-42'}; % CrIS methods: for 2022
+valParam.BMEmethod = {'13000313-02', '13000313-04','13000313-06'}; % 2020 to 2022
+
+% valParam.BMEmethod = {'13000313-01', '13000313-02','13000313-04','13000313-05','13000313-11','13000313-06', '13000313-10','13000313-12', ...
+%                     '13000313-16', '13000313-20', '13000313-21', '13000313-15', '13000313-22'};  % or use cell array: {'10000133', '13000313-12'}
 % valParam.BMEmethod = {'10000133'};
-valParam.BMEmethod = {'13000313-02'};
+% valParam.BMEmethod = {'13000313-12'};
 
 %% ====================================================================
 %                    SOFT DATA CONFIGURATION (if using CTM)
