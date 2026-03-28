@@ -43,7 +43,7 @@ valParam.logTransf = 0;  % 0=no, 1=yes (use 0 for regular concentrations)
 % ====================================================================
 
 % Years to validate
-valParam.valYears = [2020 2021 2022];  % e.g., 2017 or [2016 2017 2018]
+valParam.valYears = [1990];  % e.g., 2017 or [2016 2017 2018]
 
 % Months to validate (within each year)
 valParam.valMonths = 1:12;  % All months, or specific: [6 7 8] for JJA
@@ -113,7 +113,8 @@ valParam.BMEmethod = {'13000313-02', '13000313-04','13000313-06'}; % 2020 to 202
 % valParam.BMEmethod = {'13000313-01', '13000313-02','13000313-04','13000313-05','13000313-11','13000313-06', '13000313-10','13000313-12', ...
 %                     '13000313-16', '13000313-20', '13000313-21', '13000313-15', '13000313-22'};  % or use cell array: {'10000133', '13000313-12'}
 % valParam.BMEmethod = {'10000133'};
-% valParam.BMEmethod = {'13000313-12'};
+% valParam.BMEmethod = {'13000313-20','13000313-21','13000313-22'};
+valParam.BMEmethod = {'13000313-01','13000313-02','13000313-10'};
 
 %% ====================================================================
 %                    SOFT DATA CONFIGURATION (if using CTM)
@@ -235,7 +236,7 @@ allStats = [];
 
 tic;
 for iMethod = 1:length(methodList)
-    close all;
+    close all; clc;
     currentMethod = methodList{iMethod};
 
     fprintf('\n');

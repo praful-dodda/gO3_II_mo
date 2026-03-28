@@ -46,13 +46,15 @@ end
 %% Define color palette
 % LIGHT colors for simple methods (single CTM)
 lightColors = struct();
-lightColors.obs_only = [0.68, 0.85, 0.90];      % Light Blue
+lightColors.obs_only      = [0.68, 0.85, 0.90];  % Light Blue (fine GO)
+lightColors.obs_only_flat = [0.25, 0.55, 0.80];  % Steel Blue (flat/zero GO)
 lightColors.MERRA2_GMI = [0.70, 0.87, 0.54];    % Light Green
 lightColors.M3fusion = [0.98, 0.60, 0.60];      % Light Red/Pink
 lightColors.OMI_MLS = [1.00, 0.75, 0.47];       % Light Orange
 lightColors.UKML = [0.79, 0.70, 0.84];          % Light Purple
 lightColors.NJML = [0.76, 0.60, 0.42];          % Light Brown
 lightColors.IASI_GOME2 = [0.90, 0.90, 0.60];    % Light Yellow
+lightColors.CrIS = [0.60, 0.90, 0.90];          % Light Cyan
 
 % BRIGHT colors for complex methods (2-CTM combinations) - each unique
 brightColors = struct();
@@ -66,9 +68,15 @@ brightColors.OMI_MLS_UKML = [0.80, 0.40, 0.00];           % Burnt Orange
 brightColors.OMI_MLS_NJML = [0.60, 0.20, 0.00];           % Rust
 brightColors.UKML_NJML = [0.40, 0.20, 0.60];              % Deep Purple
 brightColors.MERRA2_GMI_M3fusion = [0.00, 0.39, 0.00];    % Dark Green variant
+brightColors.IASI_GOME2_M3fusion    = [0.60, 0.10, 0.60];   % Deep Purple-Red
+brightColors.IASI_GOME2_MERRA2_GMI  = [0.10, 0.60, 0.60];   % Deep Teal
+brightColors.CrIS_M3fusion          = [0.80, 0.50, 0.10];   % Amber
+brightColors.CrIS_MERRA2_GMI        = [0.10, 0.50, 0.80];   % Steel Blue
 
 % Colors for 3+ CTM combinations
-brightColors.three_plus = [0.80, 0.00, 0.80];             % Magenta
+brightColors.three_plus              = [0.80, 0.00, 0.80];   % Magenta (fallback)
+brightColors.MERRA2_GMI_OMI_MLS_UKML = [0.00, 0.60, 0.20];  % Emerald Green
+brightColors.M3fusion_OMI_MLS_UKML   = [0.85, 0.20, 0.00];  % Vermillion Red
 
 % Fallback
 fallbackColor = [0.50, 0.50, 0.50];  % Gray
@@ -131,8 +139,13 @@ for iConfig = 1:nConfigs
 
     % Assign color based on CTM models
     if nCTMs == 0
-        % Obs. only -> Light Blue
-        colors(iConfig, :) = lightColors.obs_only;
+        % Obs. only — differentiate flat GO vs fine GO via configName
+        if contains(lower(configName), 'flat')
+            colors(iConfig, :) = lightColors.obs_only_flat;
+            lineStyles{iConfig} = ':';   % Dotted for flat/zero GO
+        else
+            colors(iConfig, :) = lightColors.obs_only;
+        end
     elseif nCTMs == 1
         % Single CTM -> Light color based on model
         colors(iConfig, :) = getSingleCTMcolor(ctmModels{1}, lightColors, fallbackColor);
@@ -140,8 +153,8 @@ for iConfig = 1:nConfigs
         % Two CTMs -> Unique bright color for each combination
         colors(iConfig, :) = getTwoCTMcolor(ctmModels, brightColors, fallbackColor);
     else
-        % Three+ CTMs -> Magenta
-        colors(iConfig, :) = brightColors.three_plus;
+        % Three+ CTMs -> look up specific color, fall back to Magenta
+        colors(iConfig, :) = getThreePlusCTMcolor(ctmModels, brightColors, fallbackColor);
     end
 
     % Fallback: if color is still zeros, try to infer from config name
@@ -167,6 +180,8 @@ function color = getSingleCTMcolor(ctmModel, lightColors, fallbackColor)
             color = lightColors.NJML;
         case 'IASI-GOME2'
             color = lightColors.IASI_GOME2;
+        case 'CrIS'
+            color = lightColors.CrIS;
         otherwise
             color = fallbackColor;
     end
@@ -208,9 +223,34 @@ function color = getTwoCTMcolor(ctmModels, brightColors, fallbackColor)
             color = brightColors.MERRA2_GMI_M3fusion;
         case 'MERRA2_GMI_M3fusion'
             color = brightColors.MERRA2_GMI_M3fusion;
+        case 'IASI_GOME2_M3fusion'
+            color = brightColors.IASI_GOME2_M3fusion;
+        case 'IASI_GOME2_MERRA2_GMI'
+            color = brightColors.IASI_GOME2_MERRA2_GMI;
+        case 'CrIS_M3fusion'
+            color = brightColors.CrIS_M3fusion;
+        case 'CrIS_MERRA2_GMI'
+            color = brightColors.CrIS_MERRA2_GMI;
         otherwise
             % Generate a unique color based on hash of model names
             color = generateHashColor(key, fallbackColor);
+    end
+end
+
+%% Helper function: Get color for three-or-more CTM combination
+function color = getThreePlusCTMcolor(ctmModels, brightColors, ~)
+    % Sort models alphabetically for consistent key
+    models = sort(ctmModels);
+    parts = cellfun(@(m) strrep(m, '-', '_'), models, 'UniformOutput', false);
+    key = strjoin(parts, '_');
+
+    switch key
+        case 'MERRA2_GMI_OMI_MLS_UKML'
+            color = brightColors.MERRA2_GMI_OMI_MLS_UKML;
+        case 'M3fusion_OMI_MLS_UKML'
+            color = brightColors.M3fusion_OMI_MLS_UKML;
+        otherwise
+            color = brightColors.three_plus;   % Magenta fallback
     end
 end
 

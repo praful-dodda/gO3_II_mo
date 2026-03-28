@@ -23,14 +23,19 @@ cbvResultsDir = './7validation/CBV';
 %     'Obs. + M3fusion + OMI-MLS'
 % };
 
-all_methods = {'10000133','13000313-01', '13000313-02','13000313-04', '13000313-06', '13000313-10','13000313-20', ...
-                        '13000313-05', '13000313-11', '13000313-12','13000313-21', '13000313-15'};
+all_methods = {'10000133_go0', '10000133_go3', '13000313-01', '13000313-02','13000313-04', '13000313-08','13000313-10', '13000313-20','13000313-40', ... % single models
+                        '13000313-06', '13000313-0A', '13000313-12', '13000313-22', '13000313-42', ... % Two model combinations involving M3fusion
+                        '13000313-05', '13000313-09', '13000313-11', '13000313-21', ... % Two model combinations involving MERRA2-GMI
+                        '13000313-16', ... % Three model combinations involving M3fusion
+                        '13000313-15'}; % Three model combinations involving MERRA2-GMI
 goScenarios = repmat({3}, 1, length(all_methods));  % Assuming all methods use GO scenario 3
 
-configNames = cell(1, length(all_methods));
-for i = 1:length(all_methods)
-    configNames{i} = getBMEmethodName(all_methods{i}, goScenarios{i});
-end
+goScenarios{1} = 0; % Override GO scenario for the first method (Obs. only with flat GO)
+
+% configNames = cell(1, length(all_methods));
+% for i = 1:length(all_methods)
+%     configNames{i} = getBMEmethodName(all_methods{i}, goScenarios{i});
+% end
 
 % configNames = {
 %     'Obs. only (fine GO)', ...
@@ -39,7 +44,9 @@ end
 %     'Obs. + MERRA2-GMI + UKML'
 % };
 
-allYears = 1990:2020; % use [] for all years
+allYears = 1991:2004; % use [] for all years
+
+metrics = {'R2', 'RMSE'}; % {'R2', 'RMSE', 'MAE', 'NMB'}
 
 boxSize = 5;  % only important in phase-3 plots. % use [] for all box sizes
 
@@ -52,6 +59,13 @@ for each_method = 1:length(all_methods)
     else
         all_methods{each_method} = sprintf('%s_go%d', all_methods{each_method}, goScenario);
     end
+end
+
+% Generate human-readable config names from method codes + GO scenarios
+configNames = cell(1, length(all_methods));
+for i = 1:length(all_methods)
+    baseMethod = regexprep(all_methods{i}, '_go\d+$', '');
+    configNames{i} = getBMEmethodName(baseMethod, goScenarios{i});
 end
 
 % plotLevels = {'phase1', 'phase2', 'phase3', 'phase4'};
@@ -136,7 +150,7 @@ if ismember('phase3', plotLevels)
         'baselineConfig', 1, ...
         'years', allYears, ...
         'boxSize', boxSize, ...
-        'metrics', {'R2', 'RMSE'}, ...
+        'metrics', metrics, ...
         'saveDir', fullfile(cbvResultsDir, 'figs', sprintf('%d_%d', allYears(1), allYears(end))), ...
         'dpi', 300, ...
         'visible', 'on', ...
@@ -158,7 +172,7 @@ if ismember('phase4', plotLevels)
         'methodCodes', methodCodes, ...
         'years', allYears, ...
         'boxSize', boxSize, ...
-        'metrics', {'R2', 'RMSE'}, ...
+        'metrics', metrics, ...
         'saveDir', fullfile(cbvResultsDir, 'figs', sprintf('phase4_%d_%d', allYears(1), allYears(end))), ...
         'dpi', 300, ...
         'visible', 'on', ...

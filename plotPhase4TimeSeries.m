@@ -53,7 +53,20 @@ if nConfigs < 1 || nYears < 1
 end
 
 %% Figure 1: Time-series with all metrics (multi-panel)
-fig1 = figure('Visible', opts.visible, 'Position', [100, 100, 1600, 350*nMetrics]);
+
+% Determine which configs have any non-NaN data across all metrics
+hasData = false(nConfigs, 1);
+for iConfig = 1:nConfigs
+    hasData(iConfig) = any(~isnan(yearlyData.values(iConfig, :, :)), 'all');
+end
+
+% Scale figure height to accommodate legend rows
+nLegendCols = 6;
+legendRows = ceil(sum(hasData) / nLegendCols);
+legendHeight = legendRows * 25;  % ~25px per row
+fig1 = figure('Visible', opts.visible, 'Position', [100, 100, 1600, 350*nMetrics + legendHeight + 40]);
+
+plotHandles = gobjects(nConfigs, 1);
 
 for iMetric = 1:nMetrics
     subplot(nMetrics, 1, iMetric);
@@ -67,7 +80,7 @@ for iMetric = 1:nMetrics
         values = squeeze(yearlyData.values(iConfig, :, iMetric));
 
         % Plot with assigned style (NaN creates gaps automatically)
-        plot(allYears, values, ...
+        h = plot(allYears, values, ...
             'LineStyle', lineStyles{iConfig}, ...
             'Color', colors(iConfig, :), ...
             'Marker', markers{iConfig}, ...
@@ -75,6 +88,11 @@ for iMetric = 1:nMetrics
             'MarkerSize', 8, ...
             'MarkerFaceColor', colors(iConfig, :), ...
             'DisplayName', configs(iConfig).name);
+
+        % Store handles from first subplot for the shared legend
+        if iMetric == 1
+            plotHandles(iConfig) = h;
+        end
     end
 
     % Formatting
@@ -86,6 +104,15 @@ for iMetric = 1:nMetrics
     xlim([min(allYears)-0.5, max(allYears)+0.5]);
     xticks(allYears);
 
+    % if Metric is R2, set y-axis limits to [0, 1]
+    if strcmpi(metric, 'R2')
+        ylim([0.6, 0.87]);
+    elseif strcmpi(metric, 'RMSE')
+        ylim([4 9.5])
+    else
+        ylim auto;
+    end
+
     % Add grid
     grid on;
     box on;
@@ -93,12 +120,26 @@ for iMetric = 1:nMetrics
     hold off;
 end
 
-% Add shared legend at bottom
-lgd = legend('Location', 'southoutside', 'Orientation', 'horizontal', 'NumColumns', min(4, nConfigs));
-lgd.Position(2) = 0.01;  % Move legend to very bottom
+% Store subplot positions before legend creation (southoutside resizes axes)
+axHandles = gobjects(nMetrics, 1);
+axPositions = cell(nMetrics, 1);
+for i = 1:nMetrics
+    axHandles(i) = subplot(nMetrics, 1, i);
+    axPositions{i} = axHandles(i).Position;
+end
 
-% Overall title
-sgtitle('Phase 4: Time-Series Performance Analysis', 'FontSize', 14, 'FontWeight', 'bold');
+% Add shared legend at bottom (only models with data)
+lgd = legend(plotHandles(hasData), {configs(hasData).name}, ...
+    'Orientation', 'horizontal', 'NumColumns', min(nLegendCols, sum(hasData)));
+lgd.FontSize = 8;
+lgd.Units = 'normalized';
+lgd.Position(1) = 0.5 - lgd.Position(3)/2;  % Center horizontally
+lgd.Position(2) = 0.01;                       % Place at bottom of figure
+
+% Restore subplot positions so legend doesn't shrink them
+for i = 1:nMetrics
+    axHandles(i).Position = axPositions{i};
+end
 
 % Save figure
 figFile1 = fullfile(opts.saveDir, 'phase4_timeseries_metrics.png');
@@ -169,16 +210,19 @@ end
 %% Figure 3: Individual metric plots with confidence bands (optional)
 if isfield(opts, 'plotIndividualMetrics') && opts.plotIndividualMetrics
     for iMetric = 1:nMetrics
-        fig3 = figure('Visible', opts.visible, 'Position', [100, 100, 1400, 500]);
+        fig3 = figure('Visible', opts.visible, 'Position', [100, 100, 1400, 560]);
 
         metric = metrics{iMetric};
         hold on;
 
         % Plot each configuration with markers
+        indivHandles = gobjects(nConfigs, 1);
+        indivHasData = false(nConfigs, 1);
         for iConfig = 1:nConfigs
             values = squeeze(yearlyData.values(iConfig, :, iMetric));
+            indivHasData(iConfig) = any(~isnan(values));
 
-            plot(allYears, values, ...
+            indivHandles(iConfig) = plot(allYears, values, ...
                 'LineStyle', lineStyles{iConfig}, ...
                 'Color', colors(iConfig, :), ...
                 'Marker', markers{iConfig}, ...
@@ -197,7 +241,8 @@ if isfield(opts, 'plotIndividualMetrics') && opts.plotIndividualMetrics
         grid on;
         box on;
 
-        legend('Location', 'best');
+        legend(indivHandles(indivHasData), {configs(indivHasData).name}, ...
+            'Location', 'southoutside', 'Orientation', 'horizontal', 'NumColumns', min(4, sum(indivHasData)));
         hold off;
 
         % Save figure
@@ -269,9 +314,16 @@ for iMetric = 1:nMetrics
     end
 end
 
-% Add legend at bottom
-lgd = legend({configs.name}, 'Location', 'southoutside', 'Orientation', 'horizontal', ...
-    'NumColumns', min(4, nConfigs));
+% Add legend at bottom (only models with data)
+winnerHasData = false(nConfigs, 1);
+for iConfig = 1:nConfigs
+    winnerHasData(iConfig) = any(~isnan(yearlyData.values(iConfig, :, :)), 'all');
+end
+% Collect bar handles from last subplot
+barHandles = b;
+lgd = legend(barHandles(winnerHasData), {configs(winnerHasData).name}, ...
+    'Location', 'southoutside', 'Orientation', 'horizontal', ...
+    'NumColumns', min(4, sum(winnerHasData)));
 lgd.Position(2) = 0.01;
 
 sgtitle('Winner Analysis by Year and Metric', 'FontSize', 14, 'FontWeight', 'bold');
