@@ -1,4 +1,4 @@
-function estTOARsBME(obs, go, ~, KG, KS, BMEparam, estParam)
+function estTOARsBME(obs, go, ~, KG, KS, BMEparam, estParam, dispParam)
 % estTOARsBME - BME spatial estimation of TOAR ozone concentrations
 %
 % Performs Bayesian Maximum Entropy estimation on a spatial grid for
@@ -6,6 +6,7 @@ function estTOARsBME(obs, go, ~, KG, KS, BMEparam, estParam)
 %
 % SYNTAX:
 %   estTOARsBME(obs, go, cov, KG, KS, BMEparam, estParam)
+%   estTOARsBME(obs, go, cov, KG, KS, BMEparam, estParam, dispParam)
 %
 % INPUTS:
 %   obs      - Structure from getTOARobservationalData
@@ -16,13 +17,25 @@ function estTOARsBME(obs, go, ~, KG, KS, BMEparam, estParam)
 %   BMEparam - BME parameters from getTOARknowledgeBase
 %   estParam - Estimation parameters structure:
 %              .areaCode        - Area code (0-10, see getTOARareaBoundaries)
-%              .mapResolution   - Grid resolution in degrees (e.g., 0.5, 1.0)
+%              .mapResolution   - Grid resolution in degrees (default: 0.25)
 %              .tkVec           - Vector of times to estimate (decimal years)
 %              .forceEstimation - Force re-estimation (1) or use saved (0)
 %              .plotResults     - Plot level (0=none, 1=basic, 2=detailed)
+%              .gridOffset      - Offset for estimation grid in degrees (default: 0.05)
+%                                 Avoids alignment artifacts with soft data grids
 %              .smoothVariance  - Optional variance smoothing to reduce grid artifacts:
 %                                 0 = no smoothing (default)
 %                                 scalar > 0 = smoothing radius in degrees (recommended: 1-2)
+%   dispParam - Display parameters (optional):
+%              .nxpix        - Number of pixels in x-direction (default: 150)
+%              .nypix        - Number of pixels in y-direction (default: 100)
+%              .bufferDist   - Buffer distance for masking in degrees (default: 0.5)
+%              .bufferType   - 'soft' (gradual fade) or 'hard' (sharp cut) (default: 'soft')
+%              .interpMethod - Interpolation method: 'natural' (default), 'linear', etc.
+%              .dxRes        - Display grid x-resolution in degrees (default: 0.125)
+%                              Overrides nxpix when provided
+%              .dyRes        - Display grid y-resolution in degrees (default: 0.125)
+%                              Overrides nypix when provided
 %
 % OUTPUTS:
 %   Saves BME estimation results to ./5BMEspatialPlots/ directory
@@ -33,13 +46,14 @@ function estTOARsBME(obs, go, ~, KG, KS, BMEparam, estParam)
 %   go = getTOARglobalOffset(obs, 3);
 %   cov = getTOARautoCov(obs, go);
 %   [KG, KS, BMEparam] = getTOARknowledgeBase(obs, go, cov, [], '10000132');
-%   
+%
 %   estParam.areaCode = 2;           % Europe
-%   estParam.mapResolution = 0.5;    % 0.5 degree grid
+%   estParam.mapResolution = 0.25;   % 0.25 degree estimation grid
+%   estParam.gridOffset = 0.05;      % 0.05 degree offset to avoid alignment artifacts
 %   estParam.tkVec = 2015:1/12:2016; % Monthly for 2015
 %   estParam.forceEstimation = 0;
 %   estParam.plotResults = 1;
-%   
+%
 %   estTOARsBME(obs, go, cov, KG, KS, BMEparam, estParam);
 
 %% Input Validation
@@ -54,6 +68,26 @@ for i = 1:length(requiredFields)
         error('estParam missing required field: %s', requiredFields{i});
     end
 end
+
+% Set default grid offset (0.05 deg avoids alignment with soft data grids)
+if ~isfield(estParam, 'gridOffset')
+    estParam.gridOffset = 0.05;
+end
+
+%% Display Parameters
+% Defaults based on diagnostic analysis (estTOARsBME_diag):
+%   - 'natural' interpolation reduces grid-aligned stripe artifacts
+%   - 0.125 deg display resolution provides smooth maps from 0.25 deg estimation grid
+if nargin < 8 || isempty(dispParam)
+    dispParam = struct();
+end
+if ~isfield(dispParam, 'nxpix'),        dispParam.nxpix = 150; end
+if ~isfield(dispParam, 'nypix'),        dispParam.nypix = 100; end
+if ~isfield(dispParam, 'bufferDist'),   dispParam.bufferDist = 0.5; end
+if ~isfield(dispParam, 'bufferType'),   dispParam.bufferType = 'soft'; end
+if ~isfield(dispParam, 'interpMethod'), dispParam.interpMethod = 'natural'; end
+if ~isfield(dispParam, 'dxRes'),        dispParam.dxRes = 0.125; end
+if ~isfield(dispParam, 'dyRes'),        dispParam.dyRes = 0.125; end
 
 %% Setup
 fprintf('=== TOAR BME Spatial Estimation ===\n');
@@ -96,7 +130,10 @@ fprintf('Configuration:\n');
 fprintf('  BME method: %s\n', BMEmethod8digits);
 fprintf('  Global offset scenario: %d\n', go.scenario);
 fprintf('  Area code: %d\n', areaCode);
-fprintf('  Map resolution: %.2f degrees\n', mapResolution);
+fprintf('  Estimation grid resolution: %.2f degrees\n', mapResolution);
+fprintf('  Grid offset: %.3f degrees\n', estParam.gridOffset);
+fprintf('  Display grid resolution: %.3f x %.3f degrees\n', dispParam.dxRes, dispParam.dyRes);
+fprintf('  Interpolation method: %s\n', dispParam.interpMethod);
 fprintf('  Number of time periods: %d\n', length(tkVec));
 
 %% Create Estimation Grid
@@ -108,6 +145,14 @@ fprintf('\nCreating estimation grid...\n');
 
 % Create spatial grid
 sk = getTOARmapGrid(mapResolution, estParam.keepOnlyLand, estParam.includeAntarctica);
+
+% Apply grid offset to avoid alignment artifacts with soft data grids
+gridOffset = estParam.gridOffset;
+if gridOffset ~= 0
+    sk(:,1) = sk(:,1) + gridOffset;
+    sk(:,2) = sk(:,2) + gridOffset;
+    fprintf('  Grid offset applied: +%.3f degrees\n', gridOffset);
+end
 
 % add locations of monitoring sites to the estimatio grid
 sk = [sk; obs.sMS];
@@ -155,8 +200,8 @@ for iTime = 1:length(tkVec)
             % recalculate YkBMEm
             BMEs.YkBMEm = BMEs.XkBMEm + BMEs.gok;
 
-            plotTOARsBME(obs, go, BMEs, BMEparam, estParam);
-            plotTOARsBMEvar(obs, go, BMEs, BMEparam, estParam);
+            plotTOARsBME(obs, go, BMEs, BMEparam, estParam, dispParam);
+            plotTOARsBMEvar(obs, go, BMEs, BMEparam, estParam, dispParam);
         end
         continue;
     end
@@ -371,8 +416,8 @@ for iTime = 1:length(tkVec)
     
     % Plot if requested
     if plotResults > 0
-        plotTOARsBME(obs, go, BMEs, BMEparam, estParam);
-        plotTOARsBMEvar(obs, go, BMEs, BMEparam, estParam);
+        plotTOARsBME(obs, go, BMEs, BMEparam, estParam, dispParam);
+        plotTOARsBMEvar(obs, go, BMEs, BMEparam, estParam, dispParam);
     end
 end
 

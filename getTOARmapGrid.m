@@ -32,8 +32,13 @@ dataDir = '1data';
 gridSubdir = fullfile(dataDir, 'grids');
 if ~exist(gridSubdir, 'dir'), mkdir(gridSubdir); end
 
-% Filename based on parameters
-gridFile = sprintf('map_grid_res%.2f_onlyLand%d_antarctica%d.mat', resolution, keepOnlyLand, includeAntarctica);
+% Filename based on parameters (include offset in cache key when non-zero)
+if any(gridOffset ~= 0)
+    gridFile = sprintf('map_grid_res%.2f_onlyLand%d_antarctica%d_off%.3f_%.3f.mat', ...
+        resolution, keepOnlyLand, includeAntarctica, gridOffset(1), gridOffset(min(2,end)));
+else
+    gridFile = sprintf('map_grid_res%.2f_onlyLand%d_antarctica%d.mat', resolution, keepOnlyLand, includeAntarctica);
+end
 gridPath = fullfile(gridSubdir, gridFile);
 
 % Load from cache if exists
