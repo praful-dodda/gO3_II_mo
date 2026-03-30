@@ -88,10 +88,10 @@ analyzeParam.forceCov = 0;   % 0=use cached, 1=recompute
 % 1: North America
 % 2: Europe
 % ... 10: User defined
-analyzeParam.areaCode = 1;
+analyzeParam.areaCode = 0;
 
 % Grid resolution (degrees)
-analyzeParam.mapResolution = 1.0;
+analyzeParam.mapResolution = 0.25;
 
 % Estimation grid options
 analyzeParam.keepOnlyLand = true;        % true=land only, false=include ocean
@@ -122,8 +122,11 @@ analyzeParam.nypix = 100;            % Number of pixels in y-direction
 analyzeParam.bufferDist = 0.5;      % Buffer distance for masking (degrees)
 analyzeParam.bufferType = 'soft';  % 'soft' (gradual fade) or 'hard' (sharp cut)
 analyzeParam.interpMethod = 'natural';  % Interpolation method for griddata
-analyzeParam.dxRes = [];             % x-direction grid resolution in degrees (overrides nxpix if provided)
-analyzeParam.dyRes = [];             % y-direction grid resolution in degrees (overrides nypix if provided)
+analyzeParam.dxRes = 0.1;             % x-direction grid resolution in degrees (overrides nxpix if provided)
+analyzeParam.dyRes = 0.1;             % y-direction grid resolution in degrees (overrides nypix if provided)
+
+% grid-Offset
+analyzeParam.gridOffset = 0.1; % to offset the estimation grid to avoid stripes
 
 % Soft-data plotting
 analyzeParam.plotSoftData = true;      % false=disable, true=plot soft-data if available

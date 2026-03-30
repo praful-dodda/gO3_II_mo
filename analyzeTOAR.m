@@ -252,9 +252,11 @@ if analyzeParam.runBME && ~isempty(KG)
     dispParam.dxRes = analyzeParam.dxRes;
     dispParam.dyRes = analyzeParam.dyRes;
 
+    estParam.gridOffset = analyzeParam.gridOffset;
+
     % Run BME estimation
-    % estTOARsBMEoptim(obs, go, cov, KG, KS, BMEparam, estParam);
-    estTOARsBME_diag(obs, go, cov, KG, KS, BMEparam, estParam, [], dispParam);
+    estTOARsBMEoptim(obs, go, cov, KG, KS, BMEparam, estParam, dispParam);
+    % estTOARsBME_diag(obs, go, cov, KG, KS, BMEparam, estParam, [], dispParam);
 end
 
 %% Summary
