@@ -438,6 +438,8 @@ fprintf('========================================\n');
 
 if ~isempty(statsData)
     cbvStats = struct2table(statsData);
+    cbvStats.Properties.UserData = struct('BMEmethod', valParam.BMEmethod, ...
+                                          'goScenario', valParam.goScenario);
 
     % Display summary
     fprintf('\nValidation Statistics by Box Size, Fold, and Year:\n');
