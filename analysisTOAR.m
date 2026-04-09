@@ -7,7 +7,7 @@
 
 clear; close all;
 
-analysisScenario = 4;
+analysisScenario = 5;
 % 4 for cross-validation
 % 5 for BMEs-estimation
 

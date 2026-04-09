@@ -1,8 +1,9 @@
-function plotFieldTOAR(sk,zk,ax,maskcontour, nxpix, nypix, bufferDist, bufferType)
+function plotFieldTOAR(sk,zk,ax,maskcontour, nxpix, nypix, bufferDist, bufferType, interpMethod, dxRes, dyRes)
 % plotFieldTOAR       - Makes a color map of the field of values
 %
 % SYNTAX:
-%   plotFieldTOAR(sk,zk,ax,maskcontour, nxpix, nypix, bufferDist, bufferType)
+%   plotFieldTOAR(sk,zk,ax,maskcontour, nxpix, nypix, bufferDist, bufferType, interpMethod)
+%   plotFieldTOAR(sk,zk,ax,maskcontour, [], [], bufferDist, bufferType, interpMethod, dxRes, dyRes)
 %
 % INPUT
 %   sk            nk x 2      matrix of estimation points
@@ -13,18 +14,36 @@ function plotFieldTOAR(sk,zk,ax,maskcontour, nxpix, nypix, bufferDist, bufferTyp
 %   nypix         scalar      number of pixels in the y-direction (default=100)
 %   bufferDist    scalar      buffer distance in same units as sk (default=0.5 degrees)
 %   bufferType    string      'soft' for gradual fade, 'hard' for sharp cut (default='soft')
+%   interpMethod  string      griddata interpolation method: 'natural' (default, smoother),
+%                             'linear', 'cubic', 'nearest', or 'v4'. Using 'natural' reduces
+%                             grid-aligned stripe artifacts in variance maps.
+%   dxRes         scalar      x-direction (longitude) grid resolution in degrees (optional).
+%                             When provided, overrides nxpix. E.g., 0.1 for 0.1° spacing.
+%   dyRes         scalar      y-direction (latitude) grid resolution in degrees (optional).
+%                             When provided, overrides nypix. E.g., 0.1 for 0.1° spacing.
 
-if nargin<3, ax=[]; end            
+if nargin<3, ax=[]; end
 if nargin<4, maskcontour=[]; end
 if nargin<5, nxpix=150; end
 if nargin<6, nypix=100; end
 if nargin<7, bufferDist=1; end      % Default 0.5 degree buffer
 if nargin<8, bufferType='soft'; end
+if nargin<9, interpMethod='natural'; end  % Changed from 'linear' to reduce stripe artifacts
+if nargin<10, dxRes=[]; end
+if nargin<11, dyRes=[]; end
 
 masklinetype='k';    
 
 if isempty(ax)
   ax=[min(sk(:,1)) max(sk(:,1)) min(sk(:,2)) max(sk(:,2))];
+end
+
+% If dxRes/dyRes resolutions are provided, calculate nxpix/nypix from them
+if ~isempty(dxRes)
+    nxpix = ceil(diff(ax(1:2)) / dxRes);
+end
+if ~isempty(dyRes)
+    nypix = ceil(diff(ax(3:4)) / dyRes);
 end
 
 dx=diff(ax(1:2))/nxpix/2;
@@ -36,7 +55,7 @@ dy1=diff(ax(3:4))/nypix;
 xg=ax(1):dx1:ax(2)+dx1-eps;
 yg=ax(3):dy1:ax(4)+dy1-eps;
 [xg, yg]=meshgrid(xg,yg);
-Zg=griddata(sk(:,1),sk(:,2),zk,xg,yg,'linear');
+Zg=griddata(sk(:,1),sk(:,2),zk,xg,yg,interpMethod);
 Zg=reshape(Zg,size(xg));
 
 % Apply mask with buffer

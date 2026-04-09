@@ -1,4 +1,4 @@
-function plotTOARsBME(obs, go, BMEs, BMEparam, estParam)
+function plotTOARsBME(obs, go, BMEs, BMEparam, estParam, dispParam)
 % plotTOARsBME - Plot TOAR BME spatial estimates with observations
 %
 % Creates maps of BME estimated ozone concentrations with optional
@@ -21,6 +21,12 @@ function plotTOARsBME(obs, go, BMEs, BMEparam, estParam)
 %                             3 = Residuals (offset-removed)
 %                             4 = BME uncertainty (std dev)
 %              .areaCode, .mapResolution (for file naming)
+%   dispParam - Display parameters (optiona)
+%              .nxpix - Number of pixels in x-direction (default=150)
+%              .nypix - Number of pixels in y-direction (default=100)
+%              .bufferDist - Buffer distance for masking (default=0.5 degrees)
+%              .bufferType - 'soft' (gradual fade) or 'hard' (sharp cut) (default='soft')
+%              .interpMethod - Interpolation method for griddata (default='natural')
 %
 % OUTPUTS:
 %   Saves figures to ./5BMEspatialPlots/figs/
@@ -30,6 +36,23 @@ function plotTOARsBME(obs, go, BMEs, BMEparam, estParam)
 
 if nargin < 5
     error('All 4 inputs required. See help plotTOARsBME');
+end
+
+if nargin < 6
+    dispParam = struct();
+    % set initial defaults for display parameters
+    dispParam.nxpix = 150;
+    dispParam.nypix = 100;
+    dispParam.bufferDist = 0.5;  % degrees
+    dispParam.bufferType = 'soft';  % 'soft' or 'hard'
+    dispParam.interpMethod = 'natural';  % 'natural', 'linear', 'cubic', 'nearest', or 'v4'
+else
+    % Set defaults for display parameters
+    if ~isfield(dispParam, 'nxpix'), dispParam.nxpix = 150; end
+    if ~isfield(dispParam, 'nypix'), dispParam.nypix = 100; end
+    if ~isfield(dispParam, 'bufferDist'), dispParam.bufferDist = 0.5; end
+    if ~isfield(dispParam, 'bufferType'), dispParam.bufferType = 'soft'; end
+    if ~isfield(dispParam, 'interpMethod'), dispParam.interpMethod = 'natural'; end
 end
 
 %% Setup
@@ -47,7 +70,14 @@ end
 
 % Directories
 dataDir = '1data';
-figDir = fullfile('5BMEspatialPlots', 'figs');
+
+% check if the figDir field exists in estParam, otherwise use default
+if isfield(estParam, 'figDir')
+    figDir = estParam.figDir;
+else
+    figDir = fullfile('5BMEspatialPlots', 'figs');
+end
+
 if ~exist(figDir, 'dir'), mkdir(figDir); end
 
 % Color range for concentrations
@@ -97,13 +127,13 @@ end
 %% Plot Based on Type
 switch plotType
     case 1  % BME estimates only
-        plotFieldTOAR(BMEs.sk, BMEs.YkBMEm, displayArea, maskcontour);
+        plotFieldTOAR(BMEs.sk, BMEs.YkBMEm, displayArea, maskcontour, dispParam.nxpix, dispParam.nypix, dispParam.bufferDist, dispParam.bufferType, dispParam.interpMethod, dispParam.dxRes, dispParam.dyRes);
         clim(yrange);
         plotTitle = sprintf('%s BME Estimate', obs.Zname);
         figSuffix = 'BME';
         
     case 2  % BME estimates + observations
-        plotFieldTOAR(BMEs.sk, BMEs.YkBMEm, displayArea, maskcontour);
+        plotFieldTOAR(BMEs.sk, BMEs.YkBMEm, displayArea, maskcontour, dispParam.nxpix, dispParam.nypix, dispParam.bufferDist, dispParam.bufferType, dispParam.interpMethod, dispParam.dxRes, dispParam.dyRes);
         clim(yrange);
         
         % Overlay observations
@@ -116,7 +146,7 @@ switch plotType
         figSuffix = 'BME_obs';
         
     case 3  % Residuals (offset-removed)
-        plotFieldTOAR(BMEs.sk, BMEs.XkBMEm, displayArea, maskcontour);
+        plotFieldTOAR(BMEs.sk, BMEs.XkBMEm, displayArea, maskcontour, dispParam.nxpix, dispParam.nypix, dispParam.bufferDist, dispParam.bufferType, dispParam.interpMethod, dispParam.dxRes, dispParam.dyRes);
         xrange = quantest(BMEs.XkBMEm(~isnan(BMEs.XkBMEm)), yrangeQuant);
         clim(xrange);
         
@@ -132,7 +162,7 @@ switch plotType
     case 4  % BME uncertainty
         % Plot standard deviation
         stdDev = sqrt(max(0, BMEs.XkBMEv));
-        plotFieldTOAR(BMEs.sk, stdDev, displayArea, maskcontour);
+        plotFieldTOAR(BMEs.sk, stdDev, displayArea, maskcontour, dispParam.nxpix, dispParam.nypix, dispParam.bufferDist, dispParam.bufferType, dispParam.interpMethod, dispParam.dxRes, dispParam.dyRes);
         stdRange = quantest(stdDev(~isnan(stdDev)), [0 0.95]);
         clim(stdRange);
         plotTitle = sprintf('%s BME Uncertainty (Std Dev)', obs.Zname);

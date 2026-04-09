@@ -23,6 +23,7 @@ function [models, modelIndices] = decodeCTMmodels(bitmask_hex)
 %   3              08            IASI-GOME2
 %   4              10            UKML
 %   5              20            NJML
+%   6              40            CrIS
 %
 % EXAMPLES:
 %   models = decodeCTMmodels('01')
@@ -49,8 +50,8 @@ else
 end
 
 % Model names and their bit positions (must match generateBMEcode)
-modelNames = {'MERRA2-GMI', 'M3fusion', 'OMI-MLS', 'IASI-GOME2', 'UKML', 'NJML'};
-modelBits = [1, 2, 4, 8, 16, 32];  % 2^0, 2^1, 2^2, 2^3, 2^4, 2^5
+modelNames = {'MERRA2-GMI', 'M3fusion', 'OMI-MLS', 'IASI-GOME2', 'UKML', 'NJML', 'CrIS'};
+modelBits = [1, 2, 4, 8, 16, 32, 64];  % 2^0, 2^1, 2^2, 2^3, 2^4, 2^5, 2^6
 
 % Decode bitmask
 models = {};

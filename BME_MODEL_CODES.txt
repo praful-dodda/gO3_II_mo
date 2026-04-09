@@ -1,0 +1,101 @@
+BME MODEL CODES REFERENCE
+========================
+
+This file documents the hexadecimal bitmask encoding for CTM (Chemical Transport Model)
+soft data sources in BME method codes.
+
+## Single Model Codes
+
+Bit Position   Hex Code   Decimal   Model Name
+-----------   --------   -------   ----------
+0             01         1         MERRA2-GMI
+1             02         2         M3fusion
+2             04         4         OMI-MLS
+3             08         8         IASI-GOME2
+4             10         16        UKML
+5             20         32        NJML
+
+## Common Multi-Model Combinations
+
+Hex Code   Models
+--------   ------
+03         MERRA2-GMI + M3fusion
+05         MERRA2-GMI + OMI-MLS
+06         M3fusion + OMI-MLS
+09         MERRA2-GMI + IASI-GOME2
+0A         M3fusion + IASI-GOME2
+11         MERRA2-GMI + UKML
+12         M3fusion + UKML
+15         MERRA2-GMI + OMI-MLS + UKML
+16         M3fusion + OMI-MLS + UKML
+21         MERRA2-GMI + NJML
+22         M3fusion + NJML
+3F         All 6 models (MERRA2-GMI + M3fusion + OMI-MLS + IASI-GOME2 + UKML + NJML)
+
+## Bitmask Calculation
+
+The hex code is a bitmask where each bit represents a model:
+- Set bit 0 (add 01) for MERRA2-GMI
+- Set bit 1 (add 02) for M3fusion
+- Set bit 2 (add 04) for OMI-MLS
+- Set bit 3 (add 08) for IASI-GOME2
+- Set bit 4 (add 10) for UKML
+- Set bit 5 (add 20) for NJML
+
+Examples:
+- MERRA2-GMI only: 01
+- M3fusion only: 02
+- MERRA2-GMI + M3fusion: 01 + 02 = 03
+- M3fusion + OMI-MLS: 02 + 04 = 06
+- M3fusion + OMI-MLS + UKML: 02 + 04 + 10 = 16
+
+## Usage in BME Method Codes
+
+BME method codes follow the format: [8-digit base]-[2-char CTM code]
+
+Examples:
+- 10000133      → Observations only (no CTM models)
+- 13000313-01   → Observations + MERRA2-GMI
+- 13000313-02   → Observations + M3fusion
+- 13000313-06   → Observations + M3fusion + OMI-MLS
+- 13000313-3F   → Observations + all 6 CTM models
+
+## File Pattern Examples
+
+Pattern                           Description
+-------------------------------   -----------
+CBV_BME10000133_go0*.mat          Obs. only (flat GO)
+CBV_BME10000133_go3*.mat          Obs. only (fine GO)
+CBV_BME13000313-01_go3*.mat       Obs. + MERRA2-GMI
+CBV_BME13000313-02_go3*.mat       Obs. + M3fusion
+CBV_BME13000313-04_go3*.mat       Obs. + OMI-MLS
+CBV_BME13000313-08_go3*.mat       Obs. + IASI-GOME2
+CBV_BME13000313-10_go3*.mat       Obs. + UKML
+CBV_BME13000313-20_go3*.mat       Obs. + NJML
+CBV_BME13000313-05_go3*.mat       Obs. + MERRA2-GMI + OMI-MLS
+CBV_BME13000313-06_go3*.mat       Obs. + M3fusion + OMI-MLS
+CBV_BME13000313-16_go3*.mat       Obs. + M3fusion + OMI-MLS + UKML
+
+## Related Functions
+
+- generateBMEcode()      : Create BME codes from parameters
+- parseBMEcode()         : Parse BME codes into components
+- decodeCTMmodels()      : Decode hex bitmask to model names
+- describeBMEcode()      : Print human-readable description
+- getBMEmethodName()     : Generate full method name from code + GO scenario
+
+## Global Offset (GO) Scenarios
+
+Code   Description
+----   -----------
+0      Zero/flat (constant mean)
+1      Flat (constant mean, legacy)
+2      Domain-wide S/T smoothing
+3      Regional S/T smoothing (fine GO, RECOMMENDED)
+6      Local S/T smoothing
+
+## See Also
+
+- decodeCTMmodels.m      : Implementation of bitmask decoding
+- generateBMEcode.m      : Implementation of code generation
+- example_plotCBV_Phase3.m : Example usage in configuration comparison

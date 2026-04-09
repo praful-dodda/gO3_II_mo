@@ -74,6 +74,16 @@ for year = startYear:endYear
     fprintf('    %d...', year);
     yearData = readtable(filename);
     yearData.year = repmat(year, height(yearData), 1);
+
+    if isnumeric(yearData.id)
+        yearData.id = cellstr(num2str(yearData.id));
+    elseif iscell(yearData.id)
+        yearData.id = cellfun(@(x) num2str(x), yearData.id, 'UniformOutput', false);
+    end
+
+    if ~isempty(allData) && isnumeric(allData.id)
+        allData.id = cellstr(num2str(allData.id));
+    end
     
     if isempty(allData)
         allData = yearData;

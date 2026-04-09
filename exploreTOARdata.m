@@ -53,6 +53,7 @@ exploreOptions.plotTimeSeriesLeastMostObs = 0;
 exploreOptions.plotTimeSeriesSitesMostObs = 0;
 exploreOptions.plotColorPlots = 0;
 exploreOptions.mapArea = mapArea;
+exploreOptions.plotSeasonality = 0;
 
 if explorePlot >= 1, exploreOptions.plotColorPlots = 1; end
 if explorePlot >= 2, exploreOptions.plotTimeSeriesSitesMostObs = 1; end

@@ -1,4 +1,4 @@
-function [zk,vk]=krigingME_stug_multi(ck,ch,cs,zh,zs,vs,covmodel,covparam,nhmax,nsmax,dmax,order,options, hard_data, soft_data)
+function [zk,vk]=krigingME_stug_multi(ck,~,cs,~,zs,vs,covmodel,covparam,nhmax,nsmax,dmax,order,options, hard_data, soft_data)
 
 % krigingME_stug_multi           - prediction using kriging with measurement errors (Nov 27, 2025) version 3.0,
 %                                   Multi-dataset version with backward compatibility
