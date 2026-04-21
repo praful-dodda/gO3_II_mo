@@ -434,9 +434,8 @@ if opts.combineRegions && nRegions > 1
         subplot(nRows, nCols, iReg);
         plotTimeSeriesPanel(tsData, opts, 'compact');
 
-        % Title without R2/RMSE as requested
-        title(sprintf('%s\nBias=%.1f ppb, n=%d', ...
-            tsData.site.region, tsData.stats.Bias, tsData.stats.nObs), ...
+        % Simple title without stats
+        title(sprintf('%s', tsData.site.region), ...
             'FontSize', 10, 'FontWeight', 'bold');
     end
 
@@ -839,51 +838,55 @@ end
 function plotLegendPanel(uncertaintyBands, hasSoftData)
 % Draw a standalone legend in an otherwise empty subplot panel
 
+axis([0 1 0 1]);
 axis off;
 hold on;
 
-xL = 0.12;   % x start for all items
-yStart = 0.88;
-dy = 0.13;   % vertical spacing
+% Position parameters
+xL = 0.15;   % left margin
+yStart = 0.85;
+dy = 0.15;   % vertical spacing
+boxWidth = 0.2;
+boxHeight = 0.06;
 
 % Title
-text(0.5, 0.97, 'Legend', 'Units', 'normalized', ...
-    'HorizontalAlignment', 'center', 'FontSize', 11, 'FontWeight', 'bold');
+text(0.5, 0.95, 'Legend', 'Units', 'normalized', ...
+    'HorizontalAlignment', 'center', 'FontSize', 12, 'FontWeight', 'bold');
 
 y = yStart;
 
-% Uncertainty bands (largest first so fills render bottom-up visually)
+% Uncertainty bands (draw largest first)
 for iSigma = sort(uncertaintyBands, 'descend')
     sigmaColor = [0.7, 0.85, 1.0] .^ iSigma;
-    fill([xL, xL+0.18, xL+0.18, xL], [y-0.03, y-0.03, y+0.03, y+0.03], ...
-        sigmaColor, 'EdgeColor', 'none', 'FaceAlpha', 0.7, 'Units', 'normalized');
-    text(xL + 0.22, y, sprintf('BME ±%d\\sigma', iSigma), ...
-        'Units', 'normalized', 'FontSize', 10, 'VerticalAlignment', 'middle');
+    fill([xL, xL+boxWidth, xL+boxWidth, xL], ...
+         [y-boxHeight/2, y-boxHeight/2, y+boxHeight/2, y+boxHeight/2], ...
+         sigmaColor, 'EdgeColor', 'none', 'FaceAlpha', 0.7);
+    text(xL + boxWidth + 0.05, y, sprintf('BME ±%d\\sigma', iSigma), ...
+        'FontSize', 10, 'VerticalAlignment', 'middle');
     y = y - dy;
 end
 
 % BME mean line
-plot([xL, xL+0.18], [y, y], '-', 'Color', [0 0.4470 0.7410], ...
-    'LineWidth', 2.5, 'Units', 'normalized');
-text(xL + 0.22, y, 'BME Estimate', ...
-    'Units', 'normalized', 'FontSize', 10, 'VerticalAlignment', 'middle');
+plot([xL, xL+boxWidth], [y, y], '-', 'Color', [0 0.4470 0.7410], 'LineWidth', 2.5);
+text(xL + boxWidth + 0.05, y, 'BME Estimate', ...
+    'FontSize', 10, 'VerticalAlignment', 'middle');
 y = y - dy;
 
 % Observations
-plot(xL + 0.09, y, 'o', 'MarkerSize', 8, ...
+plot(xL + boxWidth/2, y, 'o', 'MarkerSize', 7, ...
     'MarkerFaceColor', [0.8500 0.3250 0.0980], ...
-    'MarkerEdgeColor', [0.6 0.2 0.05], 'LineWidth', 1.5, 'Units', 'normalized');
-text(xL + 0.22, y, 'Observations', ...
-    'Units', 'normalized', 'FontSize', 10, 'VerticalAlignment', 'middle');
+    'MarkerEdgeColor', [0.6 0.2 0.05], 'LineWidth', 1.5);
+text(xL + boxWidth + 0.05, y, 'Observations', ...
+    'FontSize', 10, 'VerticalAlignment', 'middle');
 y = y - dy;
 
-% Soft data (only if present in this run)
+% Soft data (only if present)
 if hasSoftData
-    plot(xL + 0.09, y, 's', 'MarkerSize', 8, ...
+    plot(xL + boxWidth/2, y, 's', 'MarkerSize', 7, ...
         'MarkerFaceColor', [0.4660 0.6740 0.1880], ...
-        'MarkerEdgeColor', [0.3 0.5 0.1], 'LineWidth', 1.2, 'Units', 'normalized');
-    text(xL + 0.22, y, 'Soft-Data (CTM)', ...
-        'Units', 'normalized', 'FontSize', 10, 'VerticalAlignment', 'middle');
+        'MarkerEdgeColor', [0.3 0.5 0.1], 'LineWidth', 1.2);
+    text(xL + boxWidth + 0.05, y, 'Soft-Data (CTM)', ...
+        'FontSize', 10, 'VerticalAlignment', 'middle');
 end
 
 hold off;
