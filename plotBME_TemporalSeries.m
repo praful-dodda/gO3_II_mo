@@ -32,7 +32,7 @@ function figPaths = plotBME_TemporalSeries(allBMEs, obs, repSites, estConfig, va
 %   'showLocationMap' - Show location map panel (default: true)
 %   'obsMatchRadius' - Radius (degrees) for matching observations to site (default: 0.01)
 %                      0.01 = exact site only, 0.5 = within 0.5 degrees
-%   'plotSoftData'   - Plot soft-data if available (default: true)
+%   'plot_soft_data'   - Plot soft-data if available (default: true)
 %
 % OUTPUTS:
 %   figPaths - Cell array of generated figure paths
@@ -57,7 +57,7 @@ addParameter(p, 'combineRegions', true, @islogical);
 addParameter(p, 'siteEstimates', [], @(x) isstruct(x) || isempty(x));
 addParameter(p, 'showLocationMap', true, @islogical);
 addParameter(p, 'obsMatchRadius', 0.01, @isnumeric);
-addParameter(p, 'plotSoftData', true, @islogical);
+addParameter(p, 'plot_soft_data', true, @islogical);
 
 parse(p, allBMEs, obs, repSites, estConfig, varargin{:});
 opts = p.Results;
@@ -216,7 +216,7 @@ for iReg = 1:nRegions
     softTimes = cell(nTimes, 1);
     hasSoftData = false;
 
-    if opts.plotSoftData && isfield(estConfig, 'softData') && ~isempty(estConfig.softData)
+    if opts.plot_soft_data && isfield(estConfig, 'softData') && ~isempty(estConfig.softData)
         softData = estConfig.softData;
 
         % Find soft-data near this representative site
@@ -239,7 +239,7 @@ for iReg = 1:nRegions
 
                 if minTimeDiff < timeWindow
                     % Extract soft-data at nearby points for this time
-                    softAtTime = softData.Y(nearSoftPoints, closestTimeIdx);
+                    softAtTime = softData.Z(nearSoftPoints, closestTimeIdx);
                     validSoft = ~isnan(softAtTime);
 
                     if any(validSoft)

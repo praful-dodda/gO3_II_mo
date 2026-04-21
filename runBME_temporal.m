@@ -59,7 +59,7 @@ analyzeParam.tkVec = (estYears(1)):(1/12):(estYears(end) + 11/12);
 %   '13000313-02' - Obs + M3fusion
 %   '13000313-02-10' - Obs + M3fusion + UKML
 % Can specify multiple methods as cell array
-BMEmethods = {'10000133'};  % Start with obs-only for fast testing
+BMEmethods = {'13000313-02'};  % Start with obs-only for fast testing
 
 % Data format for kriging computation
 % 'stv'  - Space-Time Vector (slowest, any grid)
@@ -108,7 +108,8 @@ analyzeParam.forceRepSites = 1;  % 0=use cached, 1=reselect
 %% BME TEMPORAL ESTIMATION CONFIGURATION
 
 % Leave-one-out cross-validation
-analyzeParam.exclusionRadius = 0.5;  % Radius (degrees) to exclude nearby obs
+analyzeParam.performValidation = false; % If set true, then update the cross validation radius below to remove hard surrounding
+analyzeParam.exclusionRadius = 0;  % =0.5 Radius (degrees) to exclude nearby obs
 
 % Force re-estimation
 analyzeParam.forceEstimation = 1;  % 0=use cached, 1=rerun
@@ -128,12 +129,12 @@ analyzeParam.combineRegions = true;    % Create multi-region comparison plot
 analyzeParam.saveTable = false;         % Save statistics CSV
 
 % Observation matching for plots
-analyzeParam.obsMatchRadius = 0.01; % Radius (deg) for matching obs to site
+analyzeParam.obsMatchRadius = 0.03; % Radius (deg) for matching obs to site
                                      % 0.01 = exact site (~1 km)
                                      % 0.5 = within 0.5 deg (~50 km)
 
 % Soft-data plotting
-analyzeParam.plotSoftData = false;      % false=disable, true=plot soft-data if available
+analyzeParam.plot_soft_data = true;      % false=disable, true=plot soft-data if available
 
 % Figure settings
 analyzeParam.figDPI = 300;
@@ -256,10 +257,9 @@ for iMethod = 1:length(BMEmethods)
         tic;
 
         % Create filename based on year range
-        if length(estYears) == 1
+        if isscalar(estYears)
             yearStr = sprintf('year%d', estYears(1));
         else
-<<<<<<< HEAD
             fprintf('  Selecting one site per region...\n');
             repSites = selectRepresentativeSites(obs, analyzeParam.areaCode, ...
                 'minCompleteness', analyzeParam.minCompleteness, ...
@@ -269,9 +269,7 @@ for iMethod = 1:length(BMEmethods)
                 'saveResults', true, ...
                 'forYear', eachYear);
             save(repSitesFile, 'repSites');
-=======
             yearStr = sprintf('years%d-%d', estYears(1), estYears(end));
->>>>>>> 381e5a8 (Fix runBME_temporal workflow: time period processing and plotting improvements)
         end
         siteEstFile = fullfile('6BMEtemporalSeries/', ...
             sprintf('site_estimates_%s_%s.mat', analyzeParam.BMEmethod, yearStr));
@@ -290,7 +288,7 @@ for iMethod = 1:length(BMEmethods)
                 'exclusionRadius', analyzeParam.exclusionRadius, ...
                 'saveResults', false, ...
                 'verbose', true, ...
-                'performValidation', false);
+                'performValidation', analyzeParam.performValidation);
 
             % Save results
             if ~exist('6BMEtemporalSeries/', 'dir')
@@ -317,7 +315,7 @@ for iMethod = 1:length(BMEmethods)
         tic;
 
         % Method-specific temporal output directory
-        if length(estYears) == 1
+        if isscalar(estYears)
             yearStr = sprintf('year%d', estYears(1));
         else
             yearStr = sprintf('years%d-%d', estYears(1), estYears(end));
@@ -346,7 +344,7 @@ for iMethod = 1:length(BMEmethods)
             'saveTable', analyzeParam.saveTable, ...
             'combineRegions', analyzeParam.combineRegions, ...
             'obsMatchRadius', analyzeParam.obsMatchRadius, ...
-            'plotSoftData', analyzeParam.plotSoftData, ...
+            'plot_soft_data', analyzeParam.plot_soft_data, ...
             'dpi', analyzeParam.figDPI, ...
             'visible', analyzeParam.figVisible);
 
