@@ -195,8 +195,9 @@ for iReg = 1:nRegions
                 validObs = ~isnan(obsAtTime);
 
                 if any(validObs)
-                    obsValues{iTime} = obsAtTime(validObs);
-                    obsTimes{iTime} = repmat(obs.tME(closestTimeIdx), sum(validObs), 1);
+                    % Take mean if multiple observations (avoids duplicate points in plot)
+                    obsValues{iTime} = mean(obsAtTime(validObs));
+                    obsTimes{iTime} = obs.tME(closestTimeIdx);
                 end
             end
         end
@@ -242,8 +243,9 @@ for iReg = 1:nRegions
                     validSoft = ~isnan(softAtTime);
 
                     if any(validSoft)
-                        softValues{iTime} = softAtTime(validSoft);
-                        softTimes{iTime} = repmat(softData.tME(closestTimeIdx), sum(validSoft), 1);
+                        % Take mean if multiple soft-data values (avoids duplicate points)
+                        softValues{iTime} = mean(softAtTime(validSoft));
+                        softTimes{iTime} = softData.tME(closestTimeIdx);
                         hasSoftData = true;
                     end
                 end
@@ -255,13 +257,13 @@ for iReg = 1:nRegions
         softTimes = softTimes(validTimes);
     end
 
-    % Flatten observations for statistics
+    % Flatten observations for statistics (now each cell has scalar, not array)
     obsFlat = [];
     BMEatObs = [];
     for iTime = 1:length(obsValues)
         if ~isempty(obsValues{iTime})
-            obsFlat = [obsFlat; obsValues{iTime}];
-            BMEatObs = [BMEatObs; repmat(BMEmean(iTime), length(obsValues{iTime}), 1)];
+            obsFlat = [obsFlat; obsValues{iTime}];  % Now scalar per time
+            BMEatObs = [BMEatObs; BMEmean(iTime)];
         end
     end
 
@@ -278,7 +280,7 @@ for iReg = 1:nRegions
         BMEstdAtObs = [];
         for iTime = 1:length(obsValues)
             if ~isempty(obsValues{iTime})
-                BMEstdAtObs = [BMEstdAtObs; repmat(BMEstd(iTime), length(obsValues{iTime}), 1)];
+                BMEstdAtObs = [BMEstdAtObs; BMEstd(iTime)];  % Now scalar per time
             end
         end
         within2sigma = abs(residuals) <= (2 * BMEstdAtObs);
@@ -360,12 +362,11 @@ for iReg = 1:nRegions
         plotStatisticsSummary(tsData);
         title('Performance Metrics', 'FontSize', 12, 'FontWeight', 'bold');
 
-        % Add overall title with statistics
-        sgtitle(sprintf(['%s: [%.2f°, %.2f°] | R²=%.2f, RMSE=%.1f ppb, ' ...
-            'Bias=%.1f ppb | n=%d obs'], ...
+        % Add overall title (without R2/RMSE as requested)
+        sgtitle(sprintf('%s: [%.2f°, %.2f°] | Bias=%.1f ppb | n=%d obs', ...
             tsData.site.region, tsData.site.lon, tsData.site.lat, ...
-            tsData.stats.R2, tsData.stats.RMSE, tsData.stats.Bias, ...
-            tsData.stats.nObs), 'FontSize', 14, 'FontWeight', 'bold');
+            tsData.stats.Bias, tsData.stats.nObs), ...
+            'FontSize', 14, 'FontWeight', 'bold');
 
         % Save figure
         figFile = fullfile(opts.figDir, sprintf('temporal_full_%s.png', regionName));
@@ -382,9 +383,10 @@ for iReg = 1:nRegions
         fig = figure('Visible', opts.visible, 'Position', [100, 100, 1000, 500]);
         plotTimeSeriesPanel(tsData, opts, 'simple');
 
-        title(sprintf('%s: [%.2f°, %.2f°] | R²=%.2f, RMSE=%.1f ppb, n=%d', ...
+        % Title without R2/RMSE as requested
+        title(sprintf('%s: [%.2f°, %.2f°] | Bias=%.1f ppb, n=%d', ...
             tsData.site.region, tsData.site.lon, tsData.site.lat, ...
-            tsData.stats.R2, tsData.stats.RMSE, tsData.stats.nObs), ...
+            tsData.stats.Bias, tsData.stats.nObs), ...
             'FontSize', 12, 'FontWeight', 'bold');
 
         % Save figure
@@ -422,8 +424,9 @@ if opts.combineRegions && nRegions > 1
         subplot(nRows, nCols, iReg);
         plotTimeSeriesPanel(tsData, opts, 'compact');
 
-        title(sprintf('%s\nR²=%.2f, RMSE=%.1f ppb', ...
-            tsData.site.region, tsData.stats.R2, tsData.stats.RMSE), ...
+        % Title without R2/RMSE as requested
+        title(sprintf('%s\nBias=%.1f ppb, n=%d', ...
+            tsData.site.region, tsData.stats.Bias, tsData.stats.nObs), ...
             'FontSize', 10, 'FontWeight', 'bold');
     end
 
@@ -504,10 +507,11 @@ for iSigma = sort(opts.uncertaintyBands, 'descend')
          'DisplayName', sprintf('BME ±%dσ', iSigma));
 end
 
-% Plot BME mean
-plot(tsData.tkVec, tsData.BMEmean, 'b-', 'LineWidth', 2, 'DisplayName', 'BME Mean');
+% Plot BME mean - thick blue line for clear distinction
+plot(tsData.tkVec, tsData.BMEmean, '-', 'Color', [0 0.4470 0.7410], ...
+    'LineWidth', 2.5, 'DisplayName', 'BME Estimate');
 
-% Plot observations
+% Plot observations - red circles with thick edge for clear distinction
 obsX = [];
 obsY = [];
 for i = 1:length(tsData.obsTimes)
@@ -517,11 +521,12 @@ for i = 1:length(tsData.obsTimes)
     end
 end
 if ~isempty(obsX)
-    plot(obsX, obsY, 'ko', 'MarkerSize', 4, 'MarkerFaceColor', 'k', ...
+    plot(obsX, obsY, 'o', 'MarkerSize', 7, 'MarkerFaceColor', [0.8500 0.3250 0.0980], ...
+        'MarkerEdgeColor', [0.6 0.2 0.05], 'LineWidth', 1.5, ...
         'DisplayName', 'Observations');
 end
 
-% Plot soft-data (if available)
+% Plot soft-data - green squares for clear distinction from obs and BME
 if isfield(tsData, 'hasSoftData') && tsData.hasSoftData
     softX = [];
     softY = [];
@@ -532,7 +537,9 @@ if isfield(tsData, 'hasSoftData') && tsData.hasSoftData
         end
     end
     if ~isempty(softX)
-        plot(softX, softY, 'md', 'MarkerSize', 5, 'MarkerFaceColor', 'm', ...
+        plot(softX, softY, 's', 'MarkerSize', 6, ...
+            'MarkerFaceColor', [0.4660 0.6740 0.1880], ...
+            'MarkerEdgeColor', [0.3 0.5 0.1], 'LineWidth', 1.2, ...
             'DisplayName', 'Soft-Data (CTM)');
     end
 end
@@ -575,19 +582,22 @@ end
 
 hold on;
 
-% Plot BME seasonal cycle
+% Plot BME seasonal cycle - blue line with filled circles
 monthVec = 1:12;
 BMEmonthly = cellfun(@(x) mean(x, 'omitnan'), monthlyBME);
-plot(monthVec, BMEmonthly, 'b-o', 'LineWidth', 2, 'MarkerFaceColor', 'b', ...
-    'DisplayName', 'BME Mean');
+plot(monthVec, BMEmonthly, '-o', 'Color', [0 0.4470 0.7410], ...
+    'LineWidth', 2, 'MarkerSize', 7, 'MarkerFaceColor', [0 0.4470 0.7410], ...
+    'DisplayName', 'BME Estimate');
 
-% Plot obs seasonal cycle
+% Plot obs seasonal cycle - orange circles
 obsMonthly = cellfun(@(x) mean(x, 'omitnan'), monthlyObs);
 validMonths = ~isnan(obsMonthly);
-plot(monthVec(validMonths), obsMonthly(validMonths), 'ko', 'MarkerSize', 6, ...
-    'MarkerFaceColor', 'k', 'DisplayName', 'Obs Mean');
+plot(monthVec(validMonths), obsMonthly(validMonths), 'o', 'MarkerSize', 8, ...
+    'MarkerFaceColor', [0.8500 0.3250 0.0980], ...
+    'MarkerEdgeColor', [0.6 0.2 0.05], 'LineWidth', 1.5, ...
+    'DisplayName', 'Observations');
 
-% Plot soft-data seasonal cycle (if available)
+% Plot soft-data seasonal cycle - green squares
 if isfield(tsData, 'hasSoftData') && tsData.hasSoftData
     monthlySoft = cell(12, 1);
     for i = 1:length(tsData.softTimes)
@@ -602,8 +612,10 @@ if isfield(tsData, 'hasSoftData') && tsData.hasSoftData
     softMonthly = cellfun(@(x) mean(x, 'omitnan'), monthlySoft);
     validSoftMonths = ~isnan(softMonthly);
     if any(validSoftMonths)
-        plot(monthVec(validSoftMonths), softMonthly(validSoftMonths), 'md', ...
-            'MarkerSize', 6, 'MarkerFaceColor', 'm', 'DisplayName', 'Soft Mean');
+        plot(monthVec(validSoftMonths), softMonthly(validSoftMonths), 's', ...
+            'MarkerSize', 7, 'MarkerFaceColor', [0.4660 0.6740 0.1880], ...
+            'MarkerEdgeColor', [0.3 0.5 0.1], 'LineWidth', 1.2, ...
+            'DisplayName', 'Soft-Data (CTM)');
     end
 end
 

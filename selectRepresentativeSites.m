@@ -14,6 +14,7 @@ function repSites = selectRepresentativeSites(obs, areaCode, varargin)
 %               Used to filter regions relevant to the study area
 %
 % OPTIONAL PARAMETERS:
+%   'years'            - Year range to filter [minYear maxYear] or single year (default: [] = all years)
 %   'minCompleteness'  - Minimum data completeness (0-1, default: 0.40)
 %   'maxCompleteness'  - Maximum data completeness (0-1, default: 1.0)
 %   'minObservations'  - Minimum number of observations (default: 100)
@@ -43,6 +44,7 @@ function repSites = selectRepresentativeSites(obs, areaCode, varargin)
 p = inputParser;
 addRequired(p, 'obs', @isstruct);
 addRequired(p, 'areaCode', @isnumeric);
+addParameter(p, 'years', [], @isnumeric);
 addParameter(p, 'minCompleteness', 0.40, @isnumeric);
 addParameter(p, 'maxCompleteness', 1.0, @isnumeric);
 addParameter(p, 'minObservations', 2, @isnumeric);
@@ -53,7 +55,33 @@ addParameter(p, 'forYear', [], @isnumeric);  % Optional: filter by specific year
 parse(p, obs, areaCode, varargin{:});
 opts = p.Results;
 
-fprintf('=== Selecting Representative Sites ===\n');
+% Filter observations by year if specified
+if ~isempty(opts.years)
+    if isscalar(opts.years)
+        yearRange = [opts.years, opts.years];
+    else
+        yearRange = [min(opts.years), max(opts.years)];
+    end
+
+    % Filter time indices within year range
+    timeInRange = (obs.tME >= yearRange(1)) & (obs.tME < (yearRange(2) + 1));
+
+    % Create filtered obs structure
+    obs_filtered = obs;
+    obs_filtered.tME = obs.tME(timeInRange);
+    obs_filtered.Y = obs.Y(:, timeInRange);
+
+    fprintf('=== Selecting Representative Sites ===\n');
+    fprintf('  Year filter: %d-%d (%.1f%% of data retained)\n', ...
+        yearRange(1), yearRange(2), 100*sum(timeInRange)/length(obs.tME));
+
+    % Use filtered observations for selection
+    obs = obs_filtered;
+else
+    fprintf('=== Selecting Representative Sites ===\n');
+    fprintf('  Year filter: None (using all years)\n');
+end
+
 fprintf('  Selection method: %s\n', opts.selectionMethod);
 fprintf('  Min completeness: %.0f%%\n', opts.minCompleteness * 100);
 fprintf('  Max completeness: %.0f%%\n', opts.maxCompleteness * 100);

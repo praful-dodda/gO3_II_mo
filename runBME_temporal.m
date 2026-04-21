@@ -40,13 +40,16 @@ analyzeParam.runExplore = 0;
 analyzeParam.softDataDir = fullfile('d:\Users\praful\Documents\Data\ramp_data\');  % Parquet directory
 
 % Estimation years (actual years to estimate)
-estYears = 2017;
+estYears = [2017];  % Can be a range like [2015 2020]
 
 % Temporal padding for observations (years before/after for edge effects)
 temporalPadding = 1;  % Load obs for estYears ± this value
 
 % Observation time range (with padding)
 analyzeParam.timeRange = [estYears(1) - temporalPadding, estYears(end) + temporalPadding];
+
+% Time periods to estimate (monthly resolution across all years)
+analyzeParam.tkVec = (estYears(1)):(1/12):(estYears(end) + 11/12);
 
 %% BME METHOD CONFIGURATION
 
@@ -170,65 +173,93 @@ fprintf('=======================================================================
 % ====================================================================
 
 for iMethod = 1:length(BMEmethods)
-    for eachYear = estYears
-        fprintf(' Estimation Year: %d\n', eachYear);
+    analyzeParam.BMEmethod = BMEmethods{iMethod};
 
-        % Time periods to estimate (monthly resolution, based on the year)
-        analyzeParam.tkVec = (eachYear):(1/12):(eachYear + 11/12);
+    fprintf('\n');
+    fprintf('************************************************************************\n');
+    fprintf('   PROCESSING METHOD %d/%d: %s\n', iMethod, length(BMEmethods), analyzeParam.BMEmethod);
+    fprintf('************************************************************************\n\n');
 
-        analyzeParam.BMEmethod = BMEmethods{iMethod};
+    %% ====================================================================
+    %                    SOFT DATA LOADING
+    % ====================================================================
 
-        fprintf('\n');
-        fprintf('************************************************************************\n');
-        fprintf('   PROCESSING METHOD %d/%d: %s\n', iMethod, length(BMEmethods), analyzeParam.BMEmethod);
-        fprintf('************************************************************************\n\n');
+    fprintf('=== STAGE 1: Loading Soft Data ===\n');
+    tic;
 
-        %% ====================================================================
-        %                    SOFT DATA LOADING
-        % ====================================================================
+    % Load soft data with temporal padding
+    % For temporal-only workflow, we still need soft data but don't need
+    % dense spatial coverage (can use coarser grid or thinning if needed)
+    analyzeParam.softData = getTOARSoftData(analyzeParam.BMEmethod, analyzeParam, ...
+        'spatialBuffer', 2, ...         % ±2 degree buffer
+        'temporalPadding', 1, ...       % ±1 year buffer
+        'thinningFactor', 0, ...        % No thinning (can increase for speed)
+        'forceReload', 0);
 
-        fprintf('=== STAGE 1: Loading Soft Data ===\n');
+    fprintf('  Completed in %.1f seconds\n\n', toc);
+
+    %% =============================================================================
+    %     LOAD OBSERVATIONAL DATA AND PREPARE BME COMPONENTS
+    % ==============================================================================
+
+    fprintf('=== STAGE 2: Loading Observational Data ===\n');
+    tic;
+
+    % obs = getTOARobservationalData(analyzeParam);
+    [obs, go, cov, KG, KS, BMEparam] = analyzeTOAR(analyzeParam);
+
+    fprintf('  Loaded %d stations with %d time points\n', ...
+        size(obs.sMS, 1), length(obs.tME));
+    fprintf('  Time range: %.2f - %.2f\n', min(obs.tME), max(obs.tME));
+    fprintf('  Completed in %.1f seconds\n\n', toc);
+
+    %% ====================================================================
+    %                    SELECT REPRESENTATIVE SITES
+    % ====================================================================
+
+    fprintf('=== STAGE 3: Selecting Representative Sites ===\n');
+    tic;
+
+    repSitesFile = fullfile('6BMEtemporalSeries/', 'representative_sites.mat');
+
+    if exist(repSitesFile, 'file') && ~analyzeParam.forceRepSites
+        fprintf('  Loading existing representative sites...\n');
+        load(repSitesFile, 'repSites');
+    else
+        fprintf('  Selecting one site per region...\n');
+        repSites = selectRepresentativeSites(obs, analyzeParam.areaCode, ...
+            'years', estYears, ...  % Filter by year range
+            'minCompleteness', analyzeParam.minCompleteness, ...
+            'maxCompleteness', analyzeParam.maxCompleteness, ...
+            'minObservations', analyzeParam.minObservations, ...
+            'selectionMethod', analyzeParam.selectionMethod, ...
+            'saveResults', true);
+        save(repSitesFile, 'repSites');
+    end
+
+    regions = fieldnames(repSites);
+    fprintf('  Selected %d representative sites:\n', length(regions));
+    for i = 1:length(regions)
+        site = repSites.(regions{i});
+        fprintf('    %s: [%.2f, %.2f] (%d obs, %.1f%% complete)\n', ...
+            regions{i}, site.lon, site.lat, site.nObs, site.completeness*100);
+    end
+
+    fprintf('  Completed in %.1f seconds\n\n', toc);
+
+    %% ====================================================================
+    %                    BME TEMPORAL ESTIMATION
+    % ====================================================================
+
+    if analyzeParam.runBME_t
+        fprintf('=== STAGE 5: BME Temporal Estimation ===\n');
         tic;
 
-        % Load soft data with temporal padding
-        % For temporal-only workflow, we still need soft data but don't need
-        % dense spatial coverage (can use coarser grid or thinning if needed)
-        analyzeParam.softData = getTOARSoftData(analyzeParam.BMEmethod, analyzeParam, ...
-            'spatialBuffer', 2, ...         % ±2 degree buffer
-            'temporalPadding', 1, ...       % ±1 year buffer
-            'thinningFactor', 0, ...        % No thinning (can increase for speed)
-            'forceReload', 0);
-
-        fprintf('  Completed in %.1f seconds\n\n', toc);
-
-        %% =============================================================================
-        %     LOAD OBSERVATIONAL DATA AND PREPARE BME COMPONENTS
-        % ==============================================================================
-
-        fprintf('=== STAGE 2: Loading Observational Data ===\n');
-        tic;
-
-        % obs = getTOARobservationalData(analyzeParam);
-        [obs, go, cov, KG, KS, BMEparam] = analyzeTOAR(analyzeParam);
-
-        fprintf('  Loaded %d stations with %d time points\n', ...
-            size(obs.sMS, 1), length(obs.tME));
-        fprintf('  Time range: %.2f - %.2f\n', min(obs.tME), max(obs.tME));
-        fprintf('  Completed in %.1f seconds\n\n', toc);
-
-        %% ====================================================================
-        %                    SELECT REPRESENTATIVE SITES
-        % ====================================================================
-
-        fprintf('=== STAGE 3: Selecting Representative Sites ===\n');
-        tic;
-
-        repSitesFile = fullfile('6BMEtemporalSeries/', 'representative_sites.mat');
-
-        if exist(repSitesFile, 'file') && ~analyzeParam.forceRepSites
-            fprintf('  Loading existing representative sites...\n');
-            load(repSitesFile, 'repSites');
+        % Create filename based on year range
+        if length(estYears) == 1
+            yearStr = sprintf('year%d', estYears(1));
         else
+<<<<<<< HEAD
             fprintf('  Selecting one site per region...\n');
             repSites = selectRepresentativeSites(obs, analyzeParam.areaCode, ...
                 'minCompleteness', analyzeParam.minCompleteness, ...
@@ -238,111 +269,97 @@ for iMethod = 1:length(BMEmethods)
                 'saveResults', true, ...
                 'forYear', eachYear);
             save(repSitesFile, 'repSites');
+=======
+            yearStr = sprintf('years%d-%d', estYears(1), estYears(end));
+>>>>>>> 381e5a8 (Fix runBME_temporal workflow: time period processing and plotting improvements)
         end
+        siteEstFile = fullfile('6BMEtemporalSeries/', ...
+            sprintf('site_estimates_%s_%s.mat', analyzeParam.BMEmethod, yearStr));
 
-        regions = fieldnames(repSites);
-        fprintf('  Selected %d representative sites:\n', length(regions));
-        for i = 1:length(regions)
-            site = repSites.(regions{i});
-            fprintf('    %s: [%.2f, %.2f] (%d obs, %.1f%% complete)\n', ...
-                regions{i}, site.lon, site.lat, site.nObs, site.completeness*100);
-        end
-
-        fprintf('  Completed in %.1f seconds\n\n', toc);
-
-        %% ====================================================================
-        %                    BME TEMPORAL ESTIMATION
-        % ====================================================================
-
-        if analyzeParam.runBME_t
-            fprintf('=== STAGE 5: BME Temporal Estimation ===\n');
-            tic;
-
-            siteEstFile = fullfile('6BMEtemporalSeries/', ...
-                sprintf('site_estimates_%s_year%d.mat', analyzeParam.BMEmethod, eachYear));
-
-            if exist(siteEstFile, 'file') && ~analyzeParam.forceEstimation
-                fprintf('  Loading existing site estimates...\n');
-                load(siteEstFile, 'siteEstimates');
-            else
-                fprintf('  Running BME estimation at %d sites × %d times...\n', ...
-                    length(regions), length(analyzeParam.tkVec));
-                % fprintf('  (Leave-one-out with %.2f deg exclusion radius)\n\n', ...
-                %     analyzeParam.exclusionRadius);
-                % Add BMEmethod to BMEparam for plotting
-                BMEparam.BMEmethod = analyzeParam.BMEmethod;
-
-                siteEstimates = estimateBME_AtRepSites(repSites, obs, go, cov, ...
-                    KG, KS, BMEparam, analyzeParam.tkVec, ...
-                    'exclusionRadius', analyzeParam.exclusionRadius, ...
-                    'saveResults', false, ...
-                    'verbose', true, ...
-                    'performValidation', false); % if this is set true, radial validation is done indirectly.
-
-                % Save with year-specific filename
-                if ~exist('6BMEtemporalSeries/', 'dir')
-                    mkdir('6BMEtemporalSeries/');
-                end
-                save(siteEstFile, 'siteEstimates', '-v7.3');
-                fprintf('  Saved to: %s\n', siteEstFile);
-            end
-
-            elapsedTime = toc;
-            fprintf('\n  BME estimation completed in %.1f minutes\n', elapsedTime/60);
-            fprintf('  Average: %.1f seconds per site\n', elapsedTime/length(regions));
+        if exist(siteEstFile, 'file') && ~analyzeParam.forceEstimation
+            fprintf('  Loading existing site estimates...\n');
+            load(siteEstFile, 'siteEstimates');
         else
-            fprintf('=== STAGE 5: Skipping BME Estimation (runBME = 0) ===\n');
-            error('BME estimation is required for temporal analysis');
-        end
+            fprintf('  Running BME estimation at %d sites × %d times...\n', ...
+                length(regions), length(analyzeParam.tkVec));
+            % Add BMEmethod to BMEparam for plotting
+            BMEparam.BMEmethod = analyzeParam.BMEmethod;
 
-        %% ====================================================================
-        %                    TEMPORAL SERIES PLOTTING
-        % ====================================================================
+            siteEstimates = estimateBME_AtRepSites(repSites, obs, go, cov, ...
+                KG, KS, BMEparam, analyzeParam.tkVec, ...
+                'exclusionRadius', analyzeParam.exclusionRadius, ...
+                'saveResults', false, ...
+                'verbose', true, ...
+                'performValidation', false);
 
-        if analyzeParam.plotTemporal
-            fprintf('\n=== STAGE 6: Generating Temporal Series Plots ===\n');
-            tic;
-
-            % Method-specific temporal output directory
-            temporalFigDir = fullfile('6BMEtemporalSeries/', 'figs_temporal', ...
-                sprintf('%s_go%d_areaCode%d_year%d_temporal_only', ...
-                analyzeParam.BMEmethod, analyzeParam.goScenario, ...
-                analyzeParam.areaCode, eachYear));
-
-            fprintf('  Creating temporal series plots...\n');
-
-            % For temporal-only workflow, we pass empty allBMEs
-            % plotBME_TemporalSeries will use siteEstimates instead
-            allBMEs = cell(length(analyzeParam.tkVec), 1);
-
-            % Create minimal BMEs structure with just time info
-            for iTime = 1:length(analyzeParam.tkVec)
-                allBMEs{iTime} = struct('tk', analyzeParam.tkVec(iTime));
+            % Save results
+            if ~exist('6BMEtemporalSeries/', 'dir')
+                mkdir('6BMEtemporalSeries/');
             end
-
-            figPaths_temporal = plotBME_TemporalSeries(allBMEs, obs, repSites, analyzeParam, ...
-                'figDir', temporalFigDir, ...              % Method-specific directory
-                'siteEstimates', siteEstimates, ...        % Use exact site estimates
-                'plotType', analyzeParam.plotType, ...     % full/simple/both
-                'uncertaintyBands', analyzeParam.uncertaintyBands, ...
-                'saveTable', analyzeParam.saveTable, ...
-                'combineRegions', analyzeParam.combineRegions, ...
-                'obsMatchRadius', analyzeParam.obsMatchRadius, ...
-                'plotSoftData', analyzeParam.plotSoftData, ...
-                'dpi', analyzeParam.figDPI, ...
-                'visible', analyzeParam.figVisible);
-
-            fprintf('  Generated %d temporal figures\n', length(figPaths_temporal));
-            fprintf('  Saved to: %s\n', temporalFigDir);
-            fprintf('  Completed in %.1f minutes\n', toc/60);
+            save(siteEstFile, 'siteEstimates', '-v7.3');
+            fprintf('  Saved to: %s\n', siteEstFile);
         end
 
-        fprintf('\n');
-        fprintf('************************************************************************\n');
-        fprintf('   METHOD %s COMPLETE\n', analyzeParam.BMEmethod);
-        fprintf('************************************************************************\n');
-        close all;
-    end % End of year loop
+        elapsedTime = toc;
+        fprintf('\n  BME estimation completed in %.1f minutes\n', elapsedTime/60);
+        fprintf('  Average: %.1f seconds per site\n', elapsedTime/length(regions));
+    else
+        fprintf('=== STAGE 5: Skipping BME Estimation (runBME = 0) ===\n');
+        error('BME estimation is required for temporal analysis');
+    end
+
+    %% ====================================================================
+    %                    TEMPORAL SERIES PLOTTING
+    % ====================================================================
+
+    if analyzeParam.plotTemporal
+        fprintf('\n=== STAGE 6: Generating Temporal Series Plots ===\n');
+        tic;
+
+        % Method-specific temporal output directory
+        if length(estYears) == 1
+            yearStr = sprintf('year%d', estYears(1));
+        else
+            yearStr = sprintf('years%d-%d', estYears(1), estYears(end));
+        end
+        temporalFigDir = fullfile('6BMEtemporalSeries/', 'figs_temporal', ...
+            sprintf('%s_go%d_areaCode%d_%s_temporal_only', ...
+            analyzeParam.BMEmethod, analyzeParam.goScenario, ...
+            analyzeParam.areaCode, yearStr));
+
+        fprintf('  Creating temporal series plots...\n');
+
+        % For temporal-only workflow, we pass empty allBMEs
+        % plotBME_TemporalSeries will use siteEstimates instead
+        allBMEs = cell(length(analyzeParam.tkVec), 1);
+
+        % Create minimal BMEs structure with just time info
+        for iTime = 1:length(analyzeParam.tkVec)
+            allBMEs{iTime} = struct('tk', analyzeParam.tkVec(iTime));
+        end
+
+        figPaths_temporal = plotBME_TemporalSeries(allBMEs, obs, repSites, analyzeParam, ...
+            'figDir', temporalFigDir, ...              % Method-specific directory
+            'siteEstimates', siteEstimates, ...        % Use exact site estimates
+            'plotType', analyzeParam.plotType, ...     % full/simple/both
+            'uncertaintyBands', analyzeParam.uncertaintyBands, ...
+            'saveTable', analyzeParam.saveTable, ...
+            'combineRegions', analyzeParam.combineRegions, ...
+            'obsMatchRadius', analyzeParam.obsMatchRadius, ...
+            'plotSoftData', analyzeParam.plotSoftData, ...
+            'dpi', analyzeParam.figDPI, ...
+            'visible', analyzeParam.figVisible);
+
+        fprintf('  Generated %d temporal figures\n', length(figPaths_temporal));
+        fprintf('  Saved to: %s\n', temporalFigDir);
+        fprintf('  Completed in %.1f minutes\n', toc/60);
+    end
+
+    fprintf('\n');
+    fprintf('************************************************************************\n');
+    fprintf('   METHOD %s COMPLETE\n', analyzeParam.BMEmethod);
+    fprintf('************************************************************************\n');
+    close all;
 
 end  % End of method loop
 
