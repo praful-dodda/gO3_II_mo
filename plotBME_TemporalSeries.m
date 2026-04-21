@@ -272,38 +272,33 @@ for iReg = 1:nRegions
         end
     end
 
-    % Calculate statistics (with proper NaN handling)
-    if length(obsFlat) >= 10
-        % Remove NaN values from both observations and BME predictions
-        validIdx = ~isnan(obsFlat) & ~isnan(BMEatObs);
-        obsFlat_clean = obsFlat(validIdx);
-        BMEatObs_clean = BMEatObs(validIdx);
+    % Calculate statistics (NaN-safe, no minimum sample size requirement)
+    validIdx = ~isnan(obsFlat) & ~isnan(BMEatObs);
+    obsFlat_clean = obsFlat(validIdx);
+    BMEatObs_clean = BMEatObs(validIdx);
 
-        if length(obsFlat_clean) >= 10
-            residuals = obsFlat_clean - BMEatObs_clean;
-            R2 = 1 - sum(residuals.^2) / sum((obsFlat_clean - mean(obsFlat_clean)).^2);
-            RMSE = sqrt(mean(residuals.^2));
-            MAE = mean(abs(residuals));
-            Bias = mean(residuals);
-            NMB = 100 * Bias / mean(obsFlat_clean);
+    if ~isempty(obsFlat_clean)
+        residuals = obsFlat_clean - BMEatObs_clean;
+        obsMean = mean(obsFlat_clean);
+        SStot = sum((obsFlat_clean - obsMean).^2);
+        R2 = 1 - sum(residuals.^2) / max(SStot, eps);  % avoid div-by-zero
+        RMSE = sqrt(mean(residuals.^2));
+        MAE = mean(abs(residuals));
+        Bias = mean(residuals);
+        NMB = 100 * Bias / max(abs(obsMean), eps);
 
-            % Coverage probability (% within ±2σ)
-            BMEstdAtObs = [];
-            for iTime = 1:length(obsValues)
-                if ~isempty(obsValues{iTime}) && ~isnan(obsValues{iTime})
-                    BMEstdAtObs = [BMEstdAtObs; BMEstd(iTime)];
-                end
+        % Coverage probability (% within ±2σ)
+        BMEstdAtObs = [];
+        for iTime = 1:length(obsValues)
+            if ~isempty(obsValues{iTime}) && ~isnan(obsValues{iTime})
+                BMEstdAtObs = [BMEstdAtObs; BMEstd(iTime)];
             end
-
-            % Ensure BMEstdAtObs matches length of residuals
-            if length(BMEstdAtObs) == length(residuals)
-                within2sigma = abs(residuals) <= (2 * BMEstdAtObs);
-                coverage = 100 * sum(within2sigma) / length(residuals);
-            else
-                coverage = NaN;
-            end
+        end
+        if length(BMEstdAtObs) == length(residuals)
+            within2sigma = abs(residuals) <= (2 * BMEstdAtObs);
+            coverage = 100 * sum(within2sigma) / length(residuals);
         else
-            R2 = NaN; RMSE = NaN; MAE = NaN; Bias = NaN; NMB = NaN; coverage = NaN;
+            coverage = NaN;
         end
     else
         R2 = NaN; RMSE = NaN; MAE = NaN; Bias = NaN; NMB = NaN; coverage = NaN;
@@ -445,6 +440,22 @@ if opts.combineRegions && nRegions > 1
             'FontSize', 10, 'FontWeight', 'bold');
     end
 
+    % Use empty panel(s) to show legend
+    nSlots = nRows * nCols;
+    if nSlots > nRegions
+        % Determine if any region has soft data (for conditional legend entry)
+        hasSoftDataAny = false;
+        for iReg = 1:nRegions
+            if isfield(timeSeriesData.(regions{iReg}), 'hasSoftData') && ...
+               timeSeriesData.(regions{iReg}).hasSoftData
+                hasSoftDataAny = true;
+                break;
+            end
+        end
+        subplot(nRows, nCols, nRegions + 1);
+        plotLegendPanel(opts.uncertaintyBands, hasSoftDataAny);
+    end
+
     sgtitle(sprintf('BME Temporal Analysis - All Regions | Method: %s', ...
         estConfig.BMEmethod), 'FontSize', 14, 'FontWeight', 'bold');
 
@@ -573,9 +584,8 @@ xlim([min(tsData.tkVec), max(tsData.tkVec)]);
 
 % Format x-axis with full year and month
 ax = gca;
-ax.XTick = floor(min(tsData.tkVec)):1/12:ceil(max(tsData.tkVec));
-ax.XTickLabel = datestr(datetime(floor(min(tsData.tkVec)), 1, 1) + years(ax.XTick - floor(min(tsData.tkVec))), 'mmm-yyyy');
-ax.XTickLabelRotation = 45;
+ax.XTick = floor(min(tsData.tkVec)):1/12:(floor(max(tsData.tkVec)) + 11/12);
+formatDecimalYearAxis(ax);
 end
 
 function plotSeasonalPanel(tsData)
@@ -690,9 +700,8 @@ xlim([min(residualTimes), max(residualTimes)]);
 
 % Format x-axis with full year and month
 ax = gca;
-ax.XTick = floor(min(residualTimes)):1/12:ceil(max(residualTimes));
-ax.XTickLabel = datestr(datetime(floor(min(residualTimes)), 1, 1) + years(ax.XTick - floor(min(residualTimes))), 'mmm-yyyy');
-ax.XTickLabelRotation = 45;
+ax.XTick = floor(min(residualTimes)):1/12:(floor(max(residualTimes)) + 11/12);
+formatDecimalYearAxis(ax);
 end
 
 function plotUncertaintyPanel(tsData)
@@ -713,9 +722,8 @@ text(0.98, 0.95, sprintf('Mean: %.2f ppb', meanUncertainty), ...
 
 % Format x-axis with full year and month
 ax = gca;
-ax.XTick = floor(min(tsData.tkVec)):1/12:ceil(max(tsData.tkVec));
-ax.XTickLabel = datestr(datetime(floor(min(tsData.tkVec)), 1, 1) + years(ax.XTick - floor(min(tsData.tkVec))), 'mmm-yyyy');
-ax.XTickLabelRotation = 45;
+ax.XTick = floor(min(tsData.tkVec)):1/12:(floor(max(tsData.tkVec)) + 11/12);
+formatDecimalYearAxis(ax);
 end
 
 function plotLocationMap(site, obs, repSites)
@@ -826,4 +834,74 @@ end
 %         'Units', 'normalized', 'FontSize', 8, 'Color', [0.5 0.5 0.5]);
 %     yPos = yPos - 0.05;
 % end
+end
+
+function plotLegendPanel(uncertaintyBands, hasSoftData)
+% Draw a standalone legend in an otherwise empty subplot panel
+
+axis off;
+hold on;
+
+xL = 0.12;   % x start for all items
+yStart = 0.88;
+dy = 0.13;   % vertical spacing
+
+% Title
+text(0.5, 0.97, 'Legend', 'Units', 'normalized', ...
+    'HorizontalAlignment', 'center', 'FontSize', 11, 'FontWeight', 'bold');
+
+y = yStart;
+
+% Uncertainty bands (largest first so fills render bottom-up visually)
+for iSigma = sort(uncertaintyBands, 'descend')
+    sigmaColor = [0.7, 0.85, 1.0] .^ iSigma;
+    fill([xL, xL+0.18, xL+0.18, xL], [y-0.03, y-0.03, y+0.03, y+0.03], ...
+        sigmaColor, 'EdgeColor', 'none', 'FaceAlpha', 0.7, 'Units', 'normalized');
+    text(xL + 0.22, y, sprintf('BME ±%d\\sigma', iSigma), ...
+        'Units', 'normalized', 'FontSize', 10, 'VerticalAlignment', 'middle');
+    y = y - dy;
+end
+
+% BME mean line
+plot([xL, xL+0.18], [y, y], '-', 'Color', [0 0.4470 0.7410], ...
+    'LineWidth', 2.5, 'Units', 'normalized');
+text(xL + 0.22, y, 'BME Estimate', ...
+    'Units', 'normalized', 'FontSize', 10, 'VerticalAlignment', 'middle');
+y = y - dy;
+
+% Observations
+plot(xL + 0.09, y, 'o', 'MarkerSize', 8, ...
+    'MarkerFaceColor', [0.8500 0.3250 0.0980], ...
+    'MarkerEdgeColor', [0.6 0.2 0.05], 'LineWidth', 1.5, 'Units', 'normalized');
+text(xL + 0.22, y, 'Observations', ...
+    'Units', 'normalized', 'FontSize', 10, 'VerticalAlignment', 'middle');
+y = y - dy;
+
+% Soft data (only if present in this run)
+if hasSoftData
+    plot(xL + 0.09, y, 's', 'MarkerSize', 8, ...
+        'MarkerFaceColor', [0.4660 0.6740 0.1880], ...
+        'MarkerEdgeColor', [0.3 0.5 0.1], 'LineWidth', 1.2, 'Units', 'normalized');
+    text(xL + 0.22, y, 'Soft-Data (CTM)', ...
+        'Units', 'normalized', 'FontSize', 10, 'VerticalAlignment', 'middle');
+end
+
+hold off;
+end
+
+function formatDecimalYearAxis(ax)
+% Convert decimal-year XTick values to 'mmm-yyyy' labels without
+% using fractional year arithmetic (avoids duplicate-month bug).
+ticks = ax.XTick;
+tickYears  = floor(ticks);
+tickMonths = round(mod(ticks, 1) * 12) + 1;
+
+% Clamp: mod rounding can yield 13 at exactly the year boundary
+overflow = tickMonths > 12;
+tickMonths(overflow) = 1;
+tickYears(overflow)  = tickYears(overflow) + 1;
+
+tickDates = datetime(tickYears(:), tickMonths(:), 1);
+ax.XTickLabel = datestr(tickDates, 'mmm-yyyy');
+ax.XTickLabelRotation = 45;
 end
