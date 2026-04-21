@@ -48,6 +48,7 @@ addParameter(p, 'maxCompleteness', 1.0, @isnumeric);
 addParameter(p, 'minObservations', 2, @isnumeric);
 addParameter(p, 'selectionMethod', 'centroid', @(x) ismember(x, {'centroid', 'completeness', 'density'}));
 addParameter(p, 'saveResults', true, @islogical);
+addParameter(p, 'forYear', [], @isnumeric);  % Optional: filter by specific year
 
 parse(p, obs, areaCode, varargin{:});
 opts = p.Results;
@@ -84,6 +85,7 @@ fprintf('  Regions found: %s\n', strjoin(uniqueRegions, ', '));
 
 stationStats = struct();
 for iStation = 1:nStations
+
     % Get all observations at this station
     stationMask = (locIdx == iStation);
     stationObs = obs.Y(stationMask,:);
