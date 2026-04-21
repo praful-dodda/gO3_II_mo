@@ -306,7 +306,7 @@ for iReg = 1:nRegions
 end
 
 % Add metadata for tracking and documentation
-siteEstimates.metadata.timestamp = datestr(now, 'yyyy-mm-dd HH:MM:SS');
+siteEstimates.metadata.timestamp = datetime("now", "Format",'yyyy-MM-dd HH:mm:SS');
 siteEstimates.metadata.nSites = nRegions;
 siteEstimates.metadata.nTimes = nTimes;
 siteEstimates.metadata.totalPoints = nRegions * nTimes;

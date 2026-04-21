@@ -51,7 +51,7 @@ analyzeParam.timeRange = [estYears(1) - temporalPadding, estYears(end) + tempora
 % BMEmethods = {'13000313-01', '13000313-02', '13000313-10', '13000313-04', ...
 %     '13000313-20', '13000313-06', '13000313-08'};  % Cell array of methods to run
 % 
-BMEmethods = {'13000313-01'};
+BMEmethods = {'13000313-03'};
 
 % BMEmethods = {'10000133'};
 

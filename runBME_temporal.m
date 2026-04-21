@@ -40,7 +40,7 @@ analyzeParam.runExplore = 0;
 analyzeParam.softDataDir = fullfile('d:\Users\praful\Documents\Data\ramp_data\');  % Parquet directory
 
 % Estimation years (actual years to estimate)
-estYears = [2017];
+estYears = 2017;
 
 % Temporal padding for observations (years before/after for edge effects)
 temporalPadding = 1;  % Load obs for estYears ± this value
@@ -95,8 +95,8 @@ analyzeParam.areaCode = 0;
 
 % Site selection criteria
 analyzeParam.minCompleteness = 0.40;  % Minimum data completeness (0-1)
-analyzeParam.maxCompleteness = 0.9;   % Maximum data completeness (0-1)
-analyzeParam.minObservations = 2;    % Minimum number of observations
+analyzeParam.maxCompleteness = 0.8;   % Maximum data completeness (0-1)
+analyzeParam.minObservations = 4;    % Minimum number of observations
 analyzeParam.selectionMethod = 'completeness';  % 'completeness', 'centroid', 'density'
 
 % Force re-selection of representative sites
@@ -235,7 +235,8 @@ for iMethod = 1:length(BMEmethods)
                 'maxCompleteness', analyzeParam.maxCompleteness, ...
                 'minObservations', analyzeParam.minObservations, ...
                 'selectionMethod', analyzeParam.selectionMethod, ...
-                'saveResults', true);
+                'saveResults', true, ...
+                'forYear', eachYear);
             save(repSitesFile, 'repSites');
         end
 
