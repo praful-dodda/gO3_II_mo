@@ -227,10 +227,15 @@ for iReg = 1:nRegions
 
             BMEs = allBMEs{iTime};
 
-            % Find soft-data points near this site (using same radius as observations)
+            % Find soft-data points near this site
             softLocDist = sqrt((softData.sMS(:, 1) - site.lon).^2 + ...
                               (softData.sMS(:, 2) - site.lat).^2);
             nearSoftPoints = find(softLocDist < opts.obsMatchRadius);
+
+            % If no soft-data within radius, find the closest point
+            if isempty(nearSoftPoints)
+                [~, nearSoftPoints] = min(softLocDist);
+            end
 
             if ~isempty(nearSoftPoints)
                 % Find time index closest to BMEs.tk (within ±15 days)
@@ -267,24 +272,39 @@ for iReg = 1:nRegions
         end
     end
 
-    % Calculate statistics
+    % Calculate statistics (with proper NaN handling)
     if length(obsFlat) >= 10
-        residuals = obsFlat - BMEatObs;
-        R2 = 1 - sum(residuals.^2) / sum((obsFlat - mean(obsFlat)).^2);
-        RMSE = sqrt(mean(residuals.^2));
-        MAE = mean(abs(residuals));
-        Bias = mean(residuals);
-        NMB = 100 * Bias / mean(obsFlat);
+        % Remove NaN values from both observations and BME predictions
+        validIdx = ~isnan(obsFlat) & ~isnan(BMEatObs);
+        obsFlat_clean = obsFlat(validIdx);
+        BMEatObs_clean = BMEatObs(validIdx);
 
-        % Coverage probability (% within ±2σ)
-        BMEstdAtObs = [];
-        for iTime = 1:length(obsValues)
-            if ~isempty(obsValues{iTime})
-                BMEstdAtObs = [BMEstdAtObs; BMEstd(iTime)];  % Now scalar per time
+        if length(obsFlat_clean) >= 10
+            residuals = obsFlat_clean - BMEatObs_clean;
+            R2 = 1 - sum(residuals.^2) / sum((obsFlat_clean - mean(obsFlat_clean)).^2);
+            RMSE = sqrt(mean(residuals.^2));
+            MAE = mean(abs(residuals));
+            Bias = mean(residuals);
+            NMB = 100 * Bias / mean(obsFlat_clean);
+
+            % Coverage probability (% within ±2σ)
+            BMEstdAtObs = [];
+            for iTime = 1:length(obsValues)
+                if ~isempty(obsValues{iTime}) && ~isnan(obsValues{iTime})
+                    BMEstdAtObs = [BMEstdAtObs; BMEstd(iTime)];
+                end
             end
+
+            % Ensure BMEstdAtObs matches length of residuals
+            if length(BMEstdAtObs) == length(residuals)
+                within2sigma = abs(residuals) <= (2 * BMEstdAtObs);
+                coverage = 100 * sum(within2sigma) / length(residuals);
+            else
+                coverage = NaN;
+            end
+        else
+            R2 = NaN; RMSE = NaN; MAE = NaN; Bias = NaN; NMB = NaN; coverage = NaN;
         end
-        within2sigma = abs(residuals) <= (2 * BMEstdAtObs);
-        coverage = 100 * sum(within2sigma) / length(residuals);
     else
         R2 = NaN; RMSE = NaN; MAE = NaN; Bias = NaN; NMB = NaN; coverage = NaN;
     end
@@ -330,37 +350,32 @@ for iReg = 1:nRegions
     if strcmp(opts.plotType, 'full') || strcmp(opts.plotType, 'both')
         fig = figure('Visible', opts.visible, 'Position', [100, 100, 1800, 900]);
 
-        % Subplot 1: Full time series
-        subplot(2, 3, 1);
+        % Subplot 1: Full time series (larger, takes up 2 columns)
+        subplot(2, 3, [1 2]);
         plotTimeSeriesPanel(tsData, opts, 'full');
         title(sprintf('%s - Time Series', tsData.site.region), 'FontSize', 12, 'FontWeight', 'bold');
 
-        % Subplot 2: Seasonal cycle
-        subplot(2, 3, 2);
-        plotSeasonalPanel(tsData);
-        title('Seasonal Cycle', 'FontSize', 12, 'FontWeight', 'bold');
-
-        % Subplot 3: Location Map
+        % Subplot 2: Location Map (top right)
         subplot(2, 3, 3);
         if opts.showLocationMap
             plotLocationMap(tsData.site, obs, repSites);
             title('Site Location', 'FontSize', 12, 'FontWeight', 'bold');
         end
 
-        % Subplot 4: Residuals over time
+        % Subplot 3: Uncertainty over time (bottom left)
         subplot(2, 3, 4);
-        plotResidualsPanel(tsData);
-        title('Residuals (Obs - BME)', 'FontSize', 12, 'FontWeight', 'bold');
-
-        % Subplot 5: Uncertainty over time
-        subplot(2, 3, 5);
         plotUncertaintyPanel(tsData);
         title('BME Uncertainty', 'FontSize', 12, 'FontWeight', 'bold');
 
-        % Subplot 6: Statistics Summary
-        subplot(2, 3, 6);
+        % Subplot 4: Statistics Summary (bottom middle)
+        subplot(2, 3, 5);
         plotStatisticsSummary(tsData);
         title('Performance Metrics', 'FontSize', 12, 'FontWeight', 'bold');
+
+        % Subplot 5: Seasonal cycle (bottom right) - HIDDEN but code kept
+        % subplot(2, 3, 6);
+        % plotSeasonalPanel(tsData);
+        % title('Seasonal Cycle', 'FontSize', 12, 'FontWeight', 'bold');
 
         % Add overall title (without R2/RMSE as requested)
         sgtitle(sprintf('%s: [%.2f°, %.2f°] | Bias=%.1f ppb | n=%d obs', ...
@@ -546,7 +561,7 @@ end
 
 hold off;
 
-xlabel('Time (year)', 'FontSize', 10);
+xlabel('Time', 'FontSize', 10);
 ylabel('Ozone (ppb)', 'FontSize', 10);
 grid on;
 
@@ -555,10 +570,17 @@ if ~strcmp(style, 'compact')
 end
 
 xlim([min(tsData.tkVec), max(tsData.tkVec)]);
+
+% Format x-axis with full year and month
+ax = gca;
+ax.XTick = floor(min(tsData.tkVec)):1/12:ceil(max(tsData.tkVec));
+ax.XTickLabel = datestr(datetime(floor(min(tsData.tkVec)), 1, 1) + years(ax.XTick - floor(min(tsData.tkVec))), 'mmm-yyyy');
+ax.XTickLabelRotation = 45;
 end
 
 function plotSeasonalPanel(tsData)
 % Plot seasonal cycle (monthly boxes)
+% NOTE: This panel is currently HIDDEN but code is kept for future use
 
 % Extract month from decimal year
 months = round(mod(tsData.tkVec, 1) * 12) + 1;
@@ -572,11 +594,9 @@ end
 % Group obs by month
 monthlyObs = cell(12, 1);
 for i = 1:length(tsData.obsTimes)
-    if ~isempty(tsData.obsTimes{i})
+    if ~isempty(tsData.obsTimes{i}) && ~isnan(tsData.obsValues{i})
         obsMonths = round(mod(tsData.obsTimes{i}, 1) * 12) + 1;
-        for j = 1:length(obsMonths)
-            monthlyObs{obsMonths(j)} = [monthlyObs{obsMonths(j)}; tsData.obsValues{i}(j)];
-        end
+        monthlyObs{obsMonths} = [monthlyObs{obsMonths}; tsData.obsValues{i}];
     end
 end
 
@@ -601,11 +621,9 @@ plot(monthVec(validMonths), obsMonthly(validMonths), 'o', 'MarkerSize', 8, ...
 if isfield(tsData, 'hasSoftData') && tsData.hasSoftData
     monthlySoft = cell(12, 1);
     for i = 1:length(tsData.softTimes)
-        if ~isempty(tsData.softTimes{i})
+        if ~isempty(tsData.softTimes{i}) && ~isnan(tsData.softValues{i})
             softMonths = round(mod(tsData.softTimes{i}, 1) * 12) + 1;
-            for j = 1:length(softMonths)
-                monthlySoft{softMonths(j)} = [monthlySoft{softMonths(j)}; tsData.softValues{i}(j)];
-            end
+            monthlySoft{softMonths} = [monthlySoft{softMonths}; tsData.softValues{i}];
         end
     end
 
@@ -632,12 +650,13 @@ end
 
 function plotResidualsPanel(tsData)
 % Plot residuals over time
+% NOTE: This panel is currently HIDDEN but code is kept for future use
 
 % Calculate residuals at observation times
 residuals = [];
 residualTimes = [];
 for i = 1:length(tsData.obsTimes)
-    if ~isempty(tsData.obsTimes{i})
+    if ~isempty(tsData.obsTimes{i}) && ~isnan(tsData.obsValues{i})
         residuals = [residuals; tsData.obsValues{i} - tsData.BMEmean(i)];
         residualTimes = [residualTimes; tsData.obsTimes{i}];
     end
@@ -657,17 +676,23 @@ plot([min(residualTimes), max(residualTimes)], [0, 0], 'k--', 'LineWidth', 1);
 plot(residualTimes, residuals, 'ko', 'MarkerSize', 3, 'MarkerFaceColor', 'k');
 
 % Add mean residual line
-meanResidual = mean(residuals);
+meanResidual = mean(residuals, 'omitnan');
 plot([min(residualTimes), max(residualTimes)], [meanResidual, meanResidual], ...
     'r-', 'LineWidth', 1.5, 'DisplayName', sprintf('Mean: %.2f ppb', meanResidual));
 
 hold off;
 
-xlabel('Time (year)', 'FontSize', 10);
+xlabel('Time', 'FontSize', 10);
 ylabel('Residual (ppb)', 'FontSize', 10);
 grid on;
 legend('Location', 'best', 'FontSize', 9);
 xlim([min(residualTimes), max(residualTimes)]);
+
+% Format x-axis with full year and month
+ax = gca;
+ax.XTick = floor(min(residualTimes)):1/12:ceil(max(residualTimes));
+ax.XTickLabel = datestr(datetime(floor(min(residualTimes)), 1, 1) + years(ax.XTick - floor(min(residualTimes))), 'mmm-yyyy');
+ax.XTickLabelRotation = 45;
 end
 
 function plotUncertaintyPanel(tsData)
@@ -675,7 +700,7 @@ function plotUncertaintyPanel(tsData)
 
 plot(tsData.tkVec, tsData.BMEstd, 'r-', 'LineWidth', 2);
 
-xlabel('Time (year)', 'FontSize', 10);
+xlabel('Time', 'FontSize', 10);
 ylabel('Uncertainty (σ, ppb)', 'FontSize', 10);
 grid on;
 xlim([min(tsData.tkVec), max(tsData.tkVec)]);
@@ -685,6 +710,12 @@ meanUncertainty = mean(tsData.BMEstd, 'omitnan');
 text(0.98, 0.95, sprintf('Mean: %.2f ppb', meanUncertainty), ...
     'Units', 'normalized', 'HorizontalAlignment', 'right', ...
     'VerticalAlignment', 'top', 'FontSize', 9, 'BackgroundColor', 'w');
+
+% Format x-axis with full year and month
+ax = gca;
+ax.XTick = floor(min(tsData.tkVec)):1/12:ceil(max(tsData.tkVec));
+ax.XTickLabel = datestr(datetime(floor(min(tsData.tkVec)), 1, 1) + years(ax.XTick - floor(min(tsData.tkVec))), 'mmm-yyyy');
+ax.XTickLabelRotation = 45;
 end
 
 function plotLocationMap(site, obs, repSites)
@@ -692,30 +723,37 @@ function plotLocationMap(site, obs, repSites)
 
 hold on;
 
-% Plot all observation stations (gray dots)
-plot(obs.sMS(:,1), obs.sMS(:,2), '.', 'Color', [0.7 0.7 0.7], ...
-    'MarkerSize', 2, 'DisplayName', 'All Stations');
+% Plot world coastlines (lightweight)
+try
+    load coastlines coastlat coastlon
+    plot(coastlon, coastlat, '-', 'Color', [0.7 0.7 0.7], 'LineWidth', 0.5);
+catch
+    % If coastlines.mat not available, try to use borders
+    warning('coastlines.mat not found, map will not show coastlines');
+end
 
-% Plot all representative sites (smaller colored markers)
+% Plot all observation stations (light gray dots)
+plot(obs.sMS(:,1), obs.sMS(:,2), '.', 'Color', [0.5 0.5 0.5], ...
+    'MarkerSize', 3);
+
+% Plot all representative sites (small colored markers)
 regions = fieldnames(repSites);
 colors = lines(length(regions));
 for i = 1:length(regions)
     otherSite = repSites.(regions{i});
     plot(otherSite.lon, otherSite.lat, 'o', ...
-        'MarkerSize', 6, 'MarkerFaceColor', colors(i,:), ...
-        'MarkerEdgeColor', 'k', 'LineWidth', 0.5, ...
-        'DisplayName', 'Rep. Sites');
+        'MarkerSize', 5, 'MarkerFaceColor', colors(i,:), ...
+        'MarkerEdgeColor', 'k', 'LineWidth', 0.5);
 end
 
-% Highlight current site (larger marker)
+% Highlight current site (larger red marker)
 plot(site.lon, site.lat, 'p', 'MarkerSize', 15, ...
-    'MarkerEdgeColor', 'k', 'LineWidth', 1, ...
-    'DisplayName', site.region);
+    'MarkerFaceColor', 'r', 'MarkerEdgeColor', 'k', 'LineWidth', 1.5);
 
 % Add text label for current site
-text(site.lon, site.lat, sprintf('  %s', site.region), ...
+text(site.lon, site.lat + 5, sprintf('%s', site.region), ...
     'FontSize', 9, 'FontWeight', 'bold', 'Color', 'r', ...
-    'VerticalAlignment', 'bottom');
+    'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom');
 
 hold off;
 
@@ -724,21 +762,19 @@ ylabel('Latitude (°N)', 'FontSize', 10);
 grid on;
 axis equal tight;
 
-% Set reasonable axis limits
+% Set reasonable axis limits around the site
 lonRange = max(obs.sMS(:,1)) - min(obs.sMS(:,1));
 latRange = max(obs.sMS(:,2)) - min(obs.sMS(:,2));
-padding = 0.1;
+padding = 0.15;
 
 xlim([site.lon - lonRange*padding, site.lon + lonRange*padding]);
 ylim([site.lat - latRange*padding, site.lat + latRange*padding]);
 
-legend('Location', 'best', 'FontSize', 8);
-
-% Add count
+% Add count annotation
 nStations = size(obs.sMS, 1);
-text(0.02, 0.98, sprintf('%d total stations', nStations), ...
+text(0.02, 0.98, sprintf('%d stations', nStations), ...
     'Units', 'normalized', 'VerticalAlignment', 'top', ...
-    'FontSize', 9, 'BackgroundColor', 'w');
+    'FontSize', 8, 'BackgroundColor', 'w');
 end
 
 function plotStatisticsSummary(tsData)
