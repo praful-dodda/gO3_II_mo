@@ -12,10 +12,13 @@ function plotCBVmonthly(monthlyStats, valParam, varargin)
 %   varargin     - Additional monthlyStats tables for other BME methods
 %
 % PRODUCES (saved to 7validation/CBV/figures/):
-%   Figure 1 — Seasonal cycle:    CBV_monthly_seasonal_BME[method]_go[scenario].png
-%   Figure 2 — Time series:       CBV_monthly_timeseries_BME[method]_go[scenario].png
-%   Figure 3 — Model comparison:  CBV_monthly_modelcomp_BME[method]_go[scenario].png
-%              (Figure 3 only produced when multiple methods are supplied)
+%   Figure 1 — Seasonal cycle:       CBV_monthly_seasonal_BME[method]_go[scenario].png
+%   Figure 2 — Time series:          CBV_monthly_timeseries_BME[method]_go[scenario].png
+%   Figures 3-6 only when nMethods >= 2:
+%   Figure 3 — Model comparison:     CBV_monthly_modelcomp_BME[method]_go[scenario].png
+%   Figure 4 — Delta vs baseline:    CBV_monthly_delta_BME[method]_go[scenario].png
+%   Figure 5 — Winner by month:      CBV_monthly_winner_BME[method]_go[scenario].png
+%   Figure 6 — Temporal stability:   CBV_monthly_stability_BME[method]_go[scenario].png
 %
 % EXAMPLE:
 %   % Single method
@@ -170,10 +173,12 @@ close(fig2);
 %% ================================================================
 
 if nMethods < 2
-    fprintf('plotCBVmonthly: skipping model comparison figure (single method).\n');
-    fprintf('plotCBVmonthly: figures saved to %s\n', figDir);
-    return;
-end
+    fprintf('plotCBVmonthly: single method — Figures 1-2 saved to %s\n', figDir);
+else
+
+%% ================================================================
+%% FIGURE 3: Grouped bars — RMSE and NMB per calendar month
+%% ================================================================
 
 metrics_comp      = {'RMSE', 'NMB'};
 metricLabels_comp = {'RMSE (ppbv)', 'NMB (%)'};
@@ -184,7 +189,6 @@ for iMetric = 1:2
     ax = subplot(1, 2, iMetric);
     hold(ax, 'on');
 
-    % Build [12 x nMethods] matrix of seasonal means
     barData = NaN(12, nMethods);
     for iMethod = 1:nMethods
         [mu, ~] = monthlySeasonalStats(allStats{iMethod}, metrics_comp{iMetric});
@@ -197,7 +201,6 @@ for iMetric = 1:2
         hb(iMethod).DisplayName = methodNames{iMethod};
     end
 
-    % Reference line for NMB
     if strcmp(metrics_comp{iMetric}, 'NMB')
         yline(0, 'k--', 'LineWidth', 1, 'HandleVisibility', 'off');
     end
@@ -216,7 +219,183 @@ basename3 = sprintf('CBV_monthly_modelcomp_BME%s_go%d', primaryMethod, goScenari
 saveTOARfigure(fig3, basename3, figDir, 'dpi', 300);
 close(fig3);
 
-fprintf('plotCBVmonthly: all figures saved to %s\n', figDir);
+%% ================================================================
+%% FIGURE 4: Incremental improvement vs. baseline (Method 1)
+%% Mirrors plotSoftDataContribution waterfall at monthly resolution
+%% ================================================================
+% Positive Δ R² = improvement; negative Δ RMSE = improvement
+
+[mu_base_R2,   sg_base_R2]   = monthlySeasonalStats(allStats{1}, 'R2');
+[mu_base_RMSE, sg_base_RMSE] = monthlySeasonalStats(allStats{1}, 'RMSE');
+
+fig4 = figure('Position', [100 100 1200 700], 'Visible', 'off');
+
+delta_metrics = {'R2',   'RMSE'};
+delta_labels  = {'Δ R²', 'Δ RMSE (ppbv)'};
+base_mu       = {mu_base_R2,   mu_base_RMSE};
+base_sg       = {sg_base_R2,   sg_base_RMSE};
+improve_sign  = [1, -1];   % +1: higher=better; -1: lower=better
+
+for iMetric = 1:2
+    ax = subplot(2, 1, iMetric);
+    hold(ax, 'on');
+
+    for iMethod = 2:nMethods
+        [mu_m, sg_m] = monthlySeasonalStats(allStats{iMethod}, delta_metrics{iMetric});
+
+        delta_mu = (mu_m - base_mu{iMetric}) * improve_sign(iMetric);
+        delta_sg = sqrt(sg_m.^2 + base_sg{iMetric}.^2);   % propagated uncertainty
+
+        xv = (1:12)';
+        validBand = isfinite(delta_mu) & isfinite(delta_sg);
+        if any(validBand)
+            xFill = [xv(validBand); flipud(xv(validBand))];
+            yFill = [delta_mu(validBand) + delta_sg(validBand); ...
+                     flipud(delta_mu(validBand) - delta_sg(validBand))];
+            fill(ax, xFill, yFill, colors(iMethod,:), ...
+                'FaceAlpha', 0.15, 'EdgeColor', 'none', 'HandleVisibility', 'off');
+        end
+        plot(ax, xv, delta_mu, '-o', 'Color', colors(iMethod,:), ...
+            'LineWidth', 2, 'MarkerSize', 6, ...
+            'DisplayName', sprintf('%s vs baseline', methodNames{iMethod}));
+    end
+
+    yline(0, 'k--', 'LineWidth', 1.5, 'HandleVisibility', 'off');
+    set(ax, 'XTick', 1:12, 'XTickLabel', monthAbbr, 'XLim', [0.5 12.5]);
+    xlabel(ax, 'Month');
+    ylabel(ax, delta_labels{iMetric});
+    title(ax, delta_labels{iMetric});
+    legend(ax, 'Location', 'best', 'Interpreter', 'none');
+    grid(ax, 'on');
+end
+
+sgtitle(fig4, sprintf('Improvement Over Baseline (%s) by Month — GO%d (shading = \\pm1 std)', ...
+    methodNames{1}, goScenario));
+
+basename4 = sprintf('CBV_monthly_delta_BME%s_go%d', primaryMethod, goScenario);
+saveTOARfigure(fig4, basename4, figDir, 'dpi', 300);
+close(fig4);
+
+%% ================================================================
+%% FIGURE 5: Winner-by-month heatmap
+%% Mirrors plotTemporalTrends winner analysis at monthly resolution
+%% Rows = metrics, Columns = Jan-Dec, cell = winning method
+%% ================================================================
+
+metrics_win        = {'R2',  'RMSE', 'MAE', 'NMB'};
+metricLabels_win   = {'R²',  'RMSE', 'MAE', 'NMB'};
+higherIsBetter_win = [true, false, false, false];
+
+winnerMat = NaN(4, 12);
+for iMetric = 1:4
+    for m = 1:12
+        muVals = NaN(nMethods, 1);
+        for iMethod = 1:nMethods
+            [mu_all, ~] = monthlySeasonalStats(allStats{iMethod}, metrics_win{iMetric});
+            muVals(iMethod) = mu_all(m);
+        end
+        if all(isnan(muVals)), continue; end
+        if higherIsBetter_win(iMetric)
+            [~, winnerMat(iMetric, m)] = max(muVals);
+        else
+            [~, winnerMat(iMetric, m)] = min(muVals);
+        end
+    end
+end
+
+fig5 = figure('Position', [100 100 1200 400], 'Visible', 'off');
+ax5  = axes(fig5);
+hold(ax5, 'on');
+
+for iMetric = 1:4
+    for m = 1:12
+        w = winnerMat(iMetric, m);
+        if isnan(w), continue; end
+        rectangle(ax5, 'Position', [m-0.5, iMetric-0.5, 1, 1], ...
+            'FaceColor', colors(w,:), 'EdgeColor', 'w', 'LineWidth', 1.5);
+        % Short label (first 10 chars)
+        label = methodNames{w};
+        if length(label) > 10, label = label(1:10); end
+        text(ax5, m, iMetric, label, ...
+            'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', ...
+            'FontSize', 7, 'FontWeight', 'bold', 'Color', 'w');
+    end
+end
+
+set(ax5, 'XTick', 1:12, 'XTickLabel', monthAbbr, ...
+         'YTick', 1:4,  'YTickLabel', metricLabels_win, ...
+         'XLim', [0.5 12.5], 'YLim', [0.5 4.5]);
+xlabel(ax5, 'Month');
+ylabel(ax5, 'Metric');
+title(ax5, sprintf('Winner by Month and Metric — GO%d  (color = winning method)', goScenario));
+
+% Legend entries
+for iMethod = 1:nMethods
+    patch(ax5, NaN, NaN, colors(iMethod,:), 'DisplayName', methodNames{iMethod});
+end
+legend(ax5, 'Location', 'bestoutside', 'Interpreter', 'none');
+
+basename5 = sprintf('CBV_monthly_winner_BME%s_go%d', primaryMethod, goScenario);
+saveTOARfigure(fig5, basename5, figDir, 'dpi', 300);
+close(fig5);
+
+%% ================================================================
+%% FIGURE 6: Temporal stability — CV and std of RMSE by month
+%% Mirrors plotTemporalTrends CV figure at monthly resolution
+%% Lower CV = more stable performance year-to-year for that month
+%% ================================================================
+
+fig6 = figure('Position', [100 100 1200 500], 'Visible', 'off');
+ax6L = subplot(1, 2, 1);
+ax6R = subplot(1, 2, 2);
+hold(ax6L, 'on');
+hold(ax6R, 'on');
+
+for iMethod = 1:nMethods
+    T = allStats{iMethod};
+
+    mu_rmse = NaN(12, 1);
+    sg_rmse = NaN(12, 1);
+    cv_rmse = NaN(12, 1);
+    for m = 1:12
+        vals = T.RMSE(T.Month == m);
+        vals = vals(isfinite(vals));
+        if numel(vals) >= 2
+            mu_rmse(m) = mean(vals);
+            sg_rmse(m) = std(vals);
+            cv_rmse(m) = sg_rmse(m) / mu_rmse(m);
+        end
+    end
+
+    plot(ax6L, 1:12, cv_rmse, '-o', 'Color', colors(iMethod,:), ...
+        'LineWidth', 2, 'MarkerSize', 6, 'DisplayName', methodNames{iMethod});
+    plot(ax6R, 1:12, sg_rmse, '-o', 'Color', colors(iMethod,:), ...
+        'LineWidth', 2, 'MarkerSize', 6, 'DisplayName', methodNames{iMethod});
+end
+
+set(ax6L, 'XTick', 1:12, 'XTickLabel', monthAbbr, 'XLim', [0.5 12.5]);
+xlabel(ax6L, 'Month');
+ylabel(ax6L, 'CV of RMSE (std / mean)');
+title(ax6L, 'Temporal Stability — CV of RMSE');
+legend(ax6L, 'Location', 'best', 'Interpreter', 'none');
+grid(ax6L, 'on');
+
+set(ax6R, 'XTick', 1:12, 'XTickLabel', monthAbbr, 'XLim', [0.5 12.5]);
+xlabel(ax6R, 'Month');
+ylabel(ax6R, 'Std of RMSE (ppbv)');
+title(ax6R, 'Temporal Stability — Absolute Std');
+legend(ax6R, 'Location', 'best', 'Interpreter', 'none');
+grid(ax6R, 'on');
+
+sgtitle(fig6, sprintf('Year-to-Year RMSE Stability by Month — GO%d  (lower = more stable)', goScenario));
+
+basename6 = sprintf('CBV_monthly_stability_BME%s_go%d', primaryMethod, goScenario);
+saveTOARfigure(fig6, basename6, figDir, 'dpi', 300);
+close(fig6);
+
+fprintf('plotCBVmonthly: all 6 figures saved to %s\n', figDir);
+
+end  % if nMethods >= 2
 
 end  % main function
 
