@@ -32,7 +32,7 @@ function figPaths = plotBME_TemporalSeries(allBMEs, obs, repSites, estConfig, va
 %   'showLocationMap' - Show location map panel (default: true)
 %   'obsMatchRadius' - Radius (degrees) for matching observations to site (default: 0.01)
 %                      0.01 = exact site only, 0.5 = within 0.5 degrees
-%   'plotSoftData'   - Plot soft-data if available (default: true)
+%   'plot_soft_data'   - Plot soft-data if available (default: true)
 %
 % OUTPUTS:
 %   figPaths - Cell array of generated figure paths
@@ -57,7 +57,7 @@ addParameter(p, 'combineRegions', true, @islogical);
 addParameter(p, 'siteEstimates', [], @(x) isstruct(x) || isempty(x));
 addParameter(p, 'showLocationMap', true, @islogical);
 addParameter(p, 'obsMatchRadius', 0.01, @isnumeric);
-addParameter(p, 'plotSoftData', true, @islogical);
+addParameter(p, 'plot_soft_data', true, @islogical);
 
 parse(p, allBMEs, obs, repSites, estConfig, varargin{:});
 opts = p.Results;
@@ -195,8 +195,9 @@ for iReg = 1:nRegions
                 validObs = ~isnan(obsAtTime);
 
                 if any(validObs)
-                    obsValues{iTime} = obsAtTime(validObs);
-                    obsTimes{iTime} = repmat(obs.tME(closestTimeIdx), sum(validObs), 1);
+                    % Take mean if multiple observations (avoids duplicate points in plot)
+                    obsValues{iTime} = mean(obsAtTime(validObs));
+                    obsTimes{iTime} = obs.tME(closestTimeIdx);
                 end
             end
         end
@@ -215,7 +216,7 @@ for iReg = 1:nRegions
     softTimes = cell(nTimes, 1);
     hasSoftData = false;
 
-    if opts.plotSoftData && isfield(estConfig, 'softData') && ~isempty(estConfig.softData)
+    if opts.plot_soft_data && isfield(estConfig, 'softData') && ~isempty(estConfig.softData)
         softData = estConfig.softData;
 
         % Find soft-data near this representative site
@@ -226,10 +227,15 @@ for iReg = 1:nRegions
 
             BMEs = allBMEs{iTime};
 
-            % Find soft-data points near this site (using same radius as observations)
+            % Find soft-data points near this site
             softLocDist = sqrt((softData.sMS(:, 1) - site.lon).^2 + ...
                               (softData.sMS(:, 2) - site.lat).^2);
             nearSoftPoints = find(softLocDist < opts.obsMatchRadius);
+
+            % If no soft-data within radius, find the closest point
+            if isempty(nearSoftPoints)
+                [~, nearSoftPoints] = min(softLocDist);
+            end
 
             if ~isempty(nearSoftPoints)
                 % Find time index closest to BMEs.tk (within ±15 days)
@@ -238,12 +244,13 @@ for iReg = 1:nRegions
 
                 if minTimeDiff < timeWindow
                     % Extract soft-data at nearby points for this time
-                    softAtTime = softData.Y(nearSoftPoints, closestTimeIdx);
+                    softAtTime = softData.Z(nearSoftPoints, closestTimeIdx);
                     validSoft = ~isnan(softAtTime);
 
                     if any(validSoft)
-                        softValues{iTime} = softAtTime(validSoft);
-                        softTimes{iTime} = repmat(softData.tME(closestTimeIdx), sum(validSoft), 1);
+                        % Take mean if multiple soft-data values (avoids duplicate points)
+                        softValues{iTime} = mean(softAtTime(validSoft));
+                        softTimes{iTime} = softData.tME(closestTimeIdx);
                         hasSoftData = true;
                     end
                 end
@@ -255,34 +262,44 @@ for iReg = 1:nRegions
         softTimes = softTimes(validTimes);
     end
 
-    % Flatten observations for statistics
+    % Flatten observations for statistics (now each cell has scalar, not array)
     obsFlat = [];
     BMEatObs = [];
     for iTime = 1:length(obsValues)
         if ~isempty(obsValues{iTime})
-            obsFlat = [obsFlat; obsValues{iTime}];
-            BMEatObs = [BMEatObs; repmat(BMEmean(iTime), length(obsValues{iTime}), 1)];
+            obsFlat = [obsFlat; obsValues{iTime}];  % Now scalar per time
+            BMEatObs = [BMEatObs; BMEmean(iTime)];
         end
     end
 
-    % Calculate statistics
-    if length(obsFlat) >= 10
-        residuals = obsFlat - BMEatObs;
-        R2 = 1 - sum(residuals.^2) / sum((obsFlat - mean(obsFlat)).^2);
+    % Calculate statistics (NaN-safe, no minimum sample size requirement)
+    validIdx = ~isnan(obsFlat) & ~isnan(BMEatObs);
+    obsFlat_clean = obsFlat(validIdx);
+    BMEatObs_clean = BMEatObs(validIdx);
+
+    if ~isempty(obsFlat_clean)
+        residuals = obsFlat_clean - BMEatObs_clean;
+        obsMean = mean(obsFlat_clean);
+        SStot = sum((obsFlat_clean - obsMean).^2);
+        R2 = 1 - sum(residuals.^2) / max(SStot, eps);  % avoid div-by-zero
         RMSE = sqrt(mean(residuals.^2));
         MAE = mean(abs(residuals));
         Bias = mean(residuals);
-        NMB = 100 * Bias / mean(obsFlat);
+        NMB = 100 * Bias / max(abs(obsMean), eps);
 
         % Coverage probability (% within ±2σ)
         BMEstdAtObs = [];
         for iTime = 1:length(obsValues)
-            if ~isempty(obsValues{iTime})
-                BMEstdAtObs = [BMEstdAtObs; repmat(BMEstd(iTime), length(obsValues{iTime}), 1)];
+            if ~isempty(obsValues{iTime}) && ~isnan(obsValues{iTime})
+                BMEstdAtObs = [BMEstdAtObs; BMEstd(iTime)];
             end
         end
-        within2sigma = abs(residuals) <= (2 * BMEstdAtObs);
-        coverage = 100 * sum(within2sigma) / length(residuals);
+        if length(BMEstdAtObs) == length(residuals)
+            within2sigma = abs(residuals) <= (2 * BMEstdAtObs);
+            coverage = 100 * sum(within2sigma) / length(residuals);
+        else
+            coverage = NaN;
+        end
     else
         R2 = NaN; RMSE = NaN; MAE = NaN; Bias = NaN; NMB = NaN; coverage = NaN;
     end
@@ -328,44 +345,38 @@ for iReg = 1:nRegions
     if strcmp(opts.plotType, 'full') || strcmp(opts.plotType, 'both')
         fig = figure('Visible', opts.visible, 'Position', [100, 100, 1800, 900]);
 
-        % Subplot 1: Full time series
-        subplot(2, 3, 1);
+        % Subplot 1: Full time series (larger, takes up 2 columns)
+        subplot(2, 3, [1 2]);
         plotTimeSeriesPanel(tsData, opts, 'full');
         title(sprintf('%s - Time Series', tsData.site.region), 'FontSize', 12, 'FontWeight', 'bold');
 
-        % Subplot 2: Seasonal cycle
-        subplot(2, 3, 2);
-        plotSeasonalPanel(tsData);
-        title('Seasonal Cycle', 'FontSize', 12, 'FontWeight', 'bold');
-
-        % Subplot 3: Location Map
+        % Subplot 2: Location Map (top right)
         subplot(2, 3, 3);
         if opts.showLocationMap
             plotLocationMap(tsData.site, obs, repSites);
             title('Site Location', 'FontSize', 12, 'FontWeight', 'bold');
         end
 
-        % Subplot 4: Residuals over time
+        % Subplot 3: Uncertainty over time (bottom left)
         subplot(2, 3, 4);
-        plotResidualsPanel(tsData);
-        title('Residuals (Obs - BME)', 'FontSize', 12, 'FontWeight', 'bold');
-
-        % Subplot 5: Uncertainty over time
-        subplot(2, 3, 5);
         plotUncertaintyPanel(tsData);
         title('BME Uncertainty', 'FontSize', 12, 'FontWeight', 'bold');
 
-        % Subplot 6: Statistics Summary
-        subplot(2, 3, 6);
+        % Subplot 4: Statistics Summary (bottom middle)
+        subplot(2, 3, 5);
         plotStatisticsSummary(tsData);
         title('Performance Metrics', 'FontSize', 12, 'FontWeight', 'bold');
 
-        % Add overall title with statistics
-        sgtitle(sprintf(['%s: [%.2f°, %.2f°] | R²=%.2f, RMSE=%.1f ppb, ' ...
-            'Bias=%.1f ppb | n=%d obs'], ...
+        % Subplot 5: Seasonal cycle (bottom right) - HIDDEN but code kept
+        % subplot(2, 3, 6);
+        % plotSeasonalPanel(tsData);
+        % title('Seasonal Cycle', 'FontSize', 12, 'FontWeight', 'bold');
+
+        % Add overall title (without R2/RMSE as requested)
+        sgtitle(sprintf('%s: [%.2f°, %.2f°] | Bias=%.1f ppb | n=%d obs', ...
             tsData.site.region, tsData.site.lon, tsData.site.lat, ...
-            tsData.stats.R2, tsData.stats.RMSE, tsData.stats.Bias, ...
-            tsData.stats.nObs), 'FontSize', 14, 'FontWeight', 'bold');
+            tsData.stats.Bias, tsData.stats.nObs), ...
+            'FontSize', 14, 'FontWeight', 'bold');
 
         % Save figure
         figFile = fullfile(opts.figDir, sprintf('temporal_full_%s.png', regionName));
@@ -382,9 +393,10 @@ for iReg = 1:nRegions
         fig = figure('Visible', opts.visible, 'Position', [100, 100, 1000, 500]);
         plotTimeSeriesPanel(tsData, opts, 'simple');
 
-        title(sprintf('%s: [%.2f°, %.2f°] | R²=%.2f, RMSE=%.1f ppb, n=%d', ...
+        % Title without R2/RMSE as requested
+        title(sprintf('%s: [%.2f°, %.2f°] | Bias=%.1f ppb, n=%d', ...
             tsData.site.region, tsData.site.lon, tsData.site.lat, ...
-            tsData.stats.R2, tsData.stats.RMSE, tsData.stats.nObs), ...
+            tsData.stats.Bias, tsData.stats.nObs), ...
             'FontSize', 12, 'FontWeight', 'bold');
 
         % Save figure
@@ -422,9 +434,25 @@ if opts.combineRegions && nRegions > 1
         subplot(nRows, nCols, iReg);
         plotTimeSeriesPanel(tsData, opts, 'compact');
 
-        title(sprintf('%s\nR²=%.2f, RMSE=%.1f ppb', ...
-            tsData.site.region, tsData.stats.R2, tsData.stats.RMSE), ...
+        % Simple title without stats
+        title(sprintf('%s', tsData.site.region), ...
             'FontSize', 10, 'FontWeight', 'bold');
+    end
+
+    % Use empty panel(s) to show legend
+    nSlots = nRows * nCols;
+    if nSlots > nRegions
+        % Determine if any region has soft data (for conditional legend entry)
+        hasSoftDataAny = false;
+        for iReg = 1:nRegions
+            if isfield(timeSeriesData.(regions{iReg}), 'hasSoftData') && ...
+               timeSeriesData.(regions{iReg}).hasSoftData
+                hasSoftDataAny = true;
+                break;
+            end
+        end
+        subplot(nRows, nCols, nRegions + 1);
+        plotLegendPanel(opts.uncertaintyBands, hasSoftDataAny);
     end
 
     sgtitle(sprintf('BME Temporal Analysis - All Regions | Method: %s', ...
@@ -504,10 +532,11 @@ for iSigma = sort(opts.uncertaintyBands, 'descend')
          'DisplayName', sprintf('BME ±%dσ', iSigma));
 end
 
-% Plot BME mean
-plot(tsData.tkVec, tsData.BMEmean, 'b-', 'LineWidth', 2, 'DisplayName', 'BME Mean');
+% Plot BME mean - thick blue line for clear distinction
+plot(tsData.tkVec, tsData.BMEmean, '-', 'Color', [0 0.4470 0.7410], ...
+    'LineWidth', 2.5, 'DisplayName', 'BME Estimate');
 
-% Plot observations
+% Plot observations - red circles with thick edge for clear distinction
 obsX = [];
 obsY = [];
 for i = 1:length(tsData.obsTimes)
@@ -517,11 +546,12 @@ for i = 1:length(tsData.obsTimes)
     end
 end
 if ~isempty(obsX)
-    plot(obsX, obsY, 'ko', 'MarkerSize', 4, 'MarkerFaceColor', 'k', ...
+    plot(obsX, obsY, 'o', 'MarkerSize', 7, 'MarkerFaceColor', [0.8500 0.3250 0.0980], ...
+        'MarkerEdgeColor', [0.6 0.2 0.05], 'LineWidth', 1.5, ...
         'DisplayName', 'Observations');
 end
 
-% Plot soft-data (if available)
+% Plot soft-data - green squares for clear distinction from obs and BME
 if isfield(tsData, 'hasSoftData') && tsData.hasSoftData
     softX = [];
     softY = [];
@@ -532,14 +562,16 @@ if isfield(tsData, 'hasSoftData') && tsData.hasSoftData
         end
     end
     if ~isempty(softX)
-        plot(softX, softY, 'md', 'MarkerSize', 5, 'MarkerFaceColor', 'm', ...
+        plot(softX, softY, 's', 'MarkerSize', 6, ...
+            'MarkerFaceColor', [0.4660 0.6740 0.1880], ...
+            'MarkerEdgeColor', [0.3 0.5 0.1], 'LineWidth', 1.2, ...
             'DisplayName', 'Soft-Data (CTM)');
     end
 end
 
 hold off;
 
-xlabel('Time (year)', 'FontSize', 10);
+xlabel('Time', 'FontSize', 10);
 ylabel('Ozone (ppb)', 'FontSize', 10);
 grid on;
 
@@ -548,10 +580,16 @@ if ~strcmp(style, 'compact')
 end
 
 xlim([min(tsData.tkVec), max(tsData.tkVec)]);
+
+% Format x-axis with full year and month
+ax = gca;
+ax.XTick = floor(min(tsData.tkVec)):1/12:(floor(max(tsData.tkVec)) + 11/12);
+formatDecimalYearAxis(ax);
 end
 
 function plotSeasonalPanel(tsData)
 % Plot seasonal cycle (monthly boxes)
+% NOTE: This panel is currently HIDDEN but code is kept for future use
 
 % Extract month from decimal year
 months = round(mod(tsData.tkVec, 1) * 12) + 1;
@@ -565,45 +603,46 @@ end
 % Group obs by month
 monthlyObs = cell(12, 1);
 for i = 1:length(tsData.obsTimes)
-    if ~isempty(tsData.obsTimes{i})
+    if ~isempty(tsData.obsTimes{i}) && ~isnan(tsData.obsValues{i})
         obsMonths = round(mod(tsData.obsTimes{i}, 1) * 12) + 1;
-        for j = 1:length(obsMonths)
-            monthlyObs{obsMonths(j)} = [monthlyObs{obsMonths(j)}; tsData.obsValues{i}(j)];
-        end
+        monthlyObs{obsMonths} = [monthlyObs{obsMonths}; tsData.obsValues{i}];
     end
 end
 
 hold on;
 
-% Plot BME seasonal cycle
+% Plot BME seasonal cycle - blue line with filled circles
 monthVec = 1:12;
 BMEmonthly = cellfun(@(x) mean(x, 'omitnan'), monthlyBME);
-plot(monthVec, BMEmonthly, 'b-o', 'LineWidth', 2, 'MarkerFaceColor', 'b', ...
-    'DisplayName', 'BME Mean');
+plot(monthVec, BMEmonthly, '-o', 'Color', [0 0.4470 0.7410], ...
+    'LineWidth', 2, 'MarkerSize', 7, 'MarkerFaceColor', [0 0.4470 0.7410], ...
+    'DisplayName', 'BME Estimate');
 
-% Plot obs seasonal cycle
+% Plot obs seasonal cycle - orange circles
 obsMonthly = cellfun(@(x) mean(x, 'omitnan'), monthlyObs);
 validMonths = ~isnan(obsMonthly);
-plot(monthVec(validMonths), obsMonthly(validMonths), 'ko', 'MarkerSize', 6, ...
-    'MarkerFaceColor', 'k', 'DisplayName', 'Obs Mean');
+plot(monthVec(validMonths), obsMonthly(validMonths), 'o', 'MarkerSize', 8, ...
+    'MarkerFaceColor', [0.8500 0.3250 0.0980], ...
+    'MarkerEdgeColor', [0.6 0.2 0.05], 'LineWidth', 1.5, ...
+    'DisplayName', 'Observations');
 
-% Plot soft-data seasonal cycle (if available)
+% Plot soft-data seasonal cycle - green squares
 if isfield(tsData, 'hasSoftData') && tsData.hasSoftData
     monthlySoft = cell(12, 1);
     for i = 1:length(tsData.softTimes)
-        if ~isempty(tsData.softTimes{i})
+        if ~isempty(tsData.softTimes{i}) && ~isnan(tsData.softValues{i})
             softMonths = round(mod(tsData.softTimes{i}, 1) * 12) + 1;
-            for j = 1:length(softMonths)
-                monthlySoft{softMonths(j)} = [monthlySoft{softMonths(j)}; tsData.softValues{i}(j)];
-            end
+            monthlySoft{softMonths} = [monthlySoft{softMonths}; tsData.softValues{i}];
         end
     end
 
     softMonthly = cellfun(@(x) mean(x, 'omitnan'), monthlySoft);
     validSoftMonths = ~isnan(softMonthly);
     if any(validSoftMonths)
-        plot(monthVec(validSoftMonths), softMonthly(validSoftMonths), 'md', ...
-            'MarkerSize', 6, 'MarkerFaceColor', 'm', 'DisplayName', 'Soft Mean');
+        plot(monthVec(validSoftMonths), softMonthly(validSoftMonths), 's', ...
+            'MarkerSize', 7, 'MarkerFaceColor', [0.4660 0.6740 0.1880], ...
+            'MarkerEdgeColor', [0.3 0.5 0.1], 'LineWidth', 1.2, ...
+            'DisplayName', 'Soft-Data (CTM)');
     end
 end
 
@@ -620,12 +659,13 @@ end
 
 function plotResidualsPanel(tsData)
 % Plot residuals over time
+% NOTE: This panel is currently HIDDEN but code is kept for future use
 
 % Calculate residuals at observation times
 residuals = [];
 residualTimes = [];
 for i = 1:length(tsData.obsTimes)
-    if ~isempty(tsData.obsTimes{i})
+    if ~isempty(tsData.obsTimes{i}) && ~isnan(tsData.obsValues{i})
         residuals = [residuals; tsData.obsValues{i} - tsData.BMEmean(i)];
         residualTimes = [residualTimes; tsData.obsTimes{i}];
     end
@@ -645,17 +685,22 @@ plot([min(residualTimes), max(residualTimes)], [0, 0], 'k--', 'LineWidth', 1);
 plot(residualTimes, residuals, 'ko', 'MarkerSize', 3, 'MarkerFaceColor', 'k');
 
 % Add mean residual line
-meanResidual = mean(residuals);
+meanResidual = mean(residuals, 'omitnan');
 plot([min(residualTimes), max(residualTimes)], [meanResidual, meanResidual], ...
     'r-', 'LineWidth', 1.5, 'DisplayName', sprintf('Mean: %.2f ppb', meanResidual));
 
 hold off;
 
-xlabel('Time (year)', 'FontSize', 10);
+xlabel('Time', 'FontSize', 10);
 ylabel('Residual (ppb)', 'FontSize', 10);
 grid on;
 legend('Location', 'best', 'FontSize', 9);
 xlim([min(residualTimes), max(residualTimes)]);
+
+% Format x-axis with full year and month
+ax = gca;
+ax.XTick = floor(min(residualTimes)):1/12:(floor(max(residualTimes)) + 11/12);
+formatDecimalYearAxis(ax);
 end
 
 function plotUncertaintyPanel(tsData)
@@ -663,7 +708,7 @@ function plotUncertaintyPanel(tsData)
 
 plot(tsData.tkVec, tsData.BMEstd, 'r-', 'LineWidth', 2);
 
-xlabel('Time (year)', 'FontSize', 10);
+xlabel('Time', 'FontSize', 10);
 ylabel('Uncertainty (σ, ppb)', 'FontSize', 10);
 grid on;
 xlim([min(tsData.tkVec), max(tsData.tkVec)]);
@@ -673,6 +718,11 @@ meanUncertainty = mean(tsData.BMEstd, 'omitnan');
 text(0.98, 0.95, sprintf('Mean: %.2f ppb', meanUncertainty), ...
     'Units', 'normalized', 'HorizontalAlignment', 'right', ...
     'VerticalAlignment', 'top', 'FontSize', 9, 'BackgroundColor', 'w');
+
+% Format x-axis with full year and month
+ax = gca;
+ax.XTick = floor(min(tsData.tkVec)):1/12:(floor(max(tsData.tkVec)) + 11/12);
+formatDecimalYearAxis(ax);
 end
 
 function plotLocationMap(site, obs, repSites)
@@ -680,30 +730,37 @@ function plotLocationMap(site, obs, repSites)
 
 hold on;
 
-% Plot all observation stations (gray dots)
-plot(obs.sMS(:,1), obs.sMS(:,2), '.', 'Color', [0.7 0.7 0.7], ...
-    'MarkerSize', 2, 'DisplayName', 'All Stations');
+% Plot world coastlines (lightweight)
+try
+    load coastlines coastlat coastlon
+    plot(coastlon, coastlat, '-', 'Color', [0.7 0.7 0.7], 'LineWidth', 0.5);
+catch
+    % If coastlines.mat not available, try to use borders
+    warning('coastlines.mat not found, map will not show coastlines');
+end
 
-% Plot all representative sites (smaller colored markers)
+% Plot all observation stations (light gray dots)
+plot(obs.sMS(:,1), obs.sMS(:,2), '.', 'Color', [0.5 0.5 0.5], ...
+    'MarkerSize', 3);
+
+% Plot all representative sites (small colored markers)
 regions = fieldnames(repSites);
 colors = lines(length(regions));
 for i = 1:length(regions)
     otherSite = repSites.(regions{i});
     plot(otherSite.lon, otherSite.lat, 'o', ...
-        'MarkerSize', 6, 'MarkerFaceColor', colors(i,:), ...
-        'MarkerEdgeColor', 'k', 'LineWidth', 0.5, ...
-        'DisplayName', 'Rep. Sites');
+        'MarkerSize', 5, 'MarkerFaceColor', colors(i,:), ...
+        'MarkerEdgeColor', 'k', 'LineWidth', 0.5);
 end
 
-% Highlight current site (larger marker)
+% Highlight current site (larger red marker)
 plot(site.lon, site.lat, 'p', 'MarkerSize', 15, ...
-    'MarkerEdgeColor', 'k', 'LineWidth', 1, ...
-    'DisplayName', site.region);
+    'MarkerFaceColor', 'r', 'MarkerEdgeColor', 'k', 'LineWidth', 1.5);
 
 % Add text label for current site
-text(site.lon, site.lat, sprintf('  %s', site.region), ...
+text(site.lon, site.lat + 5, sprintf('%s', site.region), ...
     'FontSize', 9, 'FontWeight', 'bold', 'Color', 'r', ...
-    'VerticalAlignment', 'bottom');
+    'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom');
 
 hold off;
 
@@ -712,21 +769,19 @@ ylabel('Latitude (°N)', 'FontSize', 10);
 grid on;
 axis equal tight;
 
-% Set reasonable axis limits
+% Set reasonable axis limits around the site
 lonRange = max(obs.sMS(:,1)) - min(obs.sMS(:,1));
 latRange = max(obs.sMS(:,2)) - min(obs.sMS(:,2));
-padding = 0.1;
+padding = 0.15;
 
 xlim([site.lon - lonRange*padding, site.lon + lonRange*padding]);
 ylim([site.lat - latRange*padding, site.lat + latRange*padding]);
 
-legend('Location', 'best', 'FontSize', 8);
-
-% Add count
+% Add count annotation
 nStations = size(obs.sMS, 1);
-text(0.02, 0.98, sprintf('%d total stations', nStations), ...
+text(0.02, 0.98, sprintf('%d stations', nStations), ...
     'Units', 'normalized', 'VerticalAlignment', 'top', ...
-    'FontSize', 9, 'BackgroundColor', 'w');
+    'FontSize', 8, 'BackgroundColor', 'w');
 end
 
 function plotStatisticsSummary(tsData)
@@ -778,4 +833,78 @@ end
 %         'Units', 'normalized', 'FontSize', 8, 'Color', [0.5 0.5 0.5]);
 %     yPos = yPos - 0.05;
 % end
+end
+
+function plotLegendPanel(uncertaintyBands, hasSoftData)
+% Draw a standalone legend in an otherwise empty subplot panel
+
+axis([0 1 0 1]);
+axis off;
+hold on;
+
+% Position parameters
+xL = 0.15;   % left margin
+yStart = 0.85;
+dy = 0.15;   % vertical spacing
+boxWidth = 0.2;
+boxHeight = 0.06;
+
+% Title
+text(0.5, 0.95, '', 'Units', 'normalized', ...
+    'HorizontalAlignment', 'center', 'FontSize', 12, 'FontWeight', 'bold');
+
+y = yStart;
+
+% Uncertainty bands (draw largest first)
+for iSigma = sort(uncertaintyBands, 'descend')
+    sigmaColor = [0.7, 0.85, 1.0] .^ iSigma;
+    fill([xL, xL+boxWidth, xL+boxWidth, xL], ...
+         [y-boxHeight/2, y-boxHeight/2, y+boxHeight/2, y+boxHeight/2], ...
+         sigmaColor, 'EdgeColor', 'none', 'FaceAlpha', 0.7);
+    text(xL + boxWidth + 0.05, y, sprintf('BME ±%d\\sigma', iSigma), ...
+        'FontSize', 10, 'VerticalAlignment', 'middle');
+    y = y - dy;
+end
+
+% BME mean line
+plot([xL, xL+boxWidth], [y, y], '-', 'Color', [0 0.4470 0.7410], 'LineWidth', 2.5);
+text(xL + boxWidth + 0.05, y, 'BME Estimate', ...
+    'FontSize', 10, 'VerticalAlignment', 'middle');
+y = y - dy;
+
+% Observations
+plot(xL + boxWidth/2, y, 'o', 'MarkerSize', 7, ...
+    'MarkerFaceColor', [0.8500 0.3250 0.0980], ...
+    'MarkerEdgeColor', [0.6 0.2 0.05], 'LineWidth', 1.5);
+text(xL + boxWidth + 0.05, y, 'Observations', ...
+    'FontSize', 10, 'VerticalAlignment', 'middle');
+y = y - dy;
+
+% Soft data (only if present)
+if hasSoftData
+    plot(xL + boxWidth/2, y, 's', 'MarkerSize', 7, ...
+        'MarkerFaceColor', [0.4660 0.6740 0.1880], ...
+        'MarkerEdgeColor', [0.3 0.5 0.1], 'LineWidth', 1.2);
+    text(xL + boxWidth + 0.05, y, 'Soft-Data (CTM)', ...
+        'FontSize', 10, 'VerticalAlignment', 'middle');
+end
+
+hold off;
+end
+
+function formatDecimalYearAxis(ax)
+% Convert decimal-year XTick values to 'mmm-yyyy' labels without
+% using fractional year arithmetic (avoids duplicate-month bug).
+ticks = ax.XTick;
+tickYears  = floor(ticks);
+tickMonths = round(mod(ticks, 1) * 12) + 1;
+
+% Clamp: mod rounding can yield 13 at exactly the year boundary
+overflow = tickMonths > 12;
+tickMonths(overflow) = 1;
+tickYears(overflow)  = tickYears(overflow) + 1;
+
+tickDates = datetime(tickYears(:), tickMonths(:), 1);
+ax.XTickLabel = datestr(tickDates, 'mmm-yyyy');
+ax.XTickLabelRotation = 45;
 end

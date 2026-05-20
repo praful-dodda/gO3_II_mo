@@ -31,8 +31,8 @@ analyzeParam.logTransf = 0;             % 0=no transform, 1=log transform
 analyzeParam.softDataDir = fullfile('d:\Users\praful\Documents\Data\ramp_data\');  % Parquet directory
 
 % Estimation years (actual years to estimate)
-estYears = [2017];
-estMonths = [2]; % Months to estimate (or use [2 7 11] for specific months; 1:12 for all months)
+estYears = [2018];
+estMonths = 1:12; % Months to estimate (or use [2 7 11] for specific months; 1:12 for all months)
 
 % Temporal padding for observations (years before/after for edge effects)
 temporalPadding = 1;  % Load obs for estYears ± this value
@@ -51,7 +51,7 @@ analyzeParam.timeRange = [estYears(1) - temporalPadding, estYears(end) + tempora
 % BMEmethods = {'13000313-01', '13000313-02', '13000313-10', '13000313-04', ...
 %     '13000313-20', '13000313-06', '13000313-08'};  % Cell array of methods to run
 % 
-BMEmethods = {'13000313-03'};
+BMEmethods = {'13000313-02', '13000313-06'};
 
 % BMEmethods = {'10000133'};
 
@@ -91,7 +91,7 @@ analyzeParam.forceCov = 0;   % 0=use cached, 1=recompute
 analyzeParam.areaCode = 0;
 
 % Grid resolution (degrees)
-analyzeParam.mapResolution = 0.25;
+analyzeParam.mapResolution = 1;
 
 % Estimation grid options
 analyzeParam.keepOnlyLand = true;        % true=land only, false=include ocean
@@ -103,13 +103,13 @@ analyzeParam.forceEstimation = 0;  % 0=use cached, 1=rerun all
 %% PLOTTING CONFIGURATION
 
 % Spatial plotting (handled by estTOARsBME)
-analyzeParam.plotResults = 1;   % 0=none, 1=basic, 2=with observations
-analyzeParam.plotVariance = 1;  % 0=none, 1=std, 2=var, 3=CV, 4=all
+analyzeParam.plotResults = 0;   % 0=none, 1=basic, 2=with observations
+analyzeParam.plotVariance = 0;  % 0=none, 1=std, 2=var, 3=CV, 4=all
 
 % Phase 1 plotting (temporal and enhanced spatial)
-analyzeParam.plotTemporal = 1;      % Generate temporal series plots
-analyzeParam.plotSpatialStats = 1;  % Generate multi-panel spatial summary
-analyzeParam.parallelPlotting = 1;  % 0=sequential, 1=parallel (for plotting only)
+analyzeParam.plotTemporal = 0;      % Generate temporal series plots
+analyzeParam.plotSpatialStats = 0;  % Generate multi-panel spatial summary
+analyzeParam.parallelPlotting = 0;  % 0=sequential, 1=parallel (for plotting only)
 
 % Temporal plot observation matching
 analyzeParam.obsMatchRadius = 0.01; % Radius (deg) for matching obs to site
