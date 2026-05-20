@@ -850,7 +850,7 @@ boxWidth = 0.2;
 boxHeight = 0.06;
 
 % Title
-text(0.5, 0.95, 'Legend', 'Units', 'normalized', ...
+text(0.5, 0.95, '', 'Units', 'normalized', ...
     'HorizontalAlignment', 'center', 'FontSize', 12, 'FontWeight', 'bold');
 
 y = yStart;

@@ -42,14 +42,17 @@ analyzeParam.softDataDir = fullfile('d:\Users\praful\Documents\Data\ramp_data\')
 % Estimation years (actual years to estimate)
 estYears = [2017];  % Can be a range like [2015 2020]
 
+% Temporal resolution in months: 1=monthly, 0.5=estimates at start & middle of each month
+temporalResolution = 0.1;
+
 % Temporal padding for observations (years before/after for edge effects)
 temporalPadding = 1;  % Load obs for estYears ± this value
 
 % Observation time range (with padding)
 analyzeParam.timeRange = [estYears(1) - temporalPadding, estYears(end) + temporalPadding];
 
-% Time periods to estimate (monthly resolution across all years)
-analyzeParam.tkVec = (estYears(1)):(1/12):(estYears(end) + 11/12);
+% Time periods to estimate at the configured resolution
+analyzeParam.tkVec = (estYears(1)):(temporalResolution/12):(estYears(end) + (12-temporalResolution)/12);
 
 %% BME METHOD CONFIGURATION
 
@@ -166,6 +169,8 @@ fprintf('Area: %d, Selection: %s (≥%.0f%% complete and ≤%.0f%% complete, ≥
     analyzeParam.minCompleteness*100, analyzeParam.maxCompleteness*100, analyzeParam.minObservations);
 fprintf('GO scenario: %d, Temporal model: %s\n', ...
     analyzeParam.goScenario, analyzeParam.temporalModel);
+fprintf('Temporal resolution: %.4g month(s) (%d estimates/year)\n', ...
+    temporalResolution, round(12/temporalResolution));
 fprintf('Exclusion radius: %.2f deg (leave-one-out)\n', analyzeParam.exclusionRadius);
 fprintf('========================================================================\n\n');
 
@@ -256,7 +261,7 @@ for iMethod = 1:length(BMEmethods)
         fprintf('=== STAGE 5: BME Temporal Estimation ===\n');
         tic;
 
-        % Create filename based on year range
+        % Create filename based on year range and resolution
         if isscalar(estYears)
             yearStr = sprintf('year%d', estYears(1));
         else
@@ -271,8 +276,9 @@ for iMethod = 1:length(BMEmethods)
             save(repSitesFile, 'repSites');
             yearStr = sprintf('years%d-%d', estYears(1), estYears(end));
         end
+        resStr = sprintf('res%.4g', temporalResolution);
         siteEstFile = fullfile('6BMEtemporalSeries/', ...
-            sprintf('site_estimates_%s_%s.mat', analyzeParam.BMEmethod, yearStr));
+            sprintf('site_estimates_%s_%s_%s.mat', analyzeParam.BMEmethod, yearStr, resStr));
 
         if exist(siteEstFile, 'file') && ~analyzeParam.forceEstimation
             fprintf('  Loading existing site estimates...\n');
@@ -321,9 +327,9 @@ for iMethod = 1:length(BMEmethods)
             yearStr = sprintf('years%d-%d', estYears(1), estYears(end));
         end
         temporalFigDir = fullfile('6BMEtemporalSeries/', 'figs_temporal', ...
-            sprintf('%s_go%d_areaCode%d_%s_temporal_only', ...
+            sprintf('%s_go%d_areaCode%d_%s_%s_temporal_only', ...
             analyzeParam.BMEmethod, analyzeParam.goScenario, ...
-            analyzeParam.areaCode, yearStr));
+            analyzeParam.areaCode, yearStr, resStr));
 
         fprintf('  Creating temporal series plots...\n');
 
