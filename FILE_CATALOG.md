@@ -1,9 +1,9 @@
 # COMPREHENSIVE MATLAB FILES CATALOG
 ## TOAR Ozone BME Analysis Repository
 
-**Repository:** `/home/user/gO3_II_mo`
-**Total Files:** 89 MATLAB (.m) files
-**Date:** January 17, 2026
+**Repository:** `D:\Users\praful\proj\nasa\gO3_II_mo`
+**Total Files:** 132 MATLAB (.m) files (repo root)
+**Date:** May 30, 2026 (core catalog from Jan 17, 2026; see "Added Since Jan 2026" addendum at end)
 
 ---
 
@@ -1353,7 +1353,7 @@ BME Code Management:
 | Diagnostic Tools | 12 | parseBMEcode, decodeCTMmodels, describeBMEcode, diagnoseBMEinputs |
 | Utilities & Helpers | 5 | datenum2decyear, getLandContour, BMEmethodType |
 | Examples & Tests | 7 | example_*, test_* |
-| **TOTAL** | **89** | *Complete repository coverage* |
+| **TOTAL** | **89 detailed** | *+ addendum below; 132 `.m` files total in repo root* |
 
 ---
 
@@ -1395,6 +1395,42 @@ BME Code Management:
 
 ---
 
+## Added Since Jan 2026 (addendum — May 30, 2026)
+
+The core catalog above was written at 89 files; the repo root now holds **132 `.m` files**.
+The notable additions below are grouped by purpose. For the authoritative, current
+high-level map, see **CLAUDE.md** (entry points, diagnostics, BME-code parsing, CBV phases).
+
+**Entry-point scripts** (edit CONFIGURATION block, then run):
+- `runBME_estimation.m` — production spatial BME estimation → `5BMEspatialPlots/`
+- `runBME_temporal.m` — fast temporal series at representative sites → `6BMEtemporalSeries/`
+
+**Temporal workflow:**
+- `selectRepresentativeSites.m` — pick one representative station per region
+- `estimateBME_AtRepSites.m` — BME at exact site locations (powers temporal workflow)
+- `plotBME_TemporalSeries.m` — temporal series plots + `temporal_statistics.csv`
+
+**Estimators / diagnostics:**
+- `estTOARsBMEoptim.m` — optimized estimator (variance smoothing, grid offset, STUG)
+- `estTOARsBME_diag.m` — diagnostic-instrumented estimator
+- `diagnoseBMEinputs.m`, `visualizeBMEdiagnostic.m` — singular-matrix / vertical-line debugging
+
+**BME-code handling (extended `-XX` hex CTM bitmask):**
+- `parseBMEcode.m` — **canonical** parser (legacy: `parseTOARBMEmethod.m`, `parseBMEmethod.m`)
+- `decodeCTMmodels.m` — hex bitmask → model list; `generateBMEcode.m` — build extended codes
+
+**Phased CBV plotting:**
+- `plotCBVresults_Phase1.m` (overview), `_Phase2.m` (residual/uncertainty diagnostics),
+  `_Phase3.m` (config comparison), `_Phase4.m` (cross-config time series)
+- Helpers: `plotResidualAnalysis.m`, `plotUncertaintyAnalysis.m`, `plotRegionalBreakdown.m`,
+  `plotConfigComparison.m`, `plotSoftDataContribution.m`, `plotTemporalTrends.m`
+
+**Removed since Jan 2026** (entries #42, #44, #62 above are stale — files no longer exist):
+`runCBCV_toar.m`, `evaluateFold_CBCV.m`, `plotCBCVresults.m` (the "CBCV" spelling was
+superseded by the `CBV` / `runCBV_toar` implementation).
+
+---
+
 **End of Catalog**
 
-*This catalog documents all 89 MATLAB files in the TOAR-II BME Ozone Data Fusion repository as of January 17, 2026.*
+*Core catalog documents 89 MATLAB files as of January 17, 2026; addendum covers additions through May 30, 2026.*

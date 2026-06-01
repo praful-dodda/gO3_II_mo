@@ -24,11 +24,12 @@ function figPaths = plotTOARautoCov_CBV(obs, go, cov, boxSize, foldIdx, yearRang
 %   'visible'   - 'on' or 'off' for figure visibility (default: 'off')
 %
 % OUTPUTS:
-%   figPaths - Cell array of saved figure paths
+%   figPaths - Cell array of saved figure paths (one combined figure)
 %
-% CREATED PLOTS:
-%   1. Fitted covariance model with experimental variogram
-%   2. Training vs validation station locations
+% CREATED PLOTS (single 3-panel figure):
+%   - Top-left : Spatial covariance fit (experimental + fitted model)
+%   - Top-right: Temporal covariance fit (experimental + fitted model)
+%   - Bottom   : Training vs validation station locations
 %
 % EXAMPLE:
 %   figPaths = plotTOARautoCov_CBV(obs, go_fold, cov_fold, 3.0, 1, [2016 2018], ...
@@ -58,45 +59,66 @@ end
 
 figPaths = {};
 
-%% Figure 1: Fitted Covariance Model
-fig1 = figure('Visible', opts.visible);
+%% Combined diagnostic figure (3 panels):
+%   - Top-left : Spatial Covariance Fit (matches getTOARautoCov_updated.m style)
+%   - Top-right: Temporal Covariance Fit
+%   - Bottom   : Training vs Validation station map (spans full width)
+%  Fitted curves are reconstructed from the stored BME model
+%  (cov.covmodel/cov.covparam) via coord2K: spatial = lag [r,0,0],
+%  temporal = [0,0,t]. Both covariance panels show covariance (not semivariance).
+fig1 = figure('Visible', opts.visible, 'Position', [100, 100, 1100, 850]);
+haveModel = isfield(cov, 'covmodel') && isfield(cov, 'covparam');
 
-% Plot experimental variogram points (if available)
-if isfield(cov, 'lag') && isfield(cov, 'gamma')
-    hold on;
-    plot(cov.lag, cov.gamma, 'bo', 'MarkerSize', 6, 'MarkerFaceColor', 'b');
+% --- Top-left: Spatial Covariance Fit ---
+ax1 = subplot(2, 2, 1);
+hold(ax1, 'on');
+if isfield(cov, 'rLag') && isfield(cov, 'Cr')
+    plot(ax1, cov.rLag, cov.Cr, 'bo', 'MarkerFaceColor', 'b', 'DisplayName', 'Experimental');
 end
-
-% Plot fitted covariance model
-if isfield(cov, 'covmodel') && isfield(cov, 'covparam')
-    hold on;
-    % Create distance vector
-    maxDist = max(cov.lag);
-    distVec = linspace(0, maxDist, 200);
-
-    % Evaluate covariance model
-    covVec = coord2K([0 0 0], [distVec' zeros(length(distVec),1) zeros(length(distVec),1)], ...
-        cov.covmodel, cov.covparam);
-
-    plot(distVec, cov.var - covVec, 'r-', 'LineWidth', 2);
-
-    xlabel('Distance', 'FontSize', 12);
-    ylabel('Semivariance', 'FontSize', 12);
-    title(sprintf('Fold %d Covariance Model (Training Stations Only)\nGO %d, Box %.1f deg, Years %d-%d', ...
-        foldIdx, go.scenario, boxSize, yearRange(1), yearRange(2)), 'FontSize', 14);
-    legend({'Experimental variogram', 'Fitted model'}, 'Location', 'best');
-    grid on;
-    set(gca, 'FontSize', 12);
-else
-    % Simple plot if detailed info not available
-    text(0.5, 0.5, sprintf('Covariance model for fold %d\nGO %d, Box %.1f deg, Years %d-%d', ...
-        foldIdx, go.scenario, boxSize, yearRange(1), yearRange(2)), ...
-        'HorizontalAlignment', 'center', 'FontSize', 14);
-    axis off;
+if haveModel && isfield(cov, 'rLag') && ~isempty(cov.rLag)
+    r_fine = linspace(0, max(cov.rLag), 500)';
+    Cs = coord2K([r_fine, zeros(numel(r_fine), 2)], [0 0 0], cov.covmodel, cov.covparam);
+    plot(ax1, r_fine, Cs, 'r-', 'LineWidth', 1.5, 'DisplayName', 'Fitted Model');
 end
+xlabel(ax1, 'Spatial Lag (deg)'); ylabel(ax1, 'Covariance');
+title(ax1, 'Spatial Covariance Fit'); grid(ax1, 'on');
+legend(ax1, 'show', 'Location', 'best'); hold(ax1, 'off');
 
-% Save figure 1
-basename1 = sprintf('TOARcov_go%d_CBV_box%.1f_fold%d_%d-%d_model', ...
+% --- Top-right: Temporal Covariance Fit ---
+ax2 = subplot(2, 2, 2);
+hold(ax2, 'on');
+if isfield(cov, 'tLag') && isfield(cov, 'Ct')
+    plot(ax2, cov.tLag, cov.Ct, 'bo', 'MarkerFaceColor', 'b', 'DisplayName', 'Experimental');
+end
+if haveModel && isfield(cov, 'tLag') && ~isempty(cov.tLag) && max(cov.tLag) > 0
+    t_fine = linspace(0, max(cov.tLag), 500)';
+    Ctf = coord2K([zeros(numel(t_fine), 2), t_fine], [0 0 0], cov.covmodel, cov.covparam);
+    plot(ax2, t_fine, Ctf, 'r-', 'LineWidth', 1.5, 'DisplayName', 'Fitted Model');
+end
+xlabel(ax2, 'Temporal Lag (Years)'); ylabel(ax2, 'Covariance');
+title(ax2, 'Temporal Covariance Fit'); grid(ax2, 'on');
+legend(ax2, 'show', 'Location', 'best'); hold(ax2, 'off');
+
+% --- Bottom (full width): Training vs Validation Stations ---
+ax3 = subplot(2, 2, [3 4]);
+hold(ax3, 'on');
+plot(ax3, obs.sMS(valMask, 1), obs.sMS(valMask, 2), 'o', ...
+    'MarkerSize', 6, 'MarkerFaceColor', [1.0 0.6 0.2], ...
+    'MarkerEdgeColor', 'k', 'LineWidth', 0.5, 'DisplayName', 'Validation stations');
+plot(ax3, obs.sMS(trainMask, 1), obs.sMS(trainMask, 2), 'o', ...
+    'MarkerSize', 6, 'MarkerFaceColor', [0.2 0.6 1.0], ...
+    'MarkerEdgeColor', 'k', 'LineWidth', 0.5, 'DisplayName', 'Training stations');
+xlabel(ax3, 'Longitude (deg.)'); ylabel(ax3, 'Latitude (deg.)');
+title(ax3, sprintf('Training vs Validation Stations (Training: %d, Validation: %d)', ...
+    sum(trainMask), sum(valMask)));
+legend(ax3, 'show', 'Location', 'best'); axis(ax3, 'equal'); grid(ax3, 'on'); hold(ax3, 'off');
+
+% Enhanced title with CBV context (fold, GO, box, year range)
+sgtitle(fig1, sprintf('CBV Fold %d Covariance: GO=%d, Box=%.1f deg, %d-%d (Training Stations Only)', ...
+    foldIdx, go.scenario, boxSize, yearRange(1), yearRange(2)), 'FontWeight', 'bold');
+
+% Save combined diagnostic figure
+basename1 = sprintf('TOARcov_go%d_CBV_box%.1f_fold%d_%d-%d_diagnostic', ...
     go.scenario, boxSize, foldIdx, yearRange(1), yearRange(2));
 figPaths{end+1} = saveTOARfigure(fig1, basename1, opts.saveDir, 'dpi', opts.dpi);
 
@@ -104,38 +126,6 @@ if strcmp(opts.visible, 'off')
     close(fig1);
 end
 
-%% Figure 2: Training vs Validation Stations (same as GO checkerboard but for reference)
-fig2 = figure('Visible', opts.visible);
-hold on;
-
-% Plot validation stations (orange)
-plot(obs.sMS(valMask, 1), obs.sMS(valMask, 2), 'o', ...
-    'MarkerSize', 8, 'MarkerFaceColor', [1.0 0.6 0.2], ...
-    'MarkerEdgeColor', 'k', 'LineWidth', 1);
-
-% Plot training stations (blue)
-plot(obs.sMS(trainMask, 1), obs.sMS(trainMask, 2), 'o', ...
-    'MarkerSize', 8, 'MarkerFaceColor', [0.2 0.6 1.0], ...
-    'MarkerEdgeColor', 'k', 'LineWidth', 1);
-
-xlabel('Longitude (deg.)', 'FontSize', 12);
-ylabel('Latitude (deg.)', 'FontSize', 12);
-title(sprintf('CBV Fold %d: Covariance Fit (Training Stations Only)\nGO %d, Box %.1f deg, Years %d-%d\nTraining: %d, Validation: %d', ...
-    foldIdx, go.scenario, boxSize, yearRange(1), yearRange(2), sum(trainMask), sum(valMask)), 'FontSize', 14);
-legend({'Validation stations', 'Training stations'}, 'Location', 'best');
-axis equal;
-grid on;
-set(gca, 'FontSize', 12);
-
-% Save figure 2
-basename2 = sprintf('TOARcov_go%d_CBV_box%.1f_fold%d_%d-%d_stations', ...
-    go.scenario, boxSize, foldIdx, yearRange(1), yearRange(2));
-figPaths{end+1} = saveTOARfigure(fig2, basename2, opts.saveDir, 'dpi', opts.dpi);
-
-if strcmp(opts.visible, 'off')
-    close(fig2);
-end
-
-fprintf('  Created %d diagnostic plots for CBV covariance fold %d\n', length(figPaths), foldIdx);
+fprintf('  Created %d diagnostic plot for CBV covariance fold %d\n', length(figPaths), foldIdx);
 
 end

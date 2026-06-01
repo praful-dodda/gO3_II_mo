@@ -43,13 +43,13 @@ valParam.logTransf = 0;  % 0=no, 1=yes (use 0 for regular concentrations)
 % ====================================================================
 
 % Years to validate
-valParam.valYears = 1991:2019;  % e.g., 2017 or [2016 2017 2018]
+valParam.valYears = 2005:2022;  % e.g., 2017 or [2016 2017 2018]
 
 % Months to validate (within each year)
 valParam.valMonths = 1:12;  % All months, or specific: [6 7 8] for JJA
 
 % Checker box sizes to test (degrees)
-valParam.boxSizes = 5.0;  % e.g., [2.0, 3.0, 4.0, 5.0]
+valParam.boxSizes = 20.0;  % e.g., [2.0, 3.0, 4.0, 5.0]
 
 %% ====================================================================
 %                    GLOBAL OFFSET CONFIGURATION
@@ -115,7 +115,7 @@ valParam.BMEmethod = {'13000313-02', '13000313-04','13000313-06'}; % 2020 to 202
 % valParam.BMEmethod = {'10000133'};
 % valParam.BMEmethod = {'13000313-20','13000313-21','13000313-22'};
 valParam.BMEmethod = {'13000313-01','13000313-02','13000313-10'};
-valParam.BMEmethod = {'13000313-03'};
+valParam.BMEmethod = {'13000313-06'};
 
 %% ====================================================================
 %                    SOFT DATA CONFIGURATION (if using CTM)
