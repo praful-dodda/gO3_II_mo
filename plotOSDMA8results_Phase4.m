@@ -214,6 +214,19 @@ metrics  = opts.metrics;
 nMetrics = numel(metrics);
 if nConfigs < 1 || nYears < 1, warning('No data to plot'); return; end
 
+% Box-size label for titles (e.g., "20 deg CBV")
+if isfield(opts, 'boxSize') && ~isempty(opts.boxSize)
+    boxLabel = sprintf('%g%s CBV', opts.boxSize, char(176));
+else
+    boxLabel = 'CBV';
+end
+
+% Manuscript-quality font sizes (match plotPhase4TimeSeries)
+axFont    = 15;   % tick labels
+labelFont = 16;   % axis labels
+titleFont = 18;   % titles
+legFont   = 13;   % legend
+
 hasData = false(nConfigs, 1);
 for iC = 1:nConfigs
     hasData(iC) = any(~isnan(yearlyData.values(iC, :, :)), 'all');
@@ -234,16 +247,18 @@ for iM = 1:nMetrics
             'MarkerFaceColor', colors(iC,:), 'DisplayName', configs(iC).name);
         if iM == 1, h(iC) = hh; end
     end
-    ylabel(metrics{iM}); grid on; box on;
-    title(sprintf('OSDMA8 %s over time', metrics{iM}), 'FontSize', 11, 'FontWeight', 'bold');
+    set(gca, 'FontSize', axFont);
+    ylabel(metrics{iM}, 'FontSize', labelFont); grid on; box on;
+    title(sprintf('OSDMA8 %s | %s', metrics{iM}, boxLabel), ...
+        'FontSize', titleFont, 'FontWeight', 'bold');
     if nYears > 1, xlim([min(allYears)-0.5 max(allYears)+0.5]); end
     xticks(allYears); ylim auto;     % AUTO limits (no clipping)
-    if iM == nMetrics, xlabel('Year'); end
+    if iM == nMetrics, xlabel('Year', 'FontSize', labelFont); end
     axpos{iM} = ax(iM).Position;
 end
 lgd = legend(h(hasData), {configs(hasData).name}, 'Orientation', 'horizontal', ...
     'NumColumns', min(nLegendCols, sum(hasData)));
-lgd.FontSize = 8; lgd.Units = 'normalized';
+lgd.FontSize = legFont; lgd.Units = 'normalized';
 lgd.Position(1) = 0.5 - lgd.Position(3)/2; lgd.Position(2) = 0.01;
 for iM = 1:nMetrics, ax(iM).Position = axpos{iM}; end
 f1 = fullfile(opts.saveDir, 'osdma8_phase4_timeseries_metrics.png');
@@ -263,9 +278,11 @@ for iM = 1:nMetrics
     b = bar(1:nConfigs, avg, 0.7, 'FaceColor', 'flat');
     for iC = 1:nConfigs, b.CData(iC,:) = colors(iC,:); end
     errorbar(1:nConfigs, avg, sd, 'k', 'LineStyle', 'none', 'LineWidth', 1);
-    ylabel(metrics{iM}); grid on; box on;
-    title(sprintf('Grouped-years mean OSDMA8 %s (\\pm std across years)', metrics{iM}), 'FontSize', 11);
-    set(gca, 'XTick', 1:nConfigs, 'XTickLabel', {configs.name}, 'XTickLabelRotation', 25);
+    ylabel(metrics{iM}, 'FontSize', labelFont); grid on; box on;
+    title(sprintf('Grouped-years mean OSDMA8 %s (\\pm std) | %s', metrics{iM}, boxLabel), ...
+        'FontSize', titleFont - 2, 'FontWeight', 'bold');
+    set(gca, 'XTick', 1:nConfigs, 'XTickLabel', {configs.name}, ...
+        'XTickLabelRotation', 25, 'FontSize', axFont);
 end
 f2 = fullfile(opts.saveDir, 'osdma8_phase4_grouped_years_bar.png');
 print(fig2, f2, '-dpng', sprintf('-r%d', opts.dpi)); figPaths{end+1} = f2;

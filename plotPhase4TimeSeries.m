@@ -52,6 +52,19 @@ if nConfigs < 1 || nYears < 1
     return;
 end
 
+% Box-size label for titles (e.g., "20 deg CBV")
+if isfield(opts, 'boxSize') && ~isempty(opts.boxSize)
+    boxLabel = sprintf('%g%s CBV', opts.boxSize, char(176));
+else
+    boxLabel = 'CBV';
+end
+
+% Manuscript-quality font sizes (text was too small for publication)
+axFont    = 15;   % tick labels
+labelFont = 16;   % axis labels
+titleFont = 18;   % titles
+legFont   = 13;   % legend
+
 %% Figure 1: Time-series with all metrics (multi-panel)
 
 % Determine which configs have any non-NaN data across all metrics
@@ -96,22 +109,25 @@ for iMetric = 1:nMetrics
     end
 
     % Formatting
-    xlabel('Year');
-    ylabel(metric);
-    title(sprintf('%s Over Time', metric), 'FontSize', 11, 'FontWeight', 'bold');
+    set(gca, 'FontSize', axFont);
+    xlabel('Year', 'FontSize', labelFont);
+    ylabel(metric, 'FontSize', labelFont);
+    title(sprintf('%s | %s', metric, boxLabel), 'FontSize', titleFont, 'FontWeight', 'bold');
 
     % Set x-axis to show all years
     xlim([min(allYears)-0.5, max(allYears)+0.5]);
     xticks(allYears);
 
+    ylim auto;
+    
     % if Metric is R2, set y-axis limits to [0, 1]
-    if strcmpi(metric, 'R2')
-        ylim([0.6, 0.87]);
-    elseif strcmpi(metric, 'RMSE')
-        ylim([4 9.5])
-    else
-        ylim auto;
-    end
+    % if strcmpi(metric, 'R2')
+    %     ylim([0.6, 0.87]);
+    % elseif strcmpi(metric, 'RMSE')
+    %     ylim([4 9.5])
+    % else
+    %     ylim auto;
+    % end
 
     % Add grid
     grid on;
@@ -131,7 +147,7 @@ end
 % Add shared legend at bottom (only models with data)
 lgd = legend(plotHandles(hasData), {configs(hasData).name}, ...
     'Orientation', 'horizontal', 'NumColumns', min(nLegendCols, sum(hasData)));
-lgd.FontSize = 8;
+lgd.FontSize = legFont;
 lgd.Units = 'normalized';
 lgd.Position(1) = 0.5 - lgd.Position(3)/2;  % Center horizontally
 lgd.Position(2) = 0.01;                       % Place at bottom of figure
@@ -167,12 +183,12 @@ if nMetrics >= 1
     % Set axis labels
     set(gca, 'XTick', 1:nYears, 'XTickLabel', arrayfun(@num2str, allYears, 'UniformOutput', false));
     set(gca, 'YTick', 1:nConfigs, 'YTickLabel', {configs.name});
-    set(gca, 'XTickLabelRotation', 45);
+    set(gca, 'XTickLabelRotation', 45, 'FontSize', axFont);
 
-    xlabel('Year');
-    ylabel('Configuration');
-    title(sprintf('Year-over-Year %s Heatmap', metrics{primaryMetricIdx}), ...
-        'FontSize', 12, 'FontWeight', 'bold');
+    xlabel('Year', 'FontSize', labelFont);
+    ylabel('Configuration', 'FontSize', labelFont);
+    title(sprintf('%s Heatmap | %s', metrics{primaryMetricIdx}, boxLabel), ...
+        'FontSize', titleFont, 'FontWeight', 'bold');
 
     % Add value annotations
     for iConfig = 1:nConfigs
@@ -187,11 +203,11 @@ if nMetrics >= 1
                 end
                 text(iYear, iConfig, sprintf('%.2f', val), ...
                     'HorizontalAlignment', 'center', ...
-                    'Color', textColor, 'FontSize', 8);
+                    'Color', textColor, 'FontSize', 11, 'FontWeight', 'bold');
             else
                 text(iYear, iConfig, 'N/A', ...
                     'HorizontalAlignment', 'center', ...
-                    'Color', [0.5, 0.5, 0.5], 'FontSize', 8);
+                    'Color', [0.5, 0.5, 0.5], 'FontSize', 11);
             end
         end
     end
@@ -301,16 +317,17 @@ for iMetric = 1:nMetrics
         b(iConfig).DisplayName = configs(iConfig).name;
     end
 
-    ylabel(metric);
-    title(sprintf('Best Configuration by Year (%s)', metric), 'FontSize', 11);
+    ylabel(metric, 'FontSize', labelFont);
+    title(sprintf('Best Configuration by Year (%s) | %s', metric, boxLabel), ...
+        'FontSize', titleFont - 2, 'FontWeight', 'bold');
     ylim([0, 1.2]);
-    set(gca, 'YTick', [0, 1], 'YTickLabel', {'', 'Winner'});
+    set(gca, 'YTick', [0, 1], 'YTickLabel', {'', 'Winner'}, 'FontSize', axFont);
     xlim([min(allYears)-0.5, max(allYears)+0.5]);
     xticks(allYears);
     grid on;
 
     if iMetric == nMetrics
-        xlabel('Year');
+        xlabel('Year', 'FontSize', labelFont);
     end
 end
 
@@ -324,9 +341,11 @@ barHandles = b;
 lgd = legend(barHandles(winnerHasData), {configs(winnerHasData).name}, ...
     'Location', 'southoutside', 'Orientation', 'horizontal', ...
     'NumColumns', min(4, sum(winnerHasData)));
+lgd.FontSize = legFont;
 lgd.Position(2) = 0.01;
 
-sgtitle('Winner Analysis by Year and Metric', 'FontSize', 14, 'FontWeight', 'bold');
+sgtitle(sprintf('Winner Analysis by Year | %s', boxLabel), ...
+    'FontSize', titleFont, 'FontWeight', 'bold');
 
 % Save figure
 figFile4 = fullfile(opts.saveDir, 'phase4_winners.png');
@@ -350,22 +369,37 @@ for iConfig = 1:nConfigs
     end
 end
 
-% Create grouped bar chart
-barWidth = 0.8;
+% Plot R2 and RMSE on two independent y-axes (different scales/units).
 x = 1:nConfigs;
-b = bar(x, avgMetrics, barWidth);
+iR2   = find(strcmpi(metrics, 'R2'), 1);
+iRMSE = find(strcmpi(metrics, 'RMSE'), 1);
+cR2   = [0.20 0.40 0.70];   % blue  -> R2 (left)
+cRMSE = [0.85 0.40 0.15];   % orange-> RMSE (right)
 
-% Apply colors to bars (color each group by configuration)
-for iConfig = 1:nConfigs
-    % For grouped bars, we need to set edge colors instead
+if ~isempty(iR2) && ~isempty(iRMSE)
+    yyaxis left;
+    bR2 = bar(x - 0.2, avgMetrics(:, iR2), 0.35, 'FaceColor', cR2, 'EdgeColor', 'none');
+    ylabel('R^2', 'FontSize', labelFont);
+    ylim([0 1]);
+    set(gca, 'YColor', cR2);
+
+    yyaxis right;
+    bRM = bar(x + 0.2, avgMetrics(:, iRMSE), 0.35, 'FaceColor', cRMSE, 'EdgeColor', 'none');
+    ylabel('RMSE (ppb)', 'FontSize', labelFont);
+    set(gca, 'YColor', cRMSE);
+
+    legend([bR2 bRM], {'R^2', 'RMSE'}, 'Location', 'best', 'FontSize', legFont);
+else
+    % Fallback: single-axis grouped bars if R2/RMSE not both present
+    bar(x, avgMetrics, 0.8);
+    ylabel('Metric Value', 'FontSize', labelFont);
+    legend(metrics, 'Location', 'best', 'FontSize', legFont);
 end
 
-% Alternative: Create side-by-side comparison
-set(gca, 'XTick', x, 'XTickLabel', {configs.name}, 'XTickLabelRotation', 45);
-xlabel('Configuration');
-ylabel('Metric Value');
-title('Average Performance Across Years', 'FontSize', 12, 'FontWeight', 'bold');
-legend(metrics, 'Location', 'best');
+set(gca, 'XTick', x, 'XTickLabel', {configs.name}, 'XTickLabelRotation', 45, 'FontSize', axFont);
+xlabel('Configuration', 'FontSize', labelFont);
+title(sprintf('Average Performance Across Years | %s', boxLabel), ...
+    'FontSize', titleFont, 'FontWeight', 'bold');
 grid on;
 
 % Save figure

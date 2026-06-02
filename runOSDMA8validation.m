@@ -16,12 +16,21 @@ function [osdma8Stats, results] = runOSDMA8validation(cfg)
 %   [stats, results] = runOSDMA8validation(cfg)
 %
 % Each series source can be selected independently:
-%   'cbv_obs'     - observed monthly MDA8 (Y_obs) from the monthly CBV files
+%   'toar_osdma8' - OFFICIAL annual OSDMA8 from loadTOARosdma8 (truth; read
+%                   from cfg.osdma8RefDir, matched to CBV coords)
+%   'cbv_obs'     - observed monthly MDA8 (Y_obs) from the monthly CBV files,
+%                   aggregated to OSDMA8 via computeOSDMA8
 %   'cbv_est'     - BME-estimated monthly MDA8 (Y_est) from the monthly files
 %   'yearly_file' - OSDMA8 from getTOARobservationalData_Yearly (a possibly
 %                   DIFFERENT obs file set via cfg.customObsDir)
 %
-% SEE ALSO: computeOSDMA8, getTOARobservationalData_Yearly, calculateValidationStats
+% By default this validates BME (cbv_est) against the official OSDMA8
+% (toar_osdma8) and, when cfg.crossCheck is true, also reports the official
+% metric vs OSDMA8 recomputed from observed monthly MDA8 (cbv_obs) as a QA of
+% the monthly->OSDMA8 aggregation.
+%
+% SEE ALSO: loadTOARosdma8, computeOSDMA8, getTOARobservationalData_Yearly,
+%           calculateValidationStats
 
 %% ===================== CONFIGURATION (edit & Run) =====================
 if nargin < 1, cfg = struct(); end
@@ -32,12 +41,15 @@ def = struct( ...
     'valYears',     2017, ...
     'folds',        [1 2], ...
     'monthlyDir',   fullfile('7validation', 'CBV', 'monthly'), ...
-    'refSource',    'cbv_obs', ...     % reference / "truth" series
+    'refSource',    'toar_osdma8', ... % reference / "truth" series (official OSDMA8)
     'testSource',   'cbv_est', ...     % series being validated (BME)
     'completeness', 'strict', ...      % 'strict' | 'partial' | 'any'
     'minMonths',    4, ...
-    'stationTypes', 'all', ...         % used only for 'yearly_file'
+    'stationTypes', 'all', ...         % filter for 'toar_osdma8' / 'yearly_file'
     'customObsDir', fullfile('1data', 'TOAR-II'), ... % alt file set for 'yearly_file'
+    'osdma8RefDir', fullfile('1data', 'TOAR-OSDMA8'), ... % official OSDMA8 CSVs
+    'crossCheck',   true, ...          % also report toar_osdma8 vs cbv_obs (QA)
+    'matchDecimals',4, ...             % coord-key precision (drop to 3 if pairs are few)
     'outDir',       fullfile('7validation', 'OSDMA8'), ...
     'makePlots',    true);
 cfg = local_fillDefaults(cfg, def);
@@ -88,10 +100,26 @@ for boxSize = cfg.boxSizes(:).'
             stats.Fold    = iFold;
             stats.Year    = valYear;
 
+            % Cross-check: official OSDMA8 (ref) vs OSDMA8 recomputed from
+            % observed monthly MDA8 (cbv_obs). Isolates aggregation error from
+            % BME error. Only meaningful when the reference is the official set.
+            xc = struct();
+            if cfg.crossCheck && strcmpi(cfg.refSource, 'toar_osdma8')
+                osObs = computeOSDMA8(obsMat, cOpts);
+                kxc = ~isnan(osRef) & ~isnan(osObs);
+                if sum(kxc) >= 2
+                    xc = calculateValidationStats(osRef(kxc), osObs(kxc));
+                    stats.R2_xc   = local_get(xc, 'R2');
+                    stats.RMSE_xc = local_get(xc, 'RMSE');
+                    stats.NMB_xc  = local_get(xc, 'NMB');
+                    stats.N_xc    = local_get(xc, 'N');
+                end
+            end
+
             % Per-case result file (under OSDMA8 output dir, not CBV dirs).
             caseRes = struct('osRef', osRefK, 'osTest', osTestK, 'coords', cK, ...
-                'stats', stats, 'boxSize', boxSize, 'fold', iFold, ...
-                'year', valYear, 'cfg', cfg);
+                'stats', stats, 'crossCheck', xc, 'boxSize', boxSize, ...
+                'fold', iFold, 'year', valYear, 'cfg', cfg);
             caseName = sprintf('OSDMA8_BME%s_go%d_box%.1f_fold%d_%d.mat', ...
                 cfg.BMEmethod, cfg.goScenario, boxSize, iFold, valYear);
             save(fullfile(cfg.outDir, caseName), 'caseRes', '-v7.3');
@@ -125,8 +153,8 @@ summaryBase = sprintf('OSDMA8_summary_BME%s_go%d', cfg.BMEmethod, cfg.goScenario
 writetable(osdma8Stats, fullfile(cfg.outDir, [summaryBase '.csv']));
 save(fullfile(cfg.outDir, [summaryBase '.mat']), 'osdma8Stats', 'pooled', 'cfg', '-v7.3');
 fprintf('\nWrote %s.csv / .mat to %s\n', summaryBase, cfg.outDir);
-disp(osdma8Stats(:, intersect({'BoxSize','Fold','Year','N','R2','RMSE','MAE','NMB'}, ...
-    osdma8Stats.Properties.VariableNames, 'stable')));
+disp(osdma8Stats(:, intersect({'BoxSize','Fold','Year','N','R2','RMSE','MAE','NMB', ...
+    'R2_xc','RMSE_xc'}, osdma8Stats.Properties.VariableNames, 'stable')));
 
 %% Plots
 if cfg.makePlots
@@ -173,10 +201,11 @@ for i = 1:size(spec, 1)
     yo = local_col(mr, 'Y_obs', size(sk,1));
     ye = local_col(mr, 'Y_est', size(sk,1));
 
+    nd = cfg.matchDecimals; scale = 10^nd;
     for r = 1:size(sk, 1)
-        lon = round(sk(r,1)*1e4)/1e4;
-        lat = round(sk(r,2)*1e4)/1e4;
-        k = sprintf('%.4f_%.4f', lon, lat);
+        lon = round(sk(r,1)*scale)/scale;
+        lat = round(sk(r,2)*scale)/scale;
+        k = sprintf('%.*f_%.*f', nd, lon, nd, lat);
         if isKey(keys, k)
             idx = keys(k);
         else
@@ -210,6 +239,10 @@ end
 function os = local_sourceToOSDMA8(src, coords, obsMat, estMat, cfg, valYear, cOpts)
 % Resolve a series source to an OSDMA8 vector aligned to `coords`.
 switch lower(src)
+    case 'toar_osdma8'
+        osd = loadTOARosdma8(valYear, 'dataDir', cfg.osdma8RefDir, ...
+            'stationTypes', cfg.stationTypes);
+        os = local_matchByCoord(coords, osd.coords, osd.osdma8, cfg.matchDecimals);
     case 'cbv_obs'
         os = computeOSDMA8(obsMat, cOpts);
     case 'cbv_est'
@@ -218,7 +251,7 @@ switch lower(src)
         obsY = getTOARobservationalData_Yearly(cfg.stationTypes, valYear, ...
             'dataDir', cfg.customObsDir, 'completeness', cfg.completeness, ...
             'minMonths', cfg.minMonths);
-        os = local_matchByCoord(coords, obsY.sMS, obsY.Z(:,1));
+        os = local_matchByCoord(coords, obsY.sMS, obsY.Z(:,1), cfg.matchDecimals);
     otherwise
         error('runOSDMA8validation:src', 'Unknown source: %s', src);
 end
@@ -226,16 +259,21 @@ os = os(:);
 end
 
 % ------------------------------------------------------------------------
-function vals = local_matchByCoord(coords, srcCoords, srcVals)
+function vals = local_matchByCoord(coords, srcCoords, srcVals, nd)
 % Match each row of coords to srcCoords by rounded lon/lat; NaN if no match.
+% nd = number of decimals for the coordinate key (default 4).
+if nargin < 4 || isempty(nd), nd = 4; end
+scale = 10^nd;
 m = containers.Map('KeyType', 'char', 'ValueType', 'double');
 for i = 1:size(srcCoords, 1)
-    k = sprintf('%.4f_%.4f', round(srcCoords(i,1)*1e4)/1e4, round(srcCoords(i,2)*1e4)/1e4);
+    k = sprintf('%.*f_%.*f', nd, round(srcCoords(i,1)*scale)/scale, ...
+                            nd, round(srcCoords(i,2)*scale)/scale);
     m(k) = srcVals(i);   % last one wins (coords are unique after QC)
 end
 vals = nan(size(coords, 1), 1);
 for i = 1:size(coords, 1)
-    k = sprintf('%.4f_%.4f', coords(i,1), coords(i,2));
+    k = sprintf('%.*f_%.*f', nd, round(coords(i,1)*scale)/scale, ...
+                            nd, round(coords(i,2)*scale)/scale);
     if isKey(m, k), vals(i) = m(k); end
 end
 end
@@ -247,8 +285,8 @@ allFields = {};
 for i = 1:numel(statsRows)
     allFields = union(allFields, fieldnames(statsRows{i}), 'stable');
 end
-lead = intersect({'BoxSize','Fold','Year','N','R2','RMSE','MAE','NMB','IOA','FAC2'}, ...
-    allFields, 'stable');
+lead = intersect({'BoxSize','Fold','Year','N','R2','RMSE','MAE','NMB','IOA','FAC2', ...
+    'R2_xc','RMSE_xc','NMB_xc','N_xc'}, allFields, 'stable');
 tail = setdiff(allFields, lead, 'stable');
 ordered = [lead(:).', tail(:).'];   % force row vectors for horzcat
 
@@ -261,6 +299,12 @@ for i = 1:numel(statsRows)
     end
 end
 T = cell2table(C, 'VariableNames', ordered);
+end
+
+% ------------------------------------------------------------------------
+function v = local_get(s, f)
+% Safe struct field fetch (NaN if absent).
+if isstruct(s) && isfield(s, f), v = s.(f); else, v = NaN; end
 end
 
 % ------------------------------------------------------------------------

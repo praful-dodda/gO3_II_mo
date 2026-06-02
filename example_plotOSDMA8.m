@@ -14,21 +14,33 @@
 osdma8Dir = './7validation/OSDMA8';
 
 % Methods (mirror example_plotCBV). Methods without an explicit _goN get goScenario.
-all_methods = {'10000133_go0', ...   % baseline: obs only, flat GO
-               '10000133_go3', ...   % obs only, fine GO
-               '13000313-02'};       % obs + M3fusion
+% for 1991-2004
+% all_methods = {'10000133_go0', ...   % baseline: obs only, flat GO
+%                '10000133_go3', ...   % obs only, fine GO
+%                '13000313-02'};       % obs + M3fusion
+
+% For 2005-2022,
+all_methods = {'10000133_go0' , ...
+'10000133_go3', ...
+'13000313-02', ...
+'13000313-04', ...   
+'13000313-06'}; % 5 deg.; for 2005 - 2022
+
+all_methods = {'10000133_go0', '10000133_go3', '13000313-02'};
 
 goScenario = 3;                       % default GO for methods without _goN
 
-allYears = 2016:2017;                 % year(s) to analyze (e.g. 2016:2018)
-boxSize  = 5.0;                       % checker-board box size (deg)
+allYears = 1991:2022;                 % year(s) to analyze (e.g. 2016:2018)
+boxSize  = 20.0;                       % checker-board box size (deg)
 metrics  = {'R2', 'RMSE'};            % {'R2','RMSE','MAE','NMB'}
 picture_dpi = 600;
 
 % OSDMA8-specific options
-refSource    = 'cbv_obs';             % observed OSDMA8 (truth) source
+refSource    = 'toar_osdma8';         % truth = official TOAR OSDMA8 CSVs
 testSource   = 'cbv_est';             % estimated OSDMA8 source (BME)
-completeness = 'strict';              % 'strict' | 'partial' | 'any'
+osdma8RefDir = fullfile('1data', 'TOAR-OSDMA8'); % official OSDMA8 CSV folder
+crossCheck   = true;                  % also report official vs obs-recompute (QA)
+completeness = 'partial';              % 'strict' | 'partial' | 'any'
 regenerate   = false;                 % if true, recompute OSDMA8 even if files exist
 
 baselineMethod = '10000133_go0';      % for summarizeOSDMA8forPaper
@@ -74,6 +86,7 @@ for i = 1:length(all_methods)
         cfg = struct('BMEmethod', code, 'goScenario', go, 'boxSizes', boxSize, ...
             'valYears', allYears, 'folds', [1 2], 'refSource', refSource, ...
             'testSource', testSource, 'completeness', completeness, ...
+            'osdma8RefDir', osdma8RefDir, 'crossCheck', crossCheck, ...
             'outDir', osdma8Dir, 'makePlots', false);
         try
             runOSDMA8validation(cfg);
