@@ -37,6 +37,7 @@ p = inputParser;
 addParameter(p, 'boxSize', 5.0, @isnumeric);
 addParameter(p, 'osdma8Dir', './7validation/OSDMA8', @ischar);
 addParameter(p, 'regions', {}, @iscell);
+addParameter(p, 'leakTag', '', @ischar);   % '' or '_lc<R>' to select leakage-controlled files
 parse(p, varargin{:});
 opts = p.Results;
 
@@ -62,10 +63,10 @@ fprintf('Years:    %d-%d | Box: %.1f deg | Metrics: %s\n\n', ...
 %% Load OSDMA8 case files for method and baseline
 fprintf('Loading method OSDMA8 files...\n');
 [methStats, methResults, methYears] = loadOSDMA8files( ...
-    bmeCode, bmeGO, opts.boxSize, yearRange, opts.osdma8Dir);
+    bmeCode, bmeGO, opts.boxSize, yearRange, opts.osdma8Dir, opts.leakTag);
 fprintf('Loading baseline OSDMA8 files...\n');
 [baseStats, baseResults, ~] = loadOSDMA8files( ...
-    baseCode, baseGO, opts.boxSize, yearRange, opts.osdma8Dir);
+    baseCode, baseGO, opts.boxSize, yearRange, opts.osdma8Dir, opts.leakTag);
 
 summary.years  = methYears;
 summary.nYears = length(methYears);
@@ -198,12 +199,13 @@ function [code, goScenario] = parseMethodAndGO(methodStr)
     goScenario = str2double(parts{1}{2});
 end
 
-function [allStats, allResults, yearsFound] = loadOSDMA8files(code, go, boxSize, yearRange, osdma8Dir)
+function [allStats, allResults, yearsFound] = loadOSDMA8files(code, go, boxSize, yearRange, osdma8Dir, leakTag)
+    if nargin < 6 || isempty(leakTag), leakTag = ''; end
     allStats = struct(); allResults = struct(); yearsFound = [];
     for yr = yearRange(1):yearRange(2)
         yearHasData = false;
         for iFold = 1:2
-            fname = sprintf('OSDMA8_BME%s_go%d_box%.1f_fold%d_%d.mat', code, go, boxSize, iFold, yr);
+            fname = sprintf('OSDMA8_BME%s_go%d_box%.1f_fold%d_%d%s.mat', code, go, boxSize, iFold, yr, leakTag);
             fpath = fullfile(osdma8Dir, fname);
             if ~exist(fpath, 'file'), continue; end
             try

@@ -51,13 +51,13 @@ valParam.logTransf = 0;  % 0=no, 1=yes (use 0 for regular concentrations)
 % ====================================================================
 
 % Years to validate (parallelism is across these)
-valParam.valYears = 2005:2022;  % e.g., 2017 or [2016 2017 2018]
+valParam.valYears = 2017:2020;  % e.g., 2017 or [2016 2017 2018]
 
 % Months to validate (within each year)
 valParam.valMonths = 1:12;  % All months, or specific: [6 7 8] for JJA
 
 % Checker box sizes to test (degrees)
-valParam.boxSizes = 20.0;  % e.g., [2.0, 3.0, 4.0, 5.0]
+valParam.boxSizes = 5.0;  % e.g., [2.0, 3.0, 4.0, 5.0]
 
 %% ====================================================================
 %                    GLOBAL OFFSET CONFIGURATION
@@ -81,7 +81,7 @@ valParam.forceCov = 0;  % 0=use cached, 1=force new estimation
 
 % 8-digit BME method code (see runCBV.m header for the digit legend).
 % Single method or cell array for multiple methods.
-valParam.BMEmethod = {'13000313-04'};
+valParam.BMEmethod = {'13000313-0E'};
 
 %% ====================================================================
 %                    EXECUTION CONTROL
@@ -89,6 +89,11 @@ valParam.BMEmethod = {'13000313-04'};
 
 valParam.forceEstimation = 0;  % 0=use cached monthly results, 1=recompute
 valParam.yearsOverhang   = 1;  % +/- year data window (keeps GO/Cov caches year-disjoint)
+
+% Soft-data leakage control (see runCBV.m). 0=OFF (legacy). When ON, all outputs
+% are tagged '_lc<R>' so they never collide with legacy results.
+valParam.leakControl = 0;          % 0=off, 1=on
+valParam.leakRadius  = struct('M3fusion', 2.0, 'OMIMLS', 0);  % deg; per-source (0=not masked)
 
 % Final (pooled) plotting is done ONCE after the parallel loop, never inside
 % workers. Set 0 to skip.

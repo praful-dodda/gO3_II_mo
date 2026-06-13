@@ -18,7 +18,7 @@ osdma8Dir = './7validation/OSDMA8';
 % all_methods = {'10000133_go0', ...   % baseline: obs only, flat GO
 %                '10000133_go3', ...   % obs only, fine GO
 %                '13000313-02'};       % obs + M3fusion
-
+clear;
 % For 2005-2022,
 all_methods = {'10000133_go0' , ...
 '10000133_go3', ...
@@ -26,11 +26,11 @@ all_methods = {'10000133_go0' , ...
 '13000313-04', ...   
 '13000313-06'}; % 5 deg.; for 2005 - 2022
 
-all_methods = {'10000133_go0', '10000133_go3', '13000313-02'};
+% all_methods = {'10000133_go0', '10000133_go3', '13000313-02'};
 
 goScenario = 3;                       % default GO for methods without _goN
 
-allYears = 1991:2022;                 % year(s) to analyze (e.g. 2016:2018)
+allYears = 2005:2022;                 % year(s) to analyze (e.g. 2016:2018)
 boxSize  = 20.0;                       % checker-board box size (deg)
 metrics  = {'R2', 'RMSE'};            % {'R2','RMSE','MAE','NMB'}
 picture_dpi = 600;
@@ -42,6 +42,11 @@ osdma8RefDir = fullfile('1data', 'TOAR-OSDMA8'); % official OSDMA8 CSV folder
 crossCheck   = true;                  % also report official vs obs-recompute (QA)
 completeness = 'partial';              % 'strict' | 'partial' | 'any'
 regenerate   = false;                 % if true, recompute OSDMA8 even if files exist
+
+% Soft-data leakage control (must match the CBV run being scored).
+leakControl  = 0;                     % 0=legacy CBV files, 1=leakage-controlled (_lc)
+leakRadius   = 2.0;                   % scalar deg or per-source struct (must match run)
+leakTag = getLeakTag(struct('leakControl', leakControl, 'leakRadius', leakRadius));
 
 baselineMethod = '10000133_go0';      % for summarizeOSDMA8forPaper
 %% ==================================================
@@ -73,8 +78,8 @@ for i = 1:length(all_methods)
     needRun = regenerate;
     if ~needRun
         for yr = allYears
-            f1 = fullfile(osdma8Dir, sprintf('OSDMA8_BME%s_go%d_box%.1f_fold1_%d.mat', code, go, boxSize, yr));
-            f2 = fullfile(osdma8Dir, sprintf('OSDMA8_BME%s_go%d_box%.1f_fold2_%d.mat', code, go, boxSize, yr));
+            f1 = fullfile(osdma8Dir, sprintf('OSDMA8_BME%s_go%d_box%.1f_fold1_%d%s.mat', code, go, boxSize, yr, leakTag));
+            f2 = fullfile(osdma8Dir, sprintf('OSDMA8_BME%s_go%d_box%.1f_fold2_%d%s.mat', code, go, boxSize, yr, leakTag));
             if ~exist(f1, 'file') && ~exist(f2, 'file')
                 needRun = true; break;
             end
@@ -87,6 +92,7 @@ for i = 1:length(all_methods)
             'valYears', allYears, 'folds', [1 2], 'refSource', refSource, ...
             'testSource', testSource, 'completeness', completeness, ...
             'osdma8RefDir', osdma8RefDir, 'crossCheck', crossCheck, ...
+            'leakControl', leakControl, 'leakRadius', leakRadius, ...
             'outDir', osdma8Dir, 'makePlots', false);
         try
             runOSDMA8validation(cfg);
@@ -102,10 +108,10 @@ end
 fprintf('\n=== Step 2: Phase 4 OSDMA8 time-series ===\n');
 configPatterns = cell(1, length(all_methods));
 for i = 1:length(all_methods)
-    configPatterns{i} = sprintf('OSDMA8_BME%s_go%d_box%.1f*.mat', methodCodes{i}, goScenarios(i), boxSize);
+    configPatterns{i} = sprintf('OSDMA8_BME%s_go%d_box%.1f*%s.mat', methodCodes{i}, goScenarios(i), boxSize, leakTag);
 end
 
-saveDir = fullfile(osdma8Dir, 'figs', sprintf('phase4_%d_%d', allYears(1), allYears(end)));
+saveDir = fullfile(osdma8Dir, 'figs', sprintf('phase4_box%g%s_%d_%d', boxSize, leakTag, allYears(1), allYears(end)));
 figPaths = plotOSDMA8results_Phase4( ...
     repmat({osdma8Dir}, 1, length(configPatterns)), configNames, ...
     'filePattern', configPatterns, ...
@@ -115,6 +121,7 @@ figPaths = plotOSDMA8results_Phase4( ...
     'metrics', metrics, ...
     'saveDir', saveDir, ...
     'dpi', picture_dpi, ...
+    'leakTag', leakTag, ...
     'visible', 'on', ...
     'saveTables', true);
 fprintf('Phase 4 figures -> %s\n', saveDir);
@@ -129,7 +136,7 @@ for i = 1:length(all_methods)
     try
         [summaries.(fld).summary, summaries.(fld).text] = summarizeOSDMA8forPaper( ...
             all_methods{i}, yearRange, baselineMethod, metrics, ...
-            'boxSize', boxSize, 'osdma8Dir', osdma8Dir);
+            'boxSize', boxSize, 'osdma8Dir', osdma8Dir, 'leakTag', leakTag);
     catch ME
         warning('Summary failed for %s: %s', all_methods{i}, ME.message);
     end

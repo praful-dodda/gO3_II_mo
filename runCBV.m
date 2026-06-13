@@ -43,13 +43,13 @@ valParam.logTransf = 0;  % 0=no, 1=yes (use 0 for regular concentrations)
 % ====================================================================
 
 % Years to validate
-valParam.valYears = 2005:2022;  % e.g., 2017 or [2016 2017 2018]
+valParam.valYears = 2017:2020;  % e.g., 2017 or [2016 2017 2018]
 
 % Months to validate (within each year)
 valParam.valMonths = 1:12;  % All months, or specific: [6 7 8] for JJA
 
 % Checker box sizes to test (degrees)
-valParam.boxSizes = 20.0;  % e.g., [2.0, 3.0, 4.0, 5.0]
+valParam.boxSizes = 5.0;  % e.g., [2.0, 3.0, 4.0, 5.0]
 
 %% ====================================================================
 %                    GLOBAL OFFSET CONFIGURATION
@@ -135,6 +135,12 @@ valParam.BMEmethod = {'13000313-06'};
 
 % Force re-estimation of monthly results (ignore cache)
 valParam.forceEstimation = 0;  % 0=use cached monthly results, 1=recompute
+
+% Soft-data leakage control: drop soft cells within a per-source radius of held-
+% out validation stations (removes CBV soft-data leakage). 0=OFF (legacy, default).
+% When ON, outputs are tagged '_lc<R>' so they never overwrite legacy results.
+valParam.leakControl = 0;          % 0=off, 1=on
+valParam.leakRadius  = struct('M3fusion', 2.0, 'OMIMLS', 0);  % deg; per-source (0=not masked)
 
 % Create plots after validation
 valParam.plotResults = 1;  % 0=no plots, 1=create plots

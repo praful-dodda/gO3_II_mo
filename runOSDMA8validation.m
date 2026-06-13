@@ -50,12 +50,18 @@ def = struct( ...
     'osdma8RefDir', fullfile('1data', 'TOAR-OSDMA8'), ... % official OSDMA8 CSVs
     'crossCheck',   true, ...          % also report toar_osdma8 vs cbv_obs (QA)
     'matchDecimals',4, ...             % coord-key precision (drop to 3 if pairs are few)
+    'leakControl',  0, ...             % match CBV soft-data leakage control (reads tagged CBV files)
+    'leakRadius',   2.0, ...           % scalar deg or per-source struct (only used for the tag here)
     'outDir',       fullfile('7validation', 'OSDMA8'), ...
     'makePlots',    true);
 cfg = local_fillDefaults(cfg, def);
 %% =====================================================================
 
 cOpts = struct('completeness', cfg.completeness, 'minMonths', cfg.minMonths);
+
+% Leakage-control filename tag ('' when off). Selects the matching CBV monthly
+% files and tags OSDMA8 outputs so lc / non-lc results never collide.
+leakTag = getLeakTag(cfg);
 if ~exist(cfg.outDir, 'dir'), mkdir(cfg.outDir); end
 
 % Accumulators across all (box, fold, year) for plotting & summary
@@ -120,8 +126,8 @@ for boxSize = cfg.boxSizes(:).'
             caseRes = struct('osRef', osRefK, 'osTest', osTestK, 'coords', cK, ...
                 'stats', stats, 'crossCheck', xc, 'boxSize', boxSize, ...
                 'fold', iFold, 'year', valYear, 'cfg', cfg);
-            caseName = sprintf('OSDMA8_BME%s_go%d_box%.1f_fold%d_%d.mat', ...
-                cfg.BMEmethod, cfg.goScenario, boxSize, iFold, valYear);
+            caseName = sprintf('OSDMA8_BME%s_go%d_box%.1f_fold%d_%d%s.mat', ...
+                cfg.BMEmethod, cfg.goScenario, boxSize, iFold, valYear, leakTag);
             save(fullfile(cfg.outDir, caseName), 'caseRes', '-v7.3');
 
             results.byCase{end+1} = caseRes;
@@ -149,7 +155,7 @@ end
 
 %% Summary table + CSV/MAT (parallels CBV_summary_*)
 osdma8Stats = local_statsTable(statsRows);
-summaryBase = sprintf('OSDMA8_summary_BME%s_go%d', cfg.BMEmethod, cfg.goScenario);
+summaryBase = sprintf('OSDMA8_summary_BME%s_go%d%s', cfg.BMEmethod, cfg.goScenario, leakTag);
 writetable(osdma8Stats, fullfile(cfg.outDir, [summaryBase '.csv']));
 save(fullfile(cfg.outDir, [summaryBase '.mat']), 'osdma8Stats', 'pooled', 'cfg', '-v7.3');
 fprintf('\nWrote %s.csv / .mat to %s\n', summaryBase, cfg.outDir);
@@ -183,8 +189,8 @@ spec = [repmat(valYear, 12, 1), (1:12).', (1:12).'; ...
 
 for i = 1:size(spec, 1)
     fy = spec(i,1); fm = spec(i,2); slot = spec(i,3);
-    fn = sprintf('CBV_BME%s_go%d_box%.1f_fold%d_%d_%02d.mat', ...
-        cfg.BMEmethod, cfg.goScenario, boxSize, iFold, fy, fm);
+    fn = sprintf('CBV_BME%s_go%d_box%.1f_fold%d_%d_%02d%s.mat', ...
+        cfg.BMEmethod, cfg.goScenario, boxSize, iFold, fy, fm, getLeakTag(cfg));
     fp = fullfile(cfg.monthlyDir, fn);
     if ~exist(fp, 'file'), continue; end
 

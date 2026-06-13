@@ -46,6 +46,7 @@ addParameter(p, 'filePattern', 'CBV_*.mat', @ischar);
 addParameter(p, 'years', [], @isnumeric);
 addParameter(p, 'analysisTypes', {'residuals', 'uncertainty', 'regional'}, @iscell);
 addParameter(p, 'aggregate', true, @islogical);
+addParameter(p, 'leakTag', '', @ischar);   % ''=legacy only, '_lc<R>'=leakage-controlled only
 
 parse(p, cbvResultsDir, varargin{:});
 opts = p.Results;
@@ -66,6 +67,7 @@ fprintf('Analysis types: %s\n', strjoin(opts.analysisTypes, ', '));
 
 %% Load all CBV result files
 resultFiles = dir(fullfile(cbvResultsDir, opts.filePattern));
+resultFiles = filterLeakFiles(resultFiles, opts.leakTag);
 if isempty(resultFiles)
     error('No CBV result files found matching pattern: %s', opts.filePattern);
 end
