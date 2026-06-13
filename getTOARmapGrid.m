@@ -1,4 +1,4 @@
-function ck = getTOARmapGrid(resolution, keepOnlyLand , includeAntarctica, gridOffset)
+function ck = getTOARmapGrid(resolution, keepOnlyLand , includeAntarctica, gridOffset, coastBuffer, popCoverFile)
 % getTOARmapGrid - Generates estimation grid on land for TOAR mapping
 %
 % Creates and caches a regular grid of estimation points covering land areas
@@ -14,31 +14,52 @@ function ck = getTOARmapGrid(resolution, keepOnlyLand , includeAntarctica, gridO
 %   includeAntarctica  - Include Antarctica in grid (true/false)
 %                        default: false
 %   gridOffset        - Optional [lonOffset, latOffset] to shift grid points (default: [0, 0])
+%   coastBuffer       - Optional buffer (deg) dilating the land mask outward, so a
+%                        grid point also counts as land if it lies within coastBuffer
+%                        of the coastline. Keeps coastal/island population cells covered.
+%                        default: 0 (no buffer; legacy behaviour). Typical: resolution/2.
+%   popCoverFile      - Optional path to a population CSV (with Longitude/Latitude
+%                        columns). When set, the nearest grid node to every population
+%                        cell is force-included, guaranteeing no populated landmass is
+%                        missed (within half a grid diagonal). default: '' (off).
 %
 % OUTPUT:
 %   ck - [nPoints x 2] matrix of estimation points [lon, lat]
 %
 % EXAMPLE:
-%   ck = getTOARmapGrid(0.5, true, false);  % 0.5° grid, no Antarctica
-%   ck = getTOARmapGrid(1.0, true, true);   % 1.0° grid, with Antarctica
+%   ck = getTOARmapGrid(0.5, true, false);          % 0.5° grid, no Antarctica
+%   ck = getTOARmapGrid(1.0, true, true);           % 1.0° grid, with Antarctica
+%   ck = getTOARmapGrid(1.0, true, false, [0 0], 0.5); % 1.0° grid, +0.5° coast buffer
+%   ck = getTOARmapGrid(1.0, true, false, [0 0], 0.5, 'Population-Data/PopulationData2019.csv');
 
 if nargin < 1, resolution = 1.0; end
 if nargin < 2, keepOnlyLand = true; end
 if nargin < 3, includeAntarctica = false; end
 if nargin < 4, gridOffset = [0, 0]; end
+if nargin < 5, coastBuffer = 0; end
+if nargin < 6, popCoverFile = ''; end
 
 % Setup directories
 dataDir = '1data';
 gridSubdir = fullfile(dataDir, 'grids');
 if ~exist(gridSubdir, 'dir'), mkdir(gridSubdir); end
 
-% Filename based on parameters (include offset in cache key when non-zero)
+% Filename based on parameters (append offset/buffer tags only when non-zero so
+% legacy cache names stay byte-identical)
+nameSuffix = '';
 if any(gridOffset ~= 0)
-    gridFile = sprintf('map_grid_res%.2f_onlyLand%d_antarctica%d_off%.3f_%.3f.mat', ...
-        resolution, keepOnlyLand, includeAntarctica, gridOffset(1), gridOffset(min(2,end)));
-else
-    gridFile = sprintf('map_grid_res%.2f_onlyLand%d_antarctica%d.mat', resolution, keepOnlyLand, includeAntarctica);
+    nameSuffix = [nameSuffix sprintf('_off%.3f_%.3f', gridOffset(1), gridOffset(min(2,end)))];
 end
+if coastBuffer > 0
+    nameSuffix = [nameSuffix sprintf('_buf%.2f', coastBuffer)];
+end
+if ~isempty(popCoverFile)
+    [~, popBase] = fileparts(popCoverFile);
+    popBase = regexprep(popBase, '[^a-zA-Z0-9]', '');  % sanitize for filename
+    nameSuffix = [nameSuffix sprintf('_pop%s', popBase)];
+end
+gridFile = sprintf('map_grid_res%.2f_onlyLand%d_antarctica%d%s.mat', ...
+    resolution, keepOnlyLand, includeAntarctica, nameSuffix);
 gridPath = fullfile(gridSubdir, gridFile);
 
 % Load from cache if exists
@@ -78,6 +99,20 @@ if keepOnlyLand
             coast = load(coastFile, 'coastlon', 'coastlat');
             on_land = inpolygon(grid_all(:, 1), grid_all(:, 2), ...
                 coast.coastlon, coast.coastlat);
+
+            % Dilate the land mask outward by coastBuffer: also keep grid points
+            % within coastBuffer degrees of the coastline (covers coastal/island
+            % population cells the bare inpolygon test drops).
+            if coastBuffer > 0
+                cv = [coast.coastlon(:), coast.coastlat(:)];
+                cv = cv(all(~isnan(cv), 2), :);
+                [~, dCoast] = knnsearch(cv, grid_all);
+                nAdded = sum(~on_land & dCoast <= coastBuffer);
+                on_land = on_land | (dCoast <= coastBuffer);
+                fprintf('    Coast buffer %.2f° added %d near-shore points\n', ...
+                    coastBuffer, nAdded);
+            end
+
             ck = grid_all(on_land, :);
 
             nPoints = size(grid_all, 1);
@@ -221,6 +256,36 @@ if keepOnlyLand
     end
 else
     ck = grid_all;
+end
+
+% Force-include the nearest grid node to every population cell so no populated
+% landmass is missed (snap-to-lattice). Runs regardless of which land source was
+% used; only meaningful when land filtering removed points.
+if keepOnlyLand && ~isempty(popCoverFile)
+    if exist(popCoverFile, 'file')
+        fprintf('  Ensuring population coverage from: %s\n', popCoverFile);
+        try
+            popOpts = detectImportOptions(popCoverFile);
+            wantPop = {'Longitude', 'Latitude'};
+            popOpts.SelectedVariableNames = wantPop(ismember(wantPop, popOpts.VariableNames));
+            popT = readtable(popCoverFile, popOpts);
+            popXY = [popT.Longitude, popT.Latitude];
+            popXY = popXY(all(~isnan(popXY), 2), :);
+
+            % Nearest lattice node (from the full post-Antarctica grid) per pop cell
+            nodeIdx = unique(knnsearch(grid_all, popXY));
+            addNodes = grid_all(nodeIdx, :);
+
+            before = size(ck, 1);
+            ck = unique([ck; addNodes], 'rows', 'stable');
+            fprintf('    Population coverage added %d grid nodes (%d -> %d)\n', ...
+                size(ck, 1) - before, before, size(ck, 1));
+        catch ME
+            warning('Population coverage step failed (%s); continuing without it.', ME.message);
+        end
+    else
+        warning('popCoverFile not found: %s (skipping population coverage).', popCoverFile);
+    end
 end
 
 % Save to cache

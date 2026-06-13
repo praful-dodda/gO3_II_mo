@@ -339,8 +339,8 @@ else
     sMS_filtered = obs.sMS(validStations, :);
     stationID_filtered = obs.stationID(validStations);
     
-    % Calculate space/time mean using stmeanDensified
-    [msRaw, mssd, mtRaw, mtsd, sMSd, tMEd] = stmeanDensified(...
+    % Calculate space/time mean using the NaN-safe kernel (consistent with getTOARglobalOffset)
+    [msRaw, mssd, mtRaw, mtsd, sMSd, tMEd] = stmeanDensified_withNaN(...
         Y_filtered, sMS_filtered, stationID_filtered, obs.tME, goParam, densParam, axMS);
     
     % Handle zero scenario

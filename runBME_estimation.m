@@ -31,14 +31,11 @@ analyzeParam.logTransf = 0;             % 0=no transform, 1=log transform
 analyzeParam.softDataDir = fullfile('d:\Users\praful\Documents\Data\ramp_data\');  % Parquet directory
 
 % Estimation years (actual years to estimate)
-estYears = [2018];
+estYears = 1990;
 estMonths = 1:12; % Months to estimate (or use [2 7 11] for specific months; 1:12 for all months)
 
 % Temporal padding for observations (years before/after for edge effects)
 temporalPadding = 1;  % Load obs for estYears ± this value
-
-% Observation time range (with padding)
-analyzeParam.timeRange = [estYears(1) - temporalPadding, estYears(end) + temporalPadding];
 
 %% BME METHOD CONFIGURATION
 
@@ -51,7 +48,8 @@ analyzeParam.timeRange = [estYears(1) - temporalPadding, estYears(end) + tempora
 % BMEmethods = {'13000313-01', '13000313-02', '13000313-10', '13000313-04', ...
 %     '13000313-20', '13000313-06', '13000313-08'};  % Cell array of methods to run
 % 
-BMEmethods = {'13000313-02', '13000313-06'};
+% BMEmethods = {'13000313-02', '13000313-06'};
+BMEmethods = {'13000313-02'};
 
 % BMEmethods = {'10000133'};
 
@@ -70,7 +68,7 @@ analyzeParam.dataFormat = 'stug';
 % 3: Smooth spatial offset (RECOMMENDED)
 % 4: Full space-time offset
 analyzeParam.goScenario = 3;
-analyzeParam.forceGO = 0;    % 0=use cached, 1=recompute
+analyzeParam.forceGO = 1;    % 0=use cached, 1=recompute
 analyzeParam.goPlot = 0;     % 0=no plots, 1=basic, 2=detailed
 
 %% COVARIANCE CONFIGURATION
@@ -79,7 +77,7 @@ analyzeParam.goPlot = 0;     % 0=no plots, 1=basic, 2=detailed
 % 'holecos': Damped oscillating (good for seasonal patterns)
 % 'exponential': Smooth decay
 analyzeParam.temporalModel = 'exponential';
-analyzeParam.forceCov = 0;   % 0=use cached, 1=recompute
+analyzeParam.forceCov = 1;   % 0=use cached, 1=recompute
 
 %% ESTIMATION CONFIGURATION
 
@@ -96,9 +94,11 @@ analyzeParam.mapResolution = 1;
 % Estimation grid options
 analyzeParam.keepOnlyLand = true;        % true=land only, false=include ocean
 analyzeParam.includeAntarctica = false;  % false=exclude Antarctica
+analyzeParam.coastBuffer = 0.5;          % dilate land mask outward by 1/2 cell (0=off, legacy)
+analyzeParam.popCoverFile = fullfile('Population-Data', 'PopulationData2019.csv'); % force grid coverage of all population ('' to disable)
 
 % Force re-estimation
-analyzeParam.forceEstimation = 0;  % 0=use cached, 1=rerun all
+analyzeParam.forceEstimation = 1;  % 0=use cached, 1=rerun all
 
 %% PLOTTING CONFIGURATION
 
@@ -148,8 +148,6 @@ fprintf('=======================================================================
 fprintf('                    BME DATA-FUSION ESTIMATION                         \n');
 fprintf('========================================================================\n');
 fprintf('BME Methods: %s\n', strjoin(BMEmethods, ', '));
-fprintf('Observation range: %d-%d (with ±%d year padding)\n', ...
-    analyzeParam.timeRange(1), analyzeParam.timeRange(2), temporalPadding);
 fprintf('Estimation years: %d-%d\n', ...
     estYears(1), estYears(end));
 fprintf('Area: %d, Resolution: %.2f deg, Land only: %d\n', ...
@@ -172,7 +170,11 @@ for iMethod = 1:length(BMEmethods)
         for m = estMonths
             analyzeParam.tkVec(end+1) = eachYear + (m-1)/12;
         end
-    
+
+        % Per-year observation window: this year's obs, GO, Cov, and BME use
+        % only ±temporalPadding years of data (e.g. 1990 -> 1989-1991).
+        analyzeParam.timeRange = [eachYear - temporalPadding, eachYear + temporalPadding];
+
         analyzeParam.BMEmethod = BMEmethods{iMethod};
 
         fprintf('\n');
@@ -446,8 +448,8 @@ fprintf('=======================================================================
 fprintf('BME Methods processed: %s\n', strjoin(BMEmethods, ', '));
 fprintf('Time periods estimated: %d\n', length(analyzeParam.tkVec));
 fprintf('Estimation years: %d-%d\n', estYears(1), estYears(end));
-fprintf('Observation range: %d-%d (±%d year padding)\n', ...
-    analyzeParam.timeRange(1), analyzeParam.timeRange(2), temporalPadding);
+fprintf('Observation range: %d-%d (±%d year window per estimation year)\n', ...
+    estYears(1) - temporalPadding, estYears(end) + temporalPadding, temporalPadding);
 fprintf('\nResults saved to:\n');
 fprintf('  - BME estimates: ./5BMEspatialPlots/\n');
 fprintf('  - Spatial plots: ./5BMEspatialPlots/figs/\n');

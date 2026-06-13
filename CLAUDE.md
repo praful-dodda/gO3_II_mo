@@ -85,6 +85,42 @@ are legacy — do not use for new code.
 - **Scenario 6**: Local S/T (~45°), 10-year scale for urban analysis
 - **Scenario 7**: Super-local (~10°), 2-year scale for high-resolution
 
+`getTOARglobalOffset` computes the separable space/time mean trend via the densified-grid
+smoother. The production callers (`getTOARglobalOffset.m`, `createTOARanalysisReport.m`) use
+**`stmeanDensified_withNaN.m`**, a NaN-safe variant that skips all-NaN sites/months in the
+exponential smoothing. The original `stmeanDensified.m` is kept pristine as a reference (do
+not edit it). For data with no entirely-empty site/month the two are bit-for-bit identical
+(verified by `test_stmeanDensified_nan_safety.m`).
+
+### Known data gaps
+
+- **1989 has no TOAR data file.** Any window reaching into 1989 (e.g. the 1990 per-year
+  estimation/CBV) produces all-NaN 1989 month columns. The NaN-safe GO kernel handles this;
+  the *original* kernel would poison the whole mean field → all-NaN residuals → pure-nugget
+  covariance. Before assuming a window is clean, confirm which `1data/TOAR-II-monthly-mda8-*.csv`
+  files actually exist.
+
+### Per-year observation window (runBME_estimation)
+
+`runBME_estimation.m` sets `analyzeParam.timeRange = [eachYear-1, eachYear+1]` **inside** the
+per-year loop, so each estimation year's obs, Global Offset, Covariance, and BME all use only
+that ±1-yr window (GO/Cov cached per year, e.g. `O3go_3_1989-1991.mat`). Soft data is likewise
+per-year (keyed off `tkVec`). After changing GO behavior, rerun once with `forceGO=1` to drop
+stale cached offsets.
+
+### Estimation grid coverage (getTOARmapGrid)
+
+`getTOARmapGrid(resolution, keepOnlyLand, includeAntarctica, gridOffset, coastBuffer, popCoverFile)`
+takes two coverage params (defaults off → legacy behavior, byte-identical cache names):
+- `coastBuffer` (deg): dilates the land mask outward by this much to keep near-shore cells.
+- `popCoverFile`: a population CSV (`Population-Data/PopulationData2019.csv`); every populated
+  cell's nearest lattice node is force-included so no inhabited landmass is dropped.
+
+`runBME_estimation.m` enables both by default (`coastBuffer=0.5`, the population CSV). Threaded
+through via `estParam.coastBuffer`/`estParam.popCoverFile`. Grids cache to
+`1data/grids/map_grid_*.mat` with all params in the filename. Verify with
+`test_population_grid_coverage.m`.
+
 ### Area Codes
 
 | Code | Region | Code | Region |
@@ -225,6 +261,13 @@ Phase 2/3 call the analysis helpers: `plotResidualAnalysis`, `plotUncertaintyAna
 ```matlab
 [status, report] = verifySoftDataFiles(BMEmethod, years);
 ```
+
+### "Residuals are empty or all NaN" → pure-nugget covariance (`Variance: 1.00`, `stmetric: NaN`)
+- The Global Offset came back all-NaN, usually because the obs window contains an entirely
+  empty month/site (e.g. a window reaching into **missing 1989** — see *Known data gaps*).
+- Production GO already uses the NaN-safe kernel `stmeanDensified_withNaN.m`; ensure
+  `getTOARglobalOffset.m` calls it (not the pristine `stmeanDensified.m`).
+- If a stale degenerate GO was cached before the fix, rerun once with `forceGO=1`.
 
 ## Documentation
 

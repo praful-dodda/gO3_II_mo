@@ -123,6 +123,8 @@ if ~isfield(analyzeParam, 'mapResolution'), analyzeParam.mapResolution = 1.0; en
 if ~isfield(analyzeParam, 'tkVec'), analyzeParam.tkVec = 2016:1/12:2017; end
 if ~isfield(analyzeParam, 'forceEstimation'), analyzeParam.forceEstimation = 0; end
 if ~isfield(analyzeParam, 'plotResults'), analyzeParam.plotResults = 2; end
+if ~isfield(analyzeParam, 'coastBuffer'), analyzeParam.coastBuffer = 0; end       % deg; 0=legacy land mask
+if ~isfield(analyzeParam, 'popCoverFile'), analyzeParam.popCoverFile = ''; end    % ''=no forced population coverage
 
 %% Print Configuration
 fprintf('\n');
