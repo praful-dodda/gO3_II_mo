@@ -116,6 +116,8 @@ valParam.BMEmethod = {'13000313-02', '13000313-04','13000313-06'}; % 2020 to 202
 % valParam.BMEmethod = {'13000313-20','13000313-21','13000313-22'};
 valParam.BMEmethod = {'13000313-01','13000313-02','13000313-10'};
 valParam.BMEmethod = {'13000313-06'};
+valParam.BMEmethod = {'13000313-0A', '13000313-0E'}; % for 1990
+valParam.BMEmethod = {'13000313-0E'}; 
 
 %% ====================================================================
 %                    SOFT DATA CONFIGURATION (if using CTM)
