@@ -34,6 +34,7 @@ addParameter(p, 'dpi', 300, @isnumeric);
 addParameter(p, 'visible', 'off', @(x) ismember(x, {'on', 'off'}));
 addParameter(p, 'filePattern', 'CBV_*.mat', @ischar);
 addParameter(p, 'years', [], @isnumeric);
+addParameter(p, 'leakTag', '', @ischar);   % ''=legacy only, '_lc<R>'=leakage-controlled only
 
 parse(p, cbvResultsDir, varargin{:});
 opts = p.Results;
@@ -53,6 +54,7 @@ fprintf('Save directory: %s\n', opts.saveDir);
 
 %% Load all CBV result files
 resultFiles = dir(fullfile(cbvResultsDir, opts.filePattern));
+resultFiles = filterLeakFiles(resultFiles, opts.leakTag);
 if isempty(resultFiles)
     error('No CBV result files found matching pattern: %s', opts.filePattern);
 end

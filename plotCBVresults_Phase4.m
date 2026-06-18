@@ -59,6 +59,7 @@ addParameter(p, 'saveDir', './figs_phase4', @ischar);
 addParameter(p, 'dpi', 300, @isnumeric);
 addParameter(p, 'visible', 'off', @(x) ismember(x, {'on', 'off'}));
 addParameter(p, 'filePattern', {'CBV_*.mat'}, @iscell);
+addParameter(p, 'leakTag', '', @ischar);   % ''=legacy only, '_lc<R>'=leakage-controlled only
 addParameter(p, 'saveTables', true, @islogical);
 addParameter(p, 'plotIndividualMetrics', false, @islogical);
 
@@ -104,6 +105,7 @@ for iConfig = 1:nConfigs
 
     % Load all CBV result files for this configuration
     resultFiles = dir(fullfile(configDirs{iConfig}, opts.filePattern{iConfig}));
+    resultFiles = filterLeakFiles(resultFiles, opts.leakTag);
 
     if isempty(resultFiles)
         warning('No result files found for config: %s (pattern: %s)', ...

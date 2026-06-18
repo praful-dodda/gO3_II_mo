@@ -319,8 +319,10 @@ runBME_estimation;  % Takes hours
 - `runBME_estimation.m` - Main spatial workflow script
 - `analyzeTOAR.m` - Orchestrator (calls estTOARsBME)
 - `estTOARsBME.m` - Grid-based BME estimation
+- `estTOARsBMEoptim.m` - Optimized drop-in for estTOARsBME (variance smoothing, grid offset, STUG neighbor search; helps with vertical-line artifacts)
 - `KrigingME_stug.m` - Kriging engine (grid format)
 - `plotBME_SpatialStats.m` - Spatial summary plots
+- `diagnoseBMEinputs.m`, `visualizeBMEdiagnostic.m` - Debug singular matrices / artifacts
 
 #### Temporal-Specific Functions
 - `runBME_temporal.m` - Main temporal workflow script

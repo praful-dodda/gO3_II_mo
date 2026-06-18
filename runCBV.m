@@ -43,7 +43,7 @@ valParam.logTransf = 0;  % 0=no, 1=yes (use 0 for regular concentrations)
 % ====================================================================
 
 % Years to validate
-valParam.valYears = 1991:2019;  % e.g., 2017 or [2016 2017 2018]
+valParam.valYears = 2017:2020;  % e.g., 2017 or [2016 2017 2018]
 
 % Months to validate (within each year)
 valParam.valMonths = 1:12;  % All months, or specific: [6 7 8] for JJA
@@ -115,7 +115,9 @@ valParam.BMEmethod = {'13000313-02', '13000313-04','13000313-06'}; % 2020 to 202
 % valParam.BMEmethod = {'10000133'};
 % valParam.BMEmethod = {'13000313-20','13000313-21','13000313-22'};
 valParam.BMEmethod = {'13000313-01','13000313-02','13000313-10'};
-valParam.BMEmethod = {'13000313-03'};
+valParam.BMEmethod = {'13000313-06'};
+valParam.BMEmethod = {'13000313-0A', '13000313-0E'}; % for 1990
+valParam.BMEmethod = {'13000313-0E'}; 
 
 %% ====================================================================
 %                    SOFT DATA CONFIGURATION (if using CTM)
@@ -135,6 +137,12 @@ valParam.BMEmethod = {'13000313-03'};
 
 % Force re-estimation of monthly results (ignore cache)
 valParam.forceEstimation = 0;  % 0=use cached monthly results, 1=recompute
+
+% Soft-data leakage control: drop soft cells within a per-source radius of held-
+% out validation stations (removes CBV soft-data leakage). 0=OFF (legacy, default).
+% When ON, outputs are tagged '_lc<R>' so they never overwrite legacy results.
+valParam.leakControl = 0;          % 0=off, 1=on
+valParam.leakRadius  = struct('M3fusion', 2.0, 'OMIMLS', 0);  % deg; per-source (0=not masked)
 
 % Create plots after validation
 valParam.plotResults = 1;  % 0=no plots, 1=create plots

@@ -140,8 +140,12 @@ fprintf('\nCreating estimation grid...\n');
 % Get area boundaries
 [axMS_est, ~] = getTOARareaBoundaries(areaCode);
 
-% Create spatial grid
-sk = getTOARmapGrid(mapResolution, estParam.keepOnlyLand, estParam.includeAntarctica);
+% Create spatial grid (coastBuffer dilates the land mask; popCoverFile guarantees
+% every populated cell has a nearby grid node - both default off / legacy behaviour)
+coastBuffer = 0;  if isfield(estParam, 'coastBuffer'),  coastBuffer  = estParam.coastBuffer;  end
+popCoverFile = ''; if isfield(estParam, 'popCoverFile'), popCoverFile = estParam.popCoverFile; end
+sk = getTOARmapGrid(mapResolution, estParam.keepOnlyLand, estParam.includeAntarctica, ...
+    [0 0], coastBuffer, popCoverFile);
 
 % Apply grid offset to avoid alignment artifacts with soft data grids
 gridOffset = estParam.gridOffset;

@@ -74,6 +74,13 @@ if ~isfield(valParam, 'goPlot'), valParam.goPlot = 0; end
 if ~isfield(valParam, 'forceGO'), valParam.forceGO = 0; end
 if ~isfield(valParam, 'forceCov'), valParam.forceCov = 0; end
 if ~isfield(valParam, 'yearsOverhang'), valParam.yearsOverhang = 1; end
+% Soft-data leakage control (default OFF -> identical filenames/behaviour as before)
+if ~isfield(valParam, 'leakControl'), valParam.leakControl = 0; end
+if ~isfield(valParam, 'leakRadius'), valParam.leakRadius = 2.0; end          % deg; scalar or per-source struct
+if ~isfield(valParam, 'leakRadiusDefault'), valParam.leakRadiusDefault = 2.0; end
+
+% Filename/dir tag (''=off). Propagated to all CBV output names, NOT figure titles.
+leakTag = getLeakTag(valParam);
 
 %% Print Configuration
 fprintf('\n========================================\n');
@@ -98,6 +105,11 @@ fprintf('  - Each validation year uses obs from ±%d year window only\n', valPar
 fprintf('  - GO and Cov computed per fold using training stations only\n');
 fprintf('  - GO scenario: %d\n', valParam.goScenario);
 fprintf('  - Temporal model: %s\n', valParam.temporalModel);
+if valParam.leakControl
+    fprintf('  - SOFT-DATA leak control: ON (tag "%s") - soft cells within radius of val stations are dropped per fold\n', leakTag);
+else
+    fprintf('  - SOFT-DATA leak control: OFF\n');
+end
 
 %% Get BME Parameters
 BMEparam = getBMEparam(valParam.BMEmethod);
@@ -278,10 +290,22 @@ for iYear = 1:nYears
 
             fprintf('    Fold-specific GO/Cov ready for validation.\n');
 
+            %% Soft-data leakage control (drop soft cells near held-out stations)
+            % The soft grid (e.g. M3fusion) was station-corrected within a radius
+            % of each cell, so cells near validation stations encode them. Mask
+            % them PER FOLD before building the knowledge base. Default OFF.
+            softData_fold = softData;
+            if valParam.leakControl && ~isempty(softData)
+                fprintf('\n  [leak-control] masking soft cells near %d validation stations...\n', ...
+                    sum(valMask));
+                softData_fold = maskSoftDataLeakage(softData, obs.sMS(valMask, :), ...
+                    valParam.leakRadius, valParam.leakRadiusDefault);
+            end
+
             %% Prepare Knowledge Base ONCE per fold (not per month)
             fprintf('\n  Preparing knowledge base for fold %d (once for all months)...\n', iFold);
             [KG_fold, KS_fold, ~] = getTOARknowledgeBase(trainObs, go_fold, cov_fold, ...
-                softData, BMEparam.BMEmethod8digits);
+                softData_fold, BMEparam.BMEmethod8digits);
 
             % Check sufficient training data
             if isempty(KS_fold.harddata.z) || length(KS_fold.harddata.z) < 10
@@ -308,7 +332,7 @@ for iYear = 1:nYears
                 vs_soft_stug = cell(size(KS_fold.softdata));
 
                 for ii = 1:length(KS_fold.softdata)
-                    soft_data_stug{ii} = reformat_stg_to_stug(KS_fold.softdata{ii}, 'modelName', softData{ii}.modelName, 'resolution', 0.5);
+                    soft_data_stug{ii} = reformat_stg_to_stug(KS_fold.softdata{ii}, 'modelName', softData_fold{ii}.modelName, 'resolution', 0.5);
                     p_soft_stug{ii} = soft_data_stug{ii}.p;
                     z_soft_stug{ii} = soft_data_stug{ii}.z;
                     vs_soft_stug{ii} = soft_data_stug{ii}.vs;
@@ -317,7 +341,7 @@ for iYear = 1:nYears
             elseif BMEprobaType == 2 && ~isempty(KS_fold.softdata.z)
                 % Single soft dataset
                 fprintf('  Reformatting soft data to STUG format (once per fold)...\n');
-                soft_data_stug = reformat_stg_to_stug(KS_fold.softdata, 'modelName', softData.modelName);
+                soft_data_stug = reformat_stg_to_stug(KS_fold.softdata, 'modelName', softData_fold.modelName);
                 p_soft_stug = soft_data_stug.p;
                 z_soft_stug = soft_data_stug.z;
                 vs_soft_stug = soft_data_stug.vs;
@@ -341,9 +365,9 @@ for iYear = 1:nYears
                     valYear, valMonth);
 
                 % Check for cached monthly results
-                monthFilename = sprintf('CBV_BME%s_go%d_box%.1f_fold%d_%d_%02d.mat', ...
+                monthFilename = sprintf('CBV_BME%s_go%d_box%.1f_fold%d_%d_%02d%s.mat', ...
                     valParam.BMEmethod, valParam.goScenario, boxSize, iFold, ...
-                    valYear, valMonth);
+                    valYear, valMonth, leakTag);
                 monthPath = fullfile(monthlyDir, monthFilename);
 
                 if exist(monthPath, 'file') && ~valParam.forceEstimation
@@ -408,8 +432,8 @@ for iYear = 1:nYears
                 fprintf('    NMB = %.1f%%\n', annualStats.NMB);
 
                 % Save annual results
-                annualFilename = sprintf('CBV_BME%s_go%d_box%.1f_fold%d_%d.mat', ...
-                    valParam.BMEmethod, valParam.goScenario, boxSize, iFold, valYear);
+                annualFilename = sprintf('CBV_BME%s_go%d_box%.1f_fold%d_%d%s.mat', ...
+                    valParam.BMEmethod, valParam.goScenario, boxSize, iFold, valYear, leakTag);
                 annualPath = fullfile(cbvDir, annualFilename);
                 save(annualPath, 'annualResults', 'annualStats', 'valParam', '-v7.3');
                 fprintf('  Saved annual: %s\n', annualFilename);
@@ -444,15 +468,15 @@ if ~isempty(statsData)
     disp(cbvStats(:, {'BoxSize', 'Fold', 'Year', 'N', 'R2', 'RMSE', 'MAE', 'NMB'}));
 
     % Save summary table
-    summaryFilename = sprintf('CBV_summary_BME%s_go%d.csv', ...
-        valParam.BMEmethod, valParam.goScenario);
+    summaryFilename = sprintf('CBV_summary_BME%s_go%d%s.csv', ...
+        valParam.BMEmethod, valParam.goScenario, leakTag);
     summaryPath = fullfile(cbvDir, summaryFilename);
     writetable(cbvStats, summaryPath);
     fprintf('\nSummary table saved: %s\n', summaryFilename);
 
     % Also save as .mat
-    summaryMatPath = fullfile(cbvDir, sprintf('CBV_summary_BME%s_go%d.mat', ...
-        valParam.BMEmethod, valParam.goScenario));
+    summaryMatPath = fullfile(cbvDir, sprintf('CBV_summary_BME%s_go%d%s.mat', ...
+        valParam.BMEmethod, valParam.goScenario, leakTag));
     save(summaryMatPath, 'cbvStats', 'valParam', '-v7.3');
 else
     cbvStats = table();

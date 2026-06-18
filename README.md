@@ -144,6 +144,14 @@ This framework implements a comprehensive spatiotemporal data fusion system that
 
 ## Quick Start
 
+> **Easiest path:** instead of calling the library functions by hand (below), use one of the
+> ready-made driver scripts — edit the CONFIGURATION block at the top of each, then run:
+> - `runBME_estimation.m` — spatial BME estimation on a grid → `5BMEspatialPlots/`
+> - `runBME_temporal.m` — fast temporal series at representative sites (no grid) → `6BMEtemporalSeries/`
+> - `runCBV.m` — checker-board validation → `7validation/CBV/`
+>
+> All three build on the `analyzeTOAR.m` orchestrator, which chains the manual steps shown below.
+
 ### Basic Workflow
 
 Here's a complete example for estimating ozone over Europe in 2016:
@@ -261,6 +269,22 @@ H (Probability Type):
 - `10000132`: Hard data only, nhmax=100, kriging (default)
 - `11000142`: Hard + soft, nhmax=100, nsmax=50, kriging (recommended with CTM)
 - `20000132`: BME probabilities, hard data only, nhmax=100
+
+### Extended Format (multi-CTM soft data)
+
+Append a hyphen + hex CTM bitmask to a base code to select specific soft-data sources:
+
+```
+BASECODE-XX[-YY...]
+  '13000313-02'    = base '13000313' + M3fusion
+  '13000313-02-10' = base + M3fusion + UKML
+```
+
+Common masks: `01`=MERRA2-GMI, `02`=M3fusion, `04`=OMI-MLS, `08`=IASI-GOME2, `40`=CrIS.
+
+Codes are decoded by **`parseBMEcode.m`** (canonical; `parseTOARBMEmethod.m` and
+`parseBMEmethod.m` are legacy). Build codes with `generateBMEcode.m`; expand a mask to a
+model list with `decodeCTMmodels.m`.
 
 ## Global Offset Scenarios
 

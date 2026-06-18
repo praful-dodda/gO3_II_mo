@@ -1,8 +1,8 @@
 # TOAR-II BME Documentation Index
 
-**Last Updated:** January 17, 2026
-**Repository:** `/home/user/gO3_II_mo`
-**Total Files:** 89 MATLAB files + documentation
+**Last Updated:** May 30, 2026
+**Repository:** `D:\Users\praful\proj\nasa\gO3_II_mo`
+**Total Files:** 132 MATLAB files (repo root) + documentation
 
 ---
 
@@ -18,7 +18,7 @@ This repository contains comprehensive documentation covering all aspects of the
 
 1. **Start here:** [`README.md`](#1-readmemd-main-documentation) - Main project documentation
 2. **For continuing sessions:** [`SESSION_CONTEXT_CBV_IMPLEMENTATION.md`](#2-session_context_cbv_implementationmd) - Latest session context
-3. **To find a specific file:** [`FILE_CATALOG.md`](#3-file_catalogmd-complete-file-inventory) - Complete file catalog (89 files)
+3. **To find a specific file:** [`FILE_CATALOG.md`](#3-file_catalogmd-complete-file-inventory) - File catalog (132 files; 89 detailed + addendum)
 
 ---
 
@@ -82,9 +82,9 @@ This repository contains comprehensive documentation covering all aspects of the
 ---
 
 ### 3. FILE_CATALOG.md (Complete File Inventory)
-**Location:** `/home/user/gO3_II_mo/FILE_CATALOG.md`
-**Size:** ~89 file descriptions
-**Purpose:** Comprehensive catalog of ALL 89 MATLAB files
+**Location:** `D:\Users\praful\proj\nasa\gO3_II_mo\FILE_CATALOG.md`
+**Size:** 89 detailed entries + May 2026 addendum (132 files total in repo root)
+**Purpose:** Comprehensive catalog of MATLAB files (89 detailed; addendum covers the rest)
 
 **Contents:**
 - **Organized by functional category:**
@@ -223,7 +223,7 @@ This repository contains comprehensive documentation covering all aspects of the
 3. Installation and setup (in README.md)
 
 ### Understanding the Code
-1. [`FILE_CATALOG.md`](#3-file_catalogmd-complete-file-inventory) - All 89 files documented
+1. [`FILE_CATALOG.md`](#3-file_catalogmd-complete-file-inventory) - 132 files (89 detailed + addendum)
 2. [`SESSION_CONTEXT_CBV_IMPLEMENTATION.md`](#2-session_context_cbv_implementationmd) - Recent implementations
 3. Cross-reference diagrams (in FILE_CATALOG.md)
 
@@ -312,7 +312,7 @@ TOAR-II BME Framework Documentation
 │   └── Quick reference
 │
 ├── FILE_CATALOG.md
-│   ├── All 89 MATLAB files
+│   ├── All 132 MATLAB files
 │   ├── Organized by category
 │   ├── Function signatures
 │   ├── Usage examples
@@ -443,7 +443,7 @@ TOAR-II BME Framework Documentation
 
 ## 💾 Repository Statistics
 
-- **Total MATLAB files:** 89
+- **Total MATLAB files:** 132 (repo root)
 - **Documentation files:** 8 (main) + several supporting
 - **Total lines of documentation:** ~3,000+
 - **Last major update:** January 17, 2026 (CBV implementation)
@@ -454,7 +454,7 @@ TOAR-II BME Framework Documentation
 ## ✅ Documentation Completeness Checklist
 
 - ✅ Main README with project overview
-- ✅ Complete file catalog (all 89 files)
+- ✅ File catalog (89 detailed entries + addendum for files added since Jan 2026)
 - ✅ Session context for latest work
 - ✅ Diagnostic visualization guide
 - ✅ Multi-dataset kriging guide

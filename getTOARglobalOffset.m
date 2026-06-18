@@ -135,7 +135,9 @@ else
     end
     
     % Calculate space/time mean and remove it from the data
-    [msRaw, mssd, mtRaw, mtsd, sMSd, tMEd] = stmeanDensified(...
+    % NaN-safe kernel: skips all-NaN sites/months so a fully-missing year (e.g. 1989)
+    % does not poison the smoothed mean. Identical to stmeanDensified for clean data.
+    [msRaw, mssd, mtRaw, mtsd, sMSd, tMEd] = stmeanDensified_withNaN(...
         obs.Y, obs.sMS, obs.idMS, obs.tME, goParam, densParam, axMS);
     
     % Handle zero scenario

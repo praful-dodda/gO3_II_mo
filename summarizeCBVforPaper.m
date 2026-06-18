@@ -23,6 +23,19 @@ function [summary, paperText] = summarizeCBVforPaper(bmeMethod, yearRange, baseM
 %   'regions'  - Cell array of regions to analyze (default: all found)
 %                Available: 'North America','Europe','East Asia','South Asia',
 %                           'South America','Africa','Australia','Other'
+%   'statMode' - How BOTH the overall and regional stats combine the years
+%                (default: 'averaged'):
+%                  'pooled'   - pool every year's (and both folds') raw obs/est
+%                               points into one set and compute a single
+%                               statistic (point-weighted; data-rich years
+%                               dominate).
+%                  'averaged' - compute the statistic separately for each year
+%                               and average those annual statistics across the
+%                               requested years (equal weight per year).
+%                This applies uniformly to summary.overall.* and
+%                summary.regional.*. The per-year values in summary.yearly are
+%                unchanged by the mode; only the central (.mean) value reflects
+%                it. (Legacy names 'aggregate'/'average' are no longer accepted.)
 %
 % OUTPUTS:
 %   summary   - Structure with:
@@ -68,8 +81,12 @@ p = inputParser;
 addParameter(p, 'boxSize', 5.0, @isnumeric);
 addParameter(p, 'cbvDir', './7validation/CBV', @ischar);
 addParameter(p, 'regions', {}, @iscell);
+addParameter(p, 'statMode', 'averaged', ...
+    @(x) any(strcmpi(x, {'pooled', 'averaged'})));
 parse(p, varargin{:});
 opts = p.Results;
+opts.statMode = lower(opts.statMode);
+summary_statMode = opts.statMode;  % stored on summary below
 
 %% Parse method codes
 [bmeCode, bmeGO] = parseMethodAndGO(bmeMethod);
@@ -86,6 +103,8 @@ summary.baseline.code       = baseCode;
 summary.baseline.goScenario = baseGO;
 summary.baseline.fullCode   = baseMethod;
 summary.baseline.name       = getBMEmethodName(baseCode, baseGO);
+
+summary.statMode = summary_statMode;
 
 fprintf('\n=== CBV Summary for Paper ===\n');
 fprintf('Method:   %s  (%s)\n', summary.method.name, bmeMethod);
@@ -116,54 +135,52 @@ if isempty(methYears)
     return;
 end
 
-%% Aggregate overall stats from pre-computed annualStats
-fprintf('Aggregating overall statistics...\n');
+%% Raw points pooled across years and folds (used by 'pooled' mode and regional)
+[methAllObs, methAllEst, methAllSk] = concatenateResults(methResults);
+[baseAllObs, baseAllEst, baseAllSk] = concatenateResults(baseResults);
+summary.N = sum(~isnan(methAllObs) & ~isnan(methAllEst));
+
+%% Overall stats (uniform with regional via statMode: 'pooled' or 'averaged')
+fprintf('Computing overall statistics (statMode = %s)...\n', opts.statMode);
 allYears = yearRange(1):yearRange(2);
 nAllYears = length(allYears);
-
 summary.yearly.years = allYears(:);
+
+% Single pooled stat over all points (only needed for 'pooled' mode)
+methPooledStats = struct();
+basePooledStats = struct();
+if strcmp(opts.statMode, 'pooled')
+    if numel(methAllObs) >= 2
+        methPooledStats = calculateValidationStats(methAllObs, methAllEst);
+    end
+    if numel(baseAllObs) >= 2
+        basePooledStats = calculateValidationStats(baseAllObs, baseAllEst);
+    end
+end
 
 for m = 1:length(metrics)
     metricName = metrics{m};
 
-    % Method: per-year values (average across folds)
+    % Per-year values (each year = mean across its folds); mode-independent.
     methYearly = NaN(nAllYears, 1);
     baseYearly = NaN(nAllYears, 1);
-
     for iY = 1:nAllYears
         yr = allYears(iY);
-
-        % Method
-        foldVals = [];
-        for iFold = 1:2
-            key = sprintf('y%d_f%d', yr, iFold);
-            if isfield(methStats, key) && isfield(methStats.(key), metricName)
-                foldVals(end+1) = methStats.(key).(metricName); %#ok<AGROW>
-            end
-        end
-        if ~isempty(foldVals)
-            methYearly(iY) = mean(foldVals);
-        end
-
-        % Baseline
-        foldVals = [];
-        for iFold = 1:2
-            key = sprintf('y%d_f%d', yr, iFold);
-            if isfield(baseStats, key) && isfield(baseStats.(key), metricName)
-                foldVals(end+1) = baseStats.(key).(metricName); %#ok<AGROW>
-            end
-        end
-        if ~isempty(foldVals)
-            baseYearly(iY) = mean(foldVals);
-        end
+        methYearly(iY) = local_yearFoldMean(methStats, yr, metricName);
+        baseYearly(iY) = local_yearFoldMean(baseStats, yr, metricName);
     end
+    summary.yearly.(metricName)               = methYearly;
+    summary.yearly.(['baseline_' metricName]) = baseYearly;
 
-    summary.yearly.(metricName)                = methYearly;
-    summary.yearly.(['baseline_' metricName])   = baseYearly;
-
-    % Aggregate across years
-    summary.overall.(metricName)         = aggregateMetric(methYearly);
-    summary.baselineOverall.(metricName) = aggregateMetric(baseYearly);
+    % Central value follows statMode; dispersion fields describe interannual spread.
+    mAgg = aggregateMetric(methYearly);
+    bAgg = aggregateMetric(baseYearly);
+    if strcmp(opts.statMode, 'pooled')
+        if isfield(methPooledStats, metricName), mAgg.mean = methPooledStats.(metricName); end
+        if isfield(basePooledStats, metricName), bAgg.mean = basePooledStats.(metricName); end
+    end
+    summary.overall.(metricName)         = mAgg;
+    summary.baselineOverall.(metricName) = bAgg;
 end
 
 %% Improvement computation
@@ -195,15 +212,8 @@ for m = 1:length(metrics)
     summary.improvement.(metricName).direction    = direction;
 end
 
-%% Regional analysis
+%% Regional analysis  (uses the same pooled raw arrays computed above)
 fprintf('Computing regional breakdown...\n');
-
-% Concatenate raw data across years and folds for method
-[methAllObs, methAllEst, methAllSk] = concatenateResults(methResults);
-[baseAllObs, baseAllEst, baseAllSk] = concatenateResults(baseResults);
-
-summary.N = sum(~isnan(methAllObs) & ~isnan(methAllEst));
-
 summary.regional = struct();
 
 if ~isempty(methAllSk)
@@ -231,14 +241,32 @@ if ~isempty(methAllSk)
         % Method regional stats
         mask = strcmp(methRegions, regName);
         if sum(mask) < 2, continue; end
-        regMethStats = calculateValidationStats( ...
-            methAllObs(mask), methAllEst(mask));
 
-        summary.regional.(fieldName).method = regMethStats;
-        summary.regional.(fieldName).N = sum(mask);
+        if strcmp(opts.statMode, 'averaged')
+            % Average the per-year regional statistics across years.
+            [regMethStats, nMeth] = regionalAveragedStats( ...
+                methResults, regName, metrics);
+            if nMeth < 2, continue; end
+            summary.regional.(fieldName).method = regMethStats;
+            summary.regional.(fieldName).N = nMeth;
+        else
+            % Pool every year's raw points, then compute one statistic.
+            regMethStats = calculateValidationStats( ...
+                methAllObs(mask), methAllEst(mask));
+            summary.regional.(fieldName).method = regMethStats;
+            summary.regional.(fieldName).N = sum(mask);
+        end
 
         % Baseline regional stats (match by region in baseline data)
-        if ~isempty(baseAllSk)
+        if strcmp(opts.statMode, 'averaged')
+            [regBaseStats, nBase] = regionalAveragedStats( ...
+                baseResults, regName, metrics);
+            if nBase >= 2
+                summary.regional.(fieldName).baseline = regBaseStats;
+            else
+                summary.regional.(fieldName).baseline = struct();
+            end
+        elseif ~isempty(baseAllSk)
             baseRegions = assignRegions(baseAllSk(:,1), baseAllSk(:,2));
             baseMask = strcmp(baseRegions, regName);
             if sum(baseMask) >= 2
@@ -360,6 +388,18 @@ function [allStats, allResults, yearsFound] = loadCBVannualFiles(bmeCode, goScen
     fprintf('  Found data for %d/%d years\n', length(yearsFound), length(allYears));
 end
 
+function v = local_yearFoldMean(statsStruct, yr, metricName)
+% Mean across the (up to 2) folds of one year's pre-computed annual metric.
+    foldVals = [];
+    for iFold = 1:2
+        key = sprintf('y%d_f%d', yr, iFold);
+        if isfield(statsStruct, key) && isfield(statsStruct.(key), metricName)
+            foldVals(end+1) = statsStruct.(key).(metricName); %#ok<AGROW>
+        end
+    end
+    if isempty(foldVals), v = NaN; else, v = mean(foldVals); end
+end
+
 function [allObs, allEst, allSk] = concatenateResults(resultsStruct)
 % Concatenate Y_obs, Y_est, sk from all results entries
     allObs = [];
@@ -377,6 +417,63 @@ function [allObs, allEst, allSk] = concatenateResults(resultsStruct)
             allObs = [allObs; r.Y_obs(:)]; %#ok<AGROW>
             allEst = [allEst; r.Y_est(:)]; %#ok<AGROW>
             allSk  = [allSk;  r.sk];       %#ok<AGROW>
+        end
+    end
+end
+
+function [stats, nTotal] = regionalAveragedStats(resultsStruct, regName, metrics)
+% Compute validation stats per year for one region, then average the requested
+% metrics across the years (equal weight per year). Returns a struct with one
+% field per requested metric (mean across years) and the total point count.
+    stats  = struct();
+    nTotal = 0;
+
+    if isempty(fieldnames(resultsStruct))
+        return;
+    end
+
+    % Group result keys (y<year>_f<fold>) by year
+    keys = fieldnames(resultsStruct);
+    yrs = [];
+    for i = 1:numel(keys)
+        tok = regexp(keys{i}, '^y(\d+)_f\d+$', 'tokens', 'once');
+        if ~isempty(tok), yrs(end+1) = str2double(tok{1}); end %#ok<AGROW>
+    end
+    yrs = unique(yrs);
+
+    % Accumulate each metric's annual value
+    acc = struct();
+    for m = 1:numel(metrics), acc.(metrics{m}) = []; end
+
+    for iy = 1:numel(yrs)
+        yr = yrs(iy);
+        o = []; e = [];
+        for f = 1:2
+            k = sprintf('y%d_f%d', yr, f);
+            if ~isfield(resultsStruct, k), continue; end
+            r = resultsStruct.(k);
+            if ~isfield(r, 'sk') || isempty(r.sk), continue; end
+            rg = assignRegions(r.sk(:,1), r.sk(:,2));
+            mask = strcmp(rg, regName);
+            o = [o; r.Y_obs(mask)]; %#ok<AGROW>
+            e = [e; r.Y_est(mask)]; %#ok<AGROW>
+        end
+        valid = ~isnan(o) & ~isnan(e);
+        if sum(valid) >= 2
+            st = calculateValidationStats(o(valid), e(valid));
+            for m = 1:numel(metrics)
+                if isfield(st, metrics{m})
+                    acc.(metrics{m})(end+1) = st.(metrics{m}); %#ok<AGROW>
+                end
+            end
+            nTotal = nTotal + sum(valid);
+        end
+    end
+
+    for m = 1:numel(metrics)
+        vals = acc.(metrics{m});
+        if ~isempty(vals)
+            stats.(metrics{m}) = mean(vals, 'omitnan');
         end
     end
 end
