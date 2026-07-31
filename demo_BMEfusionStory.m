@@ -48,7 +48,7 @@ end
 areaCode = BME_AREA_CODE;
 
 % CTM model and years
-CTM_MODEL = 'UKML';
+CTM_MODEL = 'M3fusion';
 YEARS     = [2016 2016];
 
 % Which year/month to plot (index into ctm.tME)
@@ -71,7 +71,7 @@ go  = getTOARglobalOffset(obs, GO_SCENARIO, 0);
 
 %% ---- 3. Load RAMP-corrected CTM ------------------------------------
 fprintf('\n=== Loading RAMP-corrected CTM (%s) ===\n', CTM_MODEL);
-ctm = loadRAMPdata(CTM_MODEL, YEARS);
+ctm = loadRAMPdata(CTM_MODEL, YEARS, 'D:\Users\praful\Documents\Data\ramp_data');
 
 %% ---- 4. Find matching BME result file --------------------------------
 fprintf('\n=== Locating BME result file ===\n');

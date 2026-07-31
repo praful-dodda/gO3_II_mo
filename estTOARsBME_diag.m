@@ -145,7 +145,9 @@ if iscell(KS.softdata)
         soft_data{ii} = reformat_stg_to_stug(KS.softdata{ii}, 'modelName', KS.softdata{ii}.modelName, 'resolution', 0.5);
         p_soft{ii} = KS.softdata{ii}.p;
         z_soft{ii} = KS.softdata{ii}.z;
-        vs_soft_base{ii} = KS.softdata{ii}.vs;  % Store base variance
+        % Full-cube (Zvar(:)) variance, index-aligned with the sub2ind index from
+        % neighbours_stug_optimized; KS.softdata{ii}.vs is compact (valid-only) and mis-indexes.
+        vs_soft_base{ii} = soft_data{ii}.vs;  % Store base variance
         fprintf('  Soft dataset %d: %d points\n', ii, length(z_soft{ii}));
     end
 elseif ~isempty(KS.softdata)

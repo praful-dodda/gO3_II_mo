@@ -62,14 +62,18 @@ Format: ABCDEFGH
 A: Estimation type (1=BME probabilities, 2=kriging)
 B: Soft data (0=hard only, 1=hard+soft, 3=hard+multi-CTM)
 C-E: Reserved (000)
-F: Hard neighbors (0-4 → 0/100/200/300/400)
-G: Soft neighbors (0-6 → 0/3/4/10/50/100/200)
+F: Soft neighbors  nsmax (0-6 → 0/3/4/10/50/100/200)
+G: Hard neighbors  nhmax (1-3 → 50/100/200)
 H: Probability type (2=kriging, 3=kriging multi-soft)
 
 Examples:
-  '10000132' - Hard data only, 100 neighbors, kriging
-  '13000313' - Hard + multi-CTM, 100 hard, kriging multi-soft
+  '10000132' - Hard data only, nhmax=200, kriging
+  '13000313' - Hard + multi-CTM, nsmax=10 soft / nhmax=50 hard, kriging multi-soft
 ```
+
+> Digit order is **nsmax then nhmax** — verified against `parseBMEcode.m:96-97` and the
+> switch blocks in `getBMEparam.m:41-57`. (An earlier version of this table had F/G
+> swapped and listed hard-neighbour values of 0/100/200/300/400, which do not exist.)
 
 **Extended format** `BASECODE-XX[-YY...]`: append a hyphen + hex CTM bitmask to pick
 specific soft-data sources (e.g. `'13000313-02'` = M3fusion, `'13000313-02-10'` = M3fusion + UKML).
@@ -142,6 +146,7 @@ through via `estParam.coastBuffer`/`estParam.popCoverFile`. Grids cache to
   └── CBV/        # Checker-board validation (figs_phase1/2/3, monthly/)
 hpc_cbv/          # HPC job scripts for CBV (has its own CLAUDE.md)
 hpc_validation/   # HPC scripts for LOOCV (has its own CLAUDE.md)
+f-RAMP-code/      # Python f-RAMP soft-data generation (has its own CLAUDE.md)
 ```
 
 > Large data/output folders are in the `.claude/settings.json` deny list. Don't try to
@@ -168,6 +173,57 @@ soft_data_stug = reformat_stg_to_stug(KS.softdata);
 ```matlab
 [status, report] = verifySoftDataFiles(BMEmethod, years);
 ```
+
+## Soft-data provenance (f-RAMP) — and why it matters for validation
+
+All soft data (`lambda1` = mean, `lambda2` = variance, in `1data/CTM/*.parquet`) is
+produced by the **Python f-RAMP implementation in `f-RAMP-code/`, run on the UNC
+Longleaf cluster via SLURM** — not by any MATLAB code in this repo. The MATLAB
+`getOverhangRAMPv6_updated.m` at the repo root is a **historical reference
+implementation** that did not generate the production files, and it is **not equivalent**
+to the Python version (different kNN unit, collocation, and time-window edge handling).
+See `f-RAMP-code/CLAUDE.md` before reasoning about soft data.
+
+MATLAB only *consumes* these files, via `loadRAMPdata.m` (parquet + the matching
+`{model}_spatial_grid.mat` for coordinates; row order must agree).
+
+**Every soft source goes through f-RAMP**, including the satellite products (OMI-MLS,
+IASI-GOME2, CrIS) — they are reformatted to the same wide `DMA8_1..12` layout by
+`f-RAMP-code/reformat_satellite_data.py` and RAMP-corrected identically.
+
+### The leakage consequence
+
+f-RAMP sets λ1 = `E[obs | model]` and λ2 = `Var[obs | model]` from a **k-nearest-neighbour
+fit against TOAR observations**. The soft data is therefore *not independent of the
+observations*, which matters for any station hold-out validation (CBV, LOOCV):
+
+- The dependency footprint is **adaptive kNN, never a fixed radius** — sub-degree in dense
+  networks, many degrees where stations are sparse.
+- It is **strong, not diluted**: the production `k=100` counts *station-months*, not
+  stations (long-format `collocated_df`), so a local ramp uses ~9 stations / ~25 pairs
+  across 10 decile bins — **2–3 observations per bin**.
+- `technique_{model}_{year}_v3-parallel.parquet` records the actual per-cell footprint
+  (`1`=local, `2–6`=escalated, `99`=global fallback). Cells marked `99` are contaminated
+  by every station that month and **cannot** be cleaned by a local mask.
+
+`maskSoftDataLeakage.m` + `getLeakTag.m` (`valParam.leakControl` / `.leakRadius` in
+`runCBV_toar.m`) implement a **fixed-radius** approximation of this. The default 2.0°
+comes from Chang et al. 2019's M3Fusion bias-correction range — a step that DeLang et al.
+2021 **removed**, and which in any case sits upstream of f-RAMP rather than describing it.
+Treat the fixed radius as a rough sensitivity knob for the *upstream M3fusion* channel,
+not as leakage control for f-RAMP.
+
+**The sources are not symmetric.** Leakage means dependence on TOAR-II, the hold-out set:
+- **Satellites are clean upstream** — their prior BME correction used IAGOS and other
+  non-TOAR-II data. Their only TOAR-II dependence is f-RAMP, so a per-fold f-RAMP refit
+  **fully cleans them**. `leakRadius.OMIMLS = 0` is right only *after* that refit.
+- **M3fusion is contaminated upstream** (composite built from TOAR-II), which a f-RAMP
+  refit does **not** remove.
+
+So after refitting f-RAMP, the **satellite increment** (`-02` → `-06`/`-0E`) is a
+leakage-free comparison; the **M3fusion increment** (obs-only → `-02`) remains
+optimistically biased. Whether the 2° M3fusion mask is the right upstream control depends
+on which M3Fusion variant the input CSVs are — see `f-RAMP-code/CLAUDE.md`.
 
 ## Running Tests
 

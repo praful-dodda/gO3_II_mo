@@ -34,6 +34,7 @@ d.methodConfig = struct('goScenario', 3, 'logTransf', 0, 'areaCode', 0, ...
     'mapResolution', 1.0, 'dataFormat', 'stug', 'keepOnlyLand', 1);
 d.yearRange       = [1990 2004];
 d.fallbackMethod  = '13000313-02';      % used for years without a best entry
+d.bestMethodCsv   = '';                 % user year->method CSV; overrides auto step A
 d.srcDir          = '5BMEspatialPlots';
 d.cbvDir          = fullfile('7validation', 'CBV');
 d.popCsv          = fullfile('Population-Data', 'PopulationData2019.csv');
@@ -62,10 +63,18 @@ fprintf('\n=== TOAR-II ozone post-processing (%d-%d) ===\n', ...
 
 %% ---- Analysis A: best method per year ----------------------------------
 bestT = table();
-if cfg.run.A
+if ~isempty(cfg.bestMethodCsv)
+    fprintf('\n[A] Year->method from CSV: %s\n', cfg.bestMethodCsv);
+    bestT = loadBestMethodCsv(cfg.bestMethodCsv, cfg.yearRange);
+    cfg.run.A = false;                  % custom table wins over auto step A
+elseif cfg.run.A
     fprintf('\n[A] Best method per year...\n');
     bestT = bestMethodByYear(struct('cbvDir', cfg.cbvDir, 'outDir', csvDir, ...
         'save', true, 'verbose', true));
+end
+% provenance: persist whichever table drove the run
+if height(bestT) > 0
+    writetable(bestT, fullfile(csvDir, 'best_method_by_year.csv'));
 end
 
 %% ---- Load the per-method cubes needed, then compose D2 cube -------------

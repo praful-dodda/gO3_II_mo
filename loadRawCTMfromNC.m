@@ -62,15 +62,46 @@ try
     time_raw = double(ncread(nc_path, 'time'));
     tVal_req = year_plot + (month_plot - 1) / 12;
 
-    if max(time_raw) > 100000   % YYYYMM integer format (e.g. 201601)
-        times_dec = floor(time_raw/100) + (mod(time_raw,100) - 1)/12;
-    elseif max(time_raw) > 3000  % integer years * 12 or similar — treat as months since 1850
-        % months since epoch 1850-01: convert to decimal year
-        epoch_year  = 1850;
-        times_dec   = epoch_year + time_raw / 12;
-    else
-        % Assume already decimal years
-        times_dec = time_raw;
+    % Prefer the CF "units" attribute when present, e.g. "days since 1990-01-15".
+    % This is the authoritative source; the magnitude heuristics below are only a
+    % fallback for files that lack a parseable units attribute.
+    times_dec = [];
+    try
+        units = ncreadatt(nc_path, 'time', 'units');
+        tok = regexpi(units, '(\w+)\s+since\s+(\d{1,4})-(\d{1,2})-(\d{1,2})', 'tokens', 'once');
+        if ~isempty(tok)
+            unitName = lower(tok{1});
+            baseDn   = datenum(str2double(tok{2}), str2double(tok{3}), str2double(tok{4}));
+            switch unitName
+                case {'day','days','d'},        dn = baseDn + time_raw;
+                case {'hour','hours','h'},       dn = baseDn + time_raw/24;
+                case {'minute','minutes','min'}, dn = baseDn + time_raw/1440;
+                case {'second','seconds','sec','s'}, dn = baseDn + time_raw/86400;
+                case {'month','months'}
+                    dv0 = datevec(baseDn);
+                    mtot = (dv0(1)*12 + (dv0(2)-1)) + time_raw;
+                    times_dec = floor(mtot/12) + mod(mtot,12)/12;
+                otherwise, dn = [];
+            end
+            if isempty(times_dec) && exist('dn','var') && ~isempty(dn)
+                dv = datevec(dn);
+                times_dec = dv(:,1) + (dv(:,2)-1)/12;   % monthly decimal year
+            end
+        end
+    catch
+        % fall through to heuristics
+    end
+
+    if isempty(times_dec)
+        if max(time_raw) > 100000   % YYYYMM integer format (e.g. 201601)
+            times_dec = floor(time_raw/100) + (mod(time_raw,100) - 1)/12;
+        elseif max(time_raw) > 3000  % integer months since 1850
+            epoch_year  = 1850;
+            times_dec   = epoch_year + time_raw / 12;
+        else
+            % Assume already decimal years
+            times_dec = time_raw;
+        end
     end
 
     [~, iT] = min(abs(times_dec - tVal_req));

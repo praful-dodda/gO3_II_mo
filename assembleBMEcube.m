@@ -19,6 +19,12 @@ function cube = assembleBMEcube(method, opts)
 %       .srcDir        (default '5BMEspatialPlots')
 %       .outDir        (default fullfile('8postprocess','cubes'))
 %       .yearRange     (default [] = all years found)  e.g. [1990 2022]
+%       .years         (default [] = no restriction) explicit LIST of integer
+%                      years to keep (e.g. [2005:2016 2021]); applied on top of
+%                      yearRange. Use this to pull only the years a method is
+%                      actually selected for, so stray files from other eras (on a
+%                      possibly different lattice) do not poison the common-grid
+%                      intersection. The cache name encodes this selection.
 %       .forceReload   (default 0)   1 = rebuild even if cache exists
 %       .saveCache     (default 1)   0 = do not write the cache .mat
 %       .verbose       (default 1)
@@ -59,6 +65,13 @@ fileBase = sprintf('BME%s_go%d_lt%d_area%d_res%.2f_%s_land%d', ...
     opts.mapResolution, opts.dataFormat, opts.keepOnlyLand);
 
 cacheName = sprintf('cube_%s.mat', regexprep(fileBase, '[^a-zA-Z0-9]', '_'));
+if ~isempty(opts.years)
+    ys = unique(floor(opts.years(:).'));
+    % Encode the year selection so a restricted cube never collides with the
+    % all-years cube (or a different selection) under the same fileBase.
+    cacheName = sprintf('cube_%s_y%d_%d_n%d.mat', ...
+        regexprep(fileBase, '[^a-zA-Z0-9]', '_'), min(ys), max(ys), numel(ys));
+end
 cachePath = fullfile(opts.outDir, cacheName);
 
 if exist(cachePath, 'file') && ~opts.forceReload
@@ -109,6 +122,14 @@ files = files(order);
 if ~isempty(opts.yearRange)
     yrs = floor(tkSorted + 1e-6);
     keep = yrs >= opts.yearRange(1) & yrs <= opts.yearRange(2);
+    files = files(keep); tkSorted = tkSorted(keep);
+    keyCell = keyCell(keep); yCell = yCell(keep); vCell = vCell(keep);
+end
+
+% Explicit year-list filter (keeps only the months a method is selected for)
+if ~isempty(opts.years)
+    yrs = floor(tkSorted + 1e-6);
+    keep = ismember(yrs, unique(floor(opts.years(:).')));
     files = files(keep); tkSorted = tkSorted(keep);
     keyCell = keyCell(keep); yCell = yCell(keep); vCell = vCell(keep);
 end
@@ -207,12 +228,13 @@ function opts = local_defaults(opts)
 d = struct('goScenario', 3, 'logTransf', 0, 'areaCode', 0, ...
     'mapResolution', 1.0, 'dataFormat', 'stug', 'keepOnlyLand', 1, ...
     'srcDir', '5BMEspatialPlots', 'outDir', fullfile('8postprocess', 'cubes'), ...
-    'yearRange', [], 'forceReload', 0, 'saveCache', 1, 'verbose', 1, ...
+    'yearRange', [], 'years', [], 'forceReload', 0, 'saveCache', 1, 'verbose', 1, ...
     'gridMode', 'intersect', 'gridTolDeg', 1e-4);
 f = fieldnames(d);
 for i = 1:numel(f)
     if ~isfield(opts, f{i}) || isempty(opts.(f{i}))
-        if ~(strcmp(f{i}, 'yearRange'))   % yearRange may legitimately be []
+        % yearRange/years may legitimately be [] (means "no restriction")
+        if ~any(strcmp(f{i}, {'yearRange', 'years'}))
             opts.(f{i}) = d.(f{i});
         elseif ~isfield(opts, f{i})
             opts.(f{i}) = d.(f{i});
@@ -271,6 +293,12 @@ assert(~any(isnan(cube.ozone(:))), 'no NaNs in synthetic cube');
 cube2 = assembleBMEcube(method, struct('srcDir', tmp, 'outDir', tmp, ...
     'saveCache', 0, 'verbose', 0, 'yearRange', [1991 1991]));
 assert(cube2.nMonths == 12 && all(cube2.year == 1991), 'year range filter');
+
+% explicit non-contiguous year-list filter (skip the middle year)
+cube2b = assembleBMEcube(method, struct('srcDir', tmp, 'outDir', tmp, ...
+    'saveCache', 0, 'verbose', 0, 'years', [1990 1992]));
+assert(cube2b.nMonths == 24 && all(ismember(cube2b.year, [1990 1992])) && ...
+    ~any(cube2b.year == 1991), 'explicit year-list filter');
 
 % Heterogeneous grids: each month carries the common 4-cell lattice PLUS a
 % different appended "station" point (mimics estTOARsBMEoptim's [sk; obs.sMS]).

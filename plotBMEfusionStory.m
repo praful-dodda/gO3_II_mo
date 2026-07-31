@@ -208,8 +208,11 @@ climUnc = prctile(allUnc, storyParam.climUncPct);
 % Difference color limits (symmetric)
 diff_mean = bme_mean_r - interp_to_grid(ctm_lon_r, ctm_lat_r, ctm_mean_r, ...
                                          bme_lon_r, bme_lat_r);
-diff_std  = ctm_std_r  - interp_to_grid(ctm_lon_r, ctm_lat_r, ctm_std_r, ...
-                                         bme_lon_r, bme_lat_r);
+% Uncertainty reduction (CTM - BME), evaluated on the BME grid like diff_mean.
+% (ctm_std_r lives on the CTM grid; interpolate it onto the BME grid first so
+% the subtraction is element-wise compatible with bme_std_r.)
+diff_std  = interp_to_grid(ctm_lon_r, ctm_lat_r, ctm_std_r, ...
+                           bme_lon_r, bme_lat_r) - bme_std_r;
 climDiff    = max(abs(prctile(diff_mean(~isnan(diff_mean)), [3 97]))) * [-1 1];
 climDiffUnc = max(abs(prctile(diff_std (~isnan(diff_std )), [3 97]))) * [-1 1];
 if diff(climDiff)    == 0, climDiff    = [-1 1]; end

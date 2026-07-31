@@ -315,19 +315,36 @@ function local_writeWorkbook(xlsx, T, useExcel)
             r   = T.rankR2{i, bcol};
             rm  = T.rankRMSE{i, bcol};
             D{i, 1} = T.eras{i, 1};
+
+            % Gather the (<=3) best ranked methods + ObsFlat, then pick the
+            % fewest decimals that keep the ranked methods visually distinct
+            % so the user can see how the top three actually separate.
+            r2vals = nan(4, 1); rmvals = nan(4, 1); names = cell(4, 1);
             for s = 1:3                         % best / second / next
-                cc = 2 + (s - 1) * 3;
                 if numel(ord) >= s
-                    D{i, cc}     = local_name(T.pool{ord(s), 1});
-                    D{i, cc + 1} = local_r(r(ord(s)),  3);
-                    D{i, cc + 2} = local_r(rm(ord(s)), 2);
+                    names{s}  = local_name(T.pool{ord(s), 1});
+                    r2vals(s) = r(ord(s));
+                    rmvals(s) = rm(ord(s));
                 else
-                    D{i, cc} = 'NAN'; D{i, cc + 1} = NaN; D{i, cc + 2} = NaN;
+                    names{s} = 'NAN';            % r2vals/rmvals stay NaN
                 end
             end
-            D{i, 11} = local_name(T.pool{1, 1});   % ObsFlat = pool row 1 (10000133go0)
-            D{i, 12} = local_r(r(1),  3);
-            D{i, 13} = local_r(rm(1), 2);
+            names{4}  = local_name(T.pool{1, 1});   % ObsFlat = pool row 1
+            r2vals(4) = r(1);
+            rmvals(4) = rm(1);
+
+            r2str = local_fmtDistinct(r2vals, 3, 6);   % R2: >=3 dp, up to 6
+            rmstr = local_fmtDistinct(rmvals, 2, 5);   % RMSE: >=2 dp, up to 5
+
+            for s = 1:3
+                cc = 2 + (s - 1) * 3;
+                D{i, cc}     = names{s};
+                D{i, cc + 1} = r2str{s};
+                D{i, cc + 2} = rmstr{s};
+            end
+            D{i, 11} = names{4};
+            D{i, 12} = r2str{4};
+            D{i, 13} = rmstr{4};
         end
         D = local_nanstr(D);
         wr(hdr2, rk{q, 1}, 'A2:M2');                       % rank headers
@@ -346,6 +363,27 @@ end
 function y = local_r(x, n)
 % Round, NaN-safe (round() already passes NaN through).
     y = round(x, n);
+end
+
+function s = local_fmtDistinct(vals, minD, maxD)
+% Format the values as strings using the FEWEST decimals in [minD,maxD] that
+% keep all non-NaN entries distinct, so closely-ranked methods stay visually
+% separable in the workbook. NaN -> 'NAN'. Strings (not numbers) are returned
+% so the displayed precision survives the cell's number format.
+    v    = vals(:);
+    good = v(~isnan(v));
+    nd   = maxD;
+    for d = minD:maxD
+        if numel(unique(round(good, d))) == numel(good)
+            nd = d; break;          % enough decimals to separate them
+        end
+    end
+    s = cell(size(v));
+    for i = 1:numel(v)
+        if isnan(v(i)), s{i} = 'NAN';
+        else,           s{i} = sprintf('%.*f', nd, v(i));
+        end
+    end
 end
 
 function C = local_numcell(M)

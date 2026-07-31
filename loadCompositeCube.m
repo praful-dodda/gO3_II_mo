@@ -33,9 +33,22 @@ cubes = containers.Map();
 for i = 1:numel(methodsNeeded)
     mth = char(methodsNeeded(i));
     try
-        c = assembleBMEcube(mth, local_cubeOpts(cfg));
+        o = local_cubeOpts(cfg);
+        % Restrict each per-method cube to the years that method is actually
+        % selected for in the composite. Otherwise assembleBMEcube globs ALL of a
+        % method's files, and stray files from other eras (produced on a different
+        % lattice) collapse the common-grid intersection. See git history / the
+        % 2017-2018 -02 & -06 stray-lattice issue.
+        selYears = [];
+        if ~isempty(bestT) && height(bestT) > 0
+            selYears = bestT.Year(strcmp(string(bestT.BestMethod), string(mth)));
+            selYears = unique(selYears(:).');
+        end
+        if ~isempty(selYears), o.years = selYears; end
+        c = assembleBMEcube(mth, o);
         cubes(mth) = c;
-        fprintf('  loaded cube for method %s (%d months)\n', mth, c.nMonths);
+        fprintf('  loaded cube for method %s (%d months, %d cells)\n', ...
+            mth, c.nMonths, c.nGrid);
     catch ME
         warning('loadCompositeCube:cube', 'Skipping method %s: %s', mth, ME.message);
     end

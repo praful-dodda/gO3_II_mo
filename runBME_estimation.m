@@ -31,7 +31,7 @@ analyzeParam.logTransf = 0;             % 0=no transform, 1=log transform
 analyzeParam.softDataDir = fullfile('d:\Users\praful\Documents\Data\ramp_data\');  % Parquet directory
 
 % Estimation years (actual years to estimate)
-estYears = 2021:2022;
+estYears = 2022;
 estMonths = 1:12; % Months to estimate (or use [2 7 11] for specific months; 1:12 for all months)
 
 % Temporal padding for observations (years before/after for edge effects)
@@ -49,7 +49,7 @@ temporalPadding = 1;  % Load obs for estYears ± this value
 %     '13000313-20', '13000313-06', '13000313-08'};  % Cell array of methods to run
 % 
 % BMEmethods = {'13000313-02', '13000313-06'};
-BMEmethods = {'13000313-06'};
+BMEmethods = {'10000133'};
 
 % BMEmethods = {'10000133'};
 
@@ -98,7 +98,7 @@ analyzeParam.coastBuffer = 0.5;          % dilate land mask outward by 1/2 cell 
 analyzeParam.popCoverFile = fullfile('Population-Data', 'PopulationData2019.csv'); % force grid coverage of all population ('' to disable)
 
 % Force re-estimation
-analyzeParam.forceEstimation = 0;  % 0=use cached, 1=rerun all
+analyzeParam.forceEstimation = 1;  % 0=use cached, 1=rerun all
 
 %% PLOTTING CONFIGURATION
 
